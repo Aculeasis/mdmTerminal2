@@ -46,9 +46,10 @@ source env/bin/activate
 export TMPDIR=~/tmp
 pip install -r "$install_path"/Requirements/mdm-orangepizero-pip-requirements.txt
 
-git clone https://github.com/duxingkei33/orangepi_PC_gpio_pyH3
-cd orangepi_PC_gpio_pyH3
-python setup.py install
-cd ~/
+# git clone https://github.com/duxingkei33/orangepi_PC_gpio_pyH3
+# cd orangepi_PC_gpio_pyH3
+# python setup.py install
+# cd ~/
+
 rm -R ~/tmp
 echo "Установка завершена"
