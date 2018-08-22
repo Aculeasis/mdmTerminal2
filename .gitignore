@@ -1,0 +1,8 @@
+__pycache__
+.idea
+src/tts_cache
+env
+src/settings.ini
+src/test.py
+src/test.mp3
+src/resources/models/
