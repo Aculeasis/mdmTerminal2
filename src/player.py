@@ -145,16 +145,16 @@ class Player:
 
         file = self.tts(msg)[0] if not is_file else msg
         c_time = time.time()
-        activation_fix = False if c_time - self._last_activity < 4 else True
         self._last_activity = c_time + 3
         self.mpd.pause(True)
 
         time.sleep(0.01)
         if alarm:
             self._play(self._cfg.path['dong'])
-            if activation_fix:
-                self.log('activation fix', logger.DEBUG)
-                time.sleep(0.6)
+            try:
+                self._popen.wait(2)
+            except subprocess.TimeoutExpired:
+                pass
         self._play(file)
 
         if wait:
