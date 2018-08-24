@@ -17,6 +17,7 @@ LOG_LEVEL = {
     'warn'    : WARN,
     'error'   : ERROR,
     'critical': CRIT,
+    'crit'    : CRIT,
 }
 
 
