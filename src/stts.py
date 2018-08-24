@@ -221,8 +221,8 @@ class SpeechToText:
         # mic = sr.Microphone(device_index=self.get_mic_index())
 
         # self._play.quiet()
+        self._play.say(file_path, lvl, True, is_file=True)
         self._play.play(self._cfg.path['ding'], lvl)
-        self._play.play(file_path, lvl)
 
         start_time = time.time()
         while self._play.popen_work() and time.time() - start_time < 30 and self._work:
