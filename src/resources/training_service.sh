@@ -36,4 +36,4 @@ cat <<EOF >data.json
 }
 EOF
 
-curl -H "Content-Type: application/json" -X POST -d @data.json $ENDPOINT > $OUTFILE
+curl -H "Content-Type: application/json" -X POST -d @data.json $ENDPOINT -o $OUTFILE

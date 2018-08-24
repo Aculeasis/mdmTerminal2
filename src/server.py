@@ -234,14 +234,26 @@ class MDTServer:
         pmdl = os.path.join(self._cfg.path['models'], 'model' + param[1] + self._cfg.path['model_ext'])
         cmd = [self._cfg.path['training_service'], ]
         cmd.extend(models)
-        cmd.append(pmdl)
+        cmd.append('-')
         wtime = time.time()
         self.log('Компилирую {}'.format(pmdl), logger.INFO)
+        err = ''
         try:
             # TODO: Переделать на питоне
-            subprocess.run(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE, timeout=600)
+            run = subprocess.run(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE, stdout=subprocess.PIPE, timeout=600)
         except (subprocess.SubprocessError, subprocess.TimeoutExpired):
-            self.log('Ошибка компиляции модели: {}'.format(pmdl), logger.ERROR)
+            err = 'subprocess error'
+        else:
+            if len(run.stdout) < 512:  # any size
+                err = 'training error: {}'.format(run.stderr)
+            else:
+                try:
+                    with open(pmdl, 'wb') as f:
+                        f.write(run.stdout)
+                except (OSError, IOError) as e:
+                    err = str(e)
+        if err:
+            self.log('Ошибка компиляции модели {}: {}'.format(pmdl, err), logger.ERROR)
             self._play.say('Ошибка компиляции модели номер {}'.format(param[1]))
         else:
             ctime = utils.pretty_time(time.time() - wtime)
