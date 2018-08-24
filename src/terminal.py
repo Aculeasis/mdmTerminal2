@@ -36,12 +36,14 @@ class MDTerminal:
         self._api_time = 0
 
     def reload(self):
-        if self._snowboy is not None:
-            self.paused(True)
-        self._snowboy = snowboydecoder.HotwordDetector(
-            decoder_model=self._cfg.path['models_list'], sensitivity=[self._cfg['sensitivity']]
-        )
-        self._callbacks = [self._detected for _ in self._cfg.path['models_list']]
+        self.paused(True)
+        if len(self._cfg.path['models_list']):
+            self._snowboy = snowboydecoder.HotwordDetector(
+                decoder_model=self._cfg.path['models_list'], sensitivity=[self._cfg['sensitivity']]
+            )
+            self._callbacks = [self._detected for _ in self._cfg.path['models_list']]
+        else:
+            self._snowboy = None
         self.paused(False)
 
     def stop(self):
@@ -56,7 +58,7 @@ class MDTerminal:
         self._thread.start()
 
     def paused(self, paused: bool):
-        if self._paused == paused:
+        if self._paused == paused or self._snowboy is None:
             return
         self._paused = paused
         while self._is_paused != paused and self.work:
@@ -75,10 +77,13 @@ class MDTerminal:
             self._external_check()
 
     def _listen(self):
-        self._snowboy.start(detected_callback=self._callbacks,
-                            interrupt_check=self._interrupt_callback,
-                            sleep_time=0.03)
-        self._snowboy.terminate()
+        if self._snowboy is None:
+            time.sleep(0.5)
+        else:
+            self._snowboy.start(detected_callback=self._callbacks,
+                                interrupt_check=self._interrupt_callback,
+                                sleep_time=0.03)
+            self._snowboy.terminate()
 
     def _external_check(self):
         if self._api:
