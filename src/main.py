@@ -67,8 +67,9 @@ def main():
     return server.reload
 
 
-while main():
-    pass
+if __name__ == '__main__':
+    while main():
+        pass
 
 
 
