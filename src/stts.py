@@ -22,6 +22,7 @@ class TextToSpeech:
     PROVIDERS = {
         'google': 'ru',
         'yandex': 'ru-RU',
+        'rhvoice': '',
     }
 
     def __init__(self, cfg, log):
