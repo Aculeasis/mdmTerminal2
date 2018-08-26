@@ -2,6 +2,7 @@
 
 
 import queue
+import hashlib
 import time
 import threading
 import logger
@@ -26,6 +27,7 @@ class Player:
         self._work = False
         self._popen = None
         self._busy = False
+        self._uid = 0
         self._last_activity = time.time()
         self.tts = stts.TextToSpeech(cfg, logger_.add('TTS')).tts
 
@@ -59,7 +61,7 @@ class Player:
 
         self.log('stop.', logger.INFO)
 
-    def set_lvl(self, lvl: int=1):
+    def set_lvl(self, lvl, uid):
 
         if lvl > 1:
             self._lp_play.clear()
@@ -69,12 +71,13 @@ class Player:
                 while self.busy() and time.time() - start_time < self.MAX_BUSY_WAIT:
                     pass
         if lvl >= self.get_lvl():
-            self.set_busy(lvl)
+            self.set_busy(lvl, uid)
             return True
         return False
 
-    def set_busy(self, lvl):
+    def set_busy(self, lvl, uid):
         self._lvl = lvl
+        self._uid = uid
         self._busy = True
         self.quiet()
         self._busy = True
@@ -114,21 +117,23 @@ class Player:
             self._lp_play.play(file, wait)
             return
 
-        if not self.set_lvl(lvl):
+        uid = hashlib.sha256(str(time.time()).encode()).hexdigest()
+        if not self.set_lvl(lvl, uid):
             return
 
         self._last_activity = time.time() + 3
         self.mpd.pause(True)
 
         time.sleep(0.01)
+        if uid != self._uid:
+            return
         self._play(file)
 
+        self._last_activity = time.time() + wait
         if wait:
-            self._last_activity = time.time() + wait
             time.sleep(wait)
-
-        self._last_activity = time.time()
-
+        if uid != self._uid:
+            return
         self._busy = False
 
     def say(self, msg: str, lvl: int=2, alarm=None, wait=0, is_file: bool = False):
@@ -137,32 +142,38 @@ class Player:
             self._lp_play.say(msg, wait, is_file)
             return
 
-        if not self.set_lvl(lvl):
+        uid = hashlib.sha256(str(time.time()).encode()).hexdigest()
+        if not self.set_lvl(lvl, uid):
             return
 
         if alarm is None:
             alarm = self._cfg.get('alarmtts', 0)
 
         file = self.tts(msg)[0] if not is_file else msg
-        c_time = time.time()
-        self._last_activity = c_time + 3
+        if uid != self._uid:
+            return
+        self._last_activity = time.time() + 3
         self.mpd.pause(True)
 
         time.sleep(0.01)
         if alarm:
+            if uid != self._uid:
+                return
             self._play(self._cfg.path['dong'])
             try:
                 self._popen.wait(2)
             except subprocess.TimeoutExpired:
                 pass
+        if uid != self._uid:
+            return
         self._play(file)
 
+        self._last_activity = time.time() + wait
         if wait:
-            self._last_activity = time.time() + wait
             time.sleep(wait)
 
-        self._last_activity = time.time()
-
+        if uid != self._uid:
+            return
         self._busy = False
 
     def _play(self, path: str):
