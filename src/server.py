@@ -83,13 +83,16 @@ class MDTServer:
         self._socket.listen(1)
         while self.work:
             try:
-                conn, _ = self._socket.accept()
+                conn, ip_info = self._socket.accept()
                 conn.settimeout(5.0)
             except socket.timeout:
                 continue
-            self.log('New connection from {}'.format(_[0]))
+            allow = self._cfg.allow_connect(ip_info[0])
+            msg = '{} new connection from {}'.format('Allow' if allow else 'Ignore', ip_info[0])
+            self.log(msg, logger.DEBUG if allow else logger.WARN)
             try:
-                self._parse(self._socket_reader(conn))
+                if allow:
+                    self._parse(self._socket_reader(conn))
             finally:
                 conn.close()
         self._socket.close()

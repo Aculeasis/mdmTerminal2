@@ -61,6 +61,14 @@ class ConfigHandler(dict):
 
         self.tts_cache_check()
 
+    def allow_connect(self, ip: str) -> bool:
+        if not self['ip_server'] and self['first_love']:
+            self['ip_server'] = ip
+            self.config_save()
+        if self['last_love'] and ip != self['ip_server']:
+            return False
+        return True
+
     def _config_init(self, home: str):
         self.path['home'] = home
 
