@@ -22,35 +22,37 @@ CFG = {  # Дефолтные настройки
     # Если -1 определит сам.
     'mic_index'   : -1,
     'mpd': {
-        'control': 1,  # Будут работать play:, pause: а так же mpd будет ставится на паузу при активации. 1 или 0
+        # Будут работать play:, pause:. Также mpd будет ставиться на паузу при активации терминала. 1 или 0
+        'control': 1,
         'ip': '127.0.0.1',
         'port': 6600,
-        'wait': 13,  # Если автоматически поставили mpd на паузу, через сколько секунд снять
+        'wait': 13,  # Если автоматически поставили mpd на паузу, через сколько секунд снять.
     },
     'log': {
         'file_lvl' : 'debug',  # debug info warn error crit
         'print_lvl': 'debug',
-        'method': 3,  # 1 - file, 2 - print, 3 - both
+        'method': 3,  # 1 - file, 2 - console, 3 - both
         'file': '/var/log/mdmterminal.log',
     },
-    'yandex': {  # эмоция и спикер доступны только для tts яндекса
+    'yandex': {  # Эмоции есть только у tts яндекса.
         'emotion': 'good',  # good|neutral|evil
         'speaker': 'alyss',  # <jane|oksana|alyss|omazh|zahar|ermil>
         # 'apikeytts': 'key',
     },
     'rhvoice': {
+        # Адрес rhvoice-rest
         'server': 'http://127.0.0.1:8080',
         'speaker': 'anna',  # anna, aleksandr, elena, irina
     },
     'cache': {
-        # Приоритет при чтении из кэша. Если не указан - текущий провайдер, иначе вначале ищет указанного.
+        # Приоритет при поиске в кэше. Если не указан - только текущий провайдер.
+        # Если указан - вначале ищет указанного потом текущего.
         # * - вначале ищет текущего, потом любого.
         'tts_priority': 'yandex',
-        'tts_size': 100,  # Размер tts кэша в Мб.
+        'tts_size': 100,  # Размер кэша в Мб. Проверка при запуске.
     },
 }
 
-# home = os.path.abspath(os.path.dirname(__file__))
 home = os.path.abspath(sys.path[0])
 
 
