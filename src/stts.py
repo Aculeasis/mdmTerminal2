@@ -186,7 +186,6 @@ class SpeechToText:
         if not voice:
             while listener.work() and self._play.popen_work() and time.time() - start_wait < max_play_time and self._work:
                 # Ждем пока время не выйдет, голос не распознался и файл играет
-                # TODO: Прервать если распознавание запустилось
                 time.sleep(0.01)
         self._play.quiet()
 

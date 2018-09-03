@@ -13,14 +13,14 @@ import utils
 class ConfigHandler(dict):
     SETTINGS = 'Settings'
 
-    def __init__(self, cfg: dict, path: dict, home: str):
+    def __init__(self, cfg: dict, path: dict):
         super().__init__()
         self.update(cfg)
         self.path = path
         self._say = None  # Тут будет tts, потом
         self._log = print  # а тут логгер
         self._to_tts = []  # Пока tts нет храним принты тут.
-        self._config_init(home)
+        self._config_init()
 
     def configure(self, log):
         self._log = log
@@ -69,9 +69,7 @@ class ConfigHandler(dict):
             return False
         return True
 
-    def _config_init(self, home: str):
-        self.path['home'] = home
-
+    def _config_init(self):
         # ~/settings.ini
         self.path['settings'] = os.path.join(self.path['home'], 'settings.ini')
 

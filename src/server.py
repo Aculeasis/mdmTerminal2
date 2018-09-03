@@ -35,7 +35,7 @@ class MDTServer:
         }
         self._die_in = die_in
         self.reload = False
-        self._cfg = ConfigHandler(cfg=init_cfg, path={}, home=home)
+        self._cfg = ConfigHandler(cfg=init_cfg, path={'home': home})
 
         self._logger = logger.Logger(self._cfg['log'])
         self._cfg.configure(self._logger.add('CFG'))
