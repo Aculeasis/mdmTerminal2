@@ -32,3 +32,4 @@ mdmTerminal 2
 - MajorDoMo https://github.com/sergejey/majordomo
 - Snowboy https://github.com/Kitt-AI/snowboy
 - rhvoice-rest https://github.com/Aculeasis/rhvoice-rest
+- pocketsphinx-rest https://github.com/Aculeasis/pocketsphinx-rest

@@ -15,6 +15,7 @@ import logger
 import utils
 from lib import ya_tts
 from lib import rhvoice_rest
+from lib import pocketsphinx_rest as PSR
 import player
 
 
@@ -254,6 +255,12 @@ class SpeechToText:
                 command = recognizer.recognize_wit(audio, key=key)
             elif prov == 'microsoft':
                 command = recognizer.recognize_bing(audio, key=prov)
+            elif prov == 'pocketsphinx-rest':
+                ps = PSR.STT(
+                    audio_data=audio,
+                    url=self._cfg.get(prov, {}).get('server', 'http://127.0.0.1:8085')
+                )
+                command = ps.text()
             else:
                 self.log('Ошибка распознавания - неизвестный провайдер {}'.format(prov), logger.CRIT)
                 return ''
@@ -261,7 +268,7 @@ class SpeechToText:
             if deaf:
                 self._play.say(random.SystemRandom().choice(self.DEAF))
             return ''
-        except sr.RequestError as e:
+        except (sr.RequestError, RuntimeError) as e:
             self._play.say('Произошла ошибка распознавания')
             self.log('Произошла ошибка  {}'.format(e), logger.ERROR)
             return ''
