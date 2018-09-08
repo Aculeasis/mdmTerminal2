@@ -37,7 +37,7 @@ class MDTerminal:
 
     def reload(self):
         self.paused(True)
-        if len(self._cfg.path['models_list']):
+        if len(self._cfg.path['models_list']) and self._stt.max_mic_index != -2:
             self._snowboy = snowboydecoder.HotwordDetector(
                 decoder_model=self._cfg.path['models_list'], sensitivity=[self._cfg['sensitivity']]
             )

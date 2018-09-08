@@ -122,7 +122,11 @@ class SpeechToText:
         self._busy = False
         self._work = True
         self._play = play_
-        self._max_mic_index = len(sr.Microphone().list_microphone_names()) - 1
+        try:
+            self.max_mic_index = len(sr.Microphone().list_microphone_names()) - 1
+        except OSError as e:
+            self.log('Error get list microphones: {}'.format(e), logger.CRIT)
+            self.max_mic_index = -2
 
     def start(self):
         self._work = True
@@ -142,15 +146,19 @@ class SpeechToText:
             return ''
 
         self._busy = True
-        msg = self._listen(hello, deaf, voice)
+        if self.max_mic_index != -2:
+            msg = self._listen(hello, deaf, voice)
+        else:
+            self.log('Микрофоны не найдены', logger.ERROR)
+            msg = 'Микрофоны не найдены'
         self._busy = False
         return msg
 
     def get_mic_index(self):
         device_index = self._cfg.get('mic_index', -1)
-        if device_index > self._max_mic_index:
-            if self._max_mic_index >= 0:
-                mics = 'Доступны {}, от 0 до {}.'.format(self._max_mic_index + 1, self._max_mic_index)
+        if device_index > self.max_mic_index:
+            if self.max_mic_index >= 0:
+                mics = 'Доступны {}, от 0 до {}.'.format(self.max_mic_index + 1, self.max_mic_index)
             else:
                 mics = 'Микрофоны не найдены.'
             self.log('Не верный индекс микрофона {}. {}'.format(device_index, mics), logger.WARN)
@@ -215,6 +223,9 @@ class SpeechToText:
         return commands
 
     def voice_record(self, hello: str, save_to: str):
+        if self.max_mic_index == -2:
+            self.log('Микрофоны не найдены', logger.ERROR)
+            return 'Микрофоны не найдены'
         lvl = 5  # Включаем монопольный режим
 
         file_path, _ = self._play.tts(hello)
