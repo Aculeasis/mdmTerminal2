@@ -190,7 +190,7 @@ class MDTServer:
         save_to = os.path.join(self._cfg.path['tmp'], param[1] + param[2] + '.wav')
         self.log(hello, logger.INFO)
 
-        err = self._stt.voice_record(hello=hello, save_to=save_to)
+        err = self._stt.voice_record(hello=hello, save_to=save_to, convert_rate=16000, convert_width=2)
         if err is None:
             bye = 'Запись {} образца завершена. Вы можете прослушать свою запись.'.format(nums[param[2]])
             self._play.say(bye)

@@ -222,7 +222,7 @@ class SpeechToText:
             self.log('Распознано: {}'.format(commands), logger.INFO)
         return commands
 
-    def voice_record(self, hello: str, save_to: str):
+    def voice_record(self, hello: str, save_to: str, convert_rate=None, convert_width=None):
         if self.max_mic_index == -2:
             self.log('Микрофоны не найдены', logger.ERROR)
             return 'Микрофоны не найдены'
@@ -248,7 +248,7 @@ class SpeechToText:
 
         try:
             with open(save_to, "wb") as f:
-                f.write(adata.get_wav_data())
+                f.write(adata.get_wav_data(convert_rate, convert_width))
         except IOError as err:
             return str(err)
         else:
