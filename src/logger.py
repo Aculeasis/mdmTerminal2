@@ -2,6 +2,8 @@
 
 import logging
 import time
+import threading
+import queue
 from logging.handlers import RotatingFileHandler
 
 DEBUG = logging.DEBUG
@@ -20,36 +22,59 @@ LOG_LEVEL = {
     'crit'    : CRIT,
 }
 
+COLORS = {
+    DEBUG: 90,
+    INFO: 92,
+    WARN: 93,
+    ERROR: 91,
+    CRIT: 95,
+}
+COLOR_END = '\033[0m'
+NAME_COLOR = '1;36'
 
-class LogWrapper:
 
-    def __init__(self, name: str, bprint):
+def colored(msg, color):
+    return '\033[{}m{}{}'.format(color, msg, COLOR_END)
+
+
+def get_loglvl(str_lvl) -> int:
+    return LOG_LEVEL.get(str_lvl, 100500)
+
+
+class _LogWrapper:
+    def __init__(self, name: str, print_):
         self.name = name
-        self._print = bprint
+        self._print = print_
 
     def p(self, msg, lvl=DEBUG):
-        self._print('{}: {}'.format(self.name, msg), lvl)
+        self._print(self.name, msg, lvl)
 
 
-class Logger:
-    COLORS = {
-        logging.DEBUG:    90,
-        logging.INFO:     92,
-        logging.WARN:     93,
-        logging.ERROR:    91,
-        logging.CRITICAL: 95,
-    }
-    COLOR_END = '\033[0m'
-
+class Logger(threading.Thread):
     def __init__(self, cfg: dict):
-        self.file_lvl = self.get_loglvl(cfg.get('file_lvl', 'info'))
-        self.print_lvl = self.get_loglvl(cfg.get('print_lvl', 'info'))
+        super().__init__(name='Logger')
+        self.file_lvl = get_loglvl(cfg.get('file_lvl', 'info'))
+        self.print_lvl = get_loglvl(cfg.get('print_lvl', 'info'))
         self.file = cfg.get('file', '/var/log/mdmterminal.log')
         self.in_file = cfg.get('method', 3) in [1, 3] and self.file_lvl <= CRIT
         self.in_print = cfg.get('method', 3) in [2, 3] and self.print_lvl <= CRIT
-
+        self._queue = queue.Queue()
         self._app_log = None
         self._init()
+        self._print('Logger', 'start', INFO)
+        self.start()
+
+    def stop(self):
+        self._print('Logger', 'stop.', INFO)
+        self._queue.put_nowait(None)
+        self.join()
+
+    def run(self):
+        while True:
+            data = self._queue.get()
+            if data is None:
+                break
+            self._best_print(*data)
 
     def _init(self):
         if self.file and self.in_file:
@@ -66,24 +91,24 @@ class Logger:
             self._app_log.addHandler(my_handler)
 
     def add(self, name):
-        return LogWrapper(name, self.bprint).p
+        return _LogWrapper(name, self._print).p
+
+    def _print(self, name, msg, lvl):
+        self._queue.put_nowait((name, msg, lvl, time.time()))
+
+    def _best_print(self, name, msg, lvl, l_time):
+        if lvl not in COLORS:
+            raise RuntimeError('Incorrect log level:{}'.format(lvl))
+        if self.in_print and lvl >= self.print_lvl:
+            self._to_print(name, msg, lvl, l_time)
+        if self._app_log and lvl >= self.file_lvl:
+            self._to_file(name, msg, lvl)
+
+    def _to_file(self, name, msg, lvl):
+        self._app_log.log(lvl, '{}: {}'.format(name, msg))
 
     @staticmethod
-    def get_loglvl(str_lvl) -> int:
-        return LOG_LEVEL.get(str_lvl, 100500)
-
-    def bprint(self, msg, lvl):
-        if lvl not in self.COLORS:
-            raise ('Incorrect log level:{}'.format(lvl))
-        if self.in_print and lvl >= self.print_lvl:
-            self._to_print(msg, lvl)
-        if self._app_log and lvl >= self.file_lvl:
-            self._to_file(msg, lvl)
-
-    def _to_file(self, msg, lvl):
-        self._app_log.log(lvl, msg)
-
-    def _to_print(self, msg, lvl):
-        time_ = time.strftime('%Y.%m.%d %H:%M:%S', time.localtime())
-        print('{} \033[{}m{}{}'.format(time_, self.COLORS[lvl], msg, self.COLOR_END))
+    def _to_print(name, msg, lvl, l_time):
+        time_ = time.strftime('%Y.%m.%d %H:%M:%S', time.localtime(l_time))
+        print('{} {}: {}'.format(time_, colored(name, NAME_COLOR), colored(msg, COLORS[lvl])))
 

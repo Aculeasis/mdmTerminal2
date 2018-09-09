@@ -64,6 +64,7 @@ class MDTServer(threading.Thread):
         self._play.stop()
         self.join()
         self.log('stop.', logger.INFO)
+        self._logger.stop()
 
     def start(self):
         self.work = True
