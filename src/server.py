@@ -2,7 +2,6 @@
 
 import os
 import socket
-import subprocess
 import threading
 import time
 
@@ -12,6 +11,7 @@ import utils
 from config import ConfigHandler
 from terminal import MDTerminal
 import player
+import lib.snowboy_training as training_service
 
 
 class MDTServer:
@@ -202,27 +202,6 @@ class MDTServer:
 
         self._terminal.paused(False)
 
-        # self._play.quiet()
-        # self._play.say('Запись {} образца на 5 секунд начнется после звукового сигнала'.format(nums[param[2]]))
-        # self.log('Запись {} образца на 5 секунд начнется после звукового сигнала'.format(nums[param[2]]), logger.INFO)
-        # self._play.play(self._cfg.path['ding'])
-        # cmd = ['rec', '-q', os.path.join(self._cfg.path['tmp'], param[1] + param[2] + '.wav')]
-        # self.log(cmd)
-        # try:
-        #     subprocess.run(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE, timeout=5)
-        # except subprocess.TimeoutExpired:
-        #     # self._play.play(self._cfg.path['ding'])
-        #     self._play.say('Запись {} образца завершена. Вы можете прослушать свою запись.'.format(nums[param[2]]))
-        #     self.log('Запись {} образца завершена.'.format(nums[param[2]]), logger.INFO)
-        # else:
-        #     # self._play.play(self._cfg.path['ding'])
-        #     err = 'Ошибка записи образца {}. Возможно ваша аудиосистема не работает или настроена неправильно'.format(
-        #             nums[param[2]])
-        #     self.log(err, logger.ERROR)
-        #     self._play.say(err)
-        # finally:
-        #     self._terminal.paused(False)
-
     def _rec_compile(self, param: list):
         models = [os.path.join(self._cfg.path['tmp'], param[1] + x + '.wav') for x in ['1', '2', '3']]
         miss = False
@@ -235,33 +214,18 @@ class MDTServer:
         if miss:
             return
         pmdl = os.path.join(self._cfg.path['models'], 'model' + param[1] + self._cfg.path['model_ext'])
-        cmd = [self._cfg.path['training_service'], ]
-        cmd.extend(models)
-        cmd.append('-')
-        wtime = time.time()
         self.log('Компилирую {}'.format(pmdl), logger.INFO)
-        err = ''
+        work_time = time.time()
         try:
-            # TODO: Переделать на питоне
-            run = subprocess.run(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE, stdout=subprocess.PIPE, timeout=600)
-        except (subprocess.SubprocessError, subprocess.TimeoutExpired):
-            err = 'subprocess error'
-        else:
-            if len(run.stdout) < 512:  # any size
-                err = 'training error: {}'.format(run.stderr)
-            else:
-                try:
-                    with open(pmdl, 'wb') as f:
-                        f.write(run.stdout)
-                except (OSError, IOError) as e:
-                    err = str(e)
-        if err:
-            self.log('Ошибка компиляции модели {}: {}'.format(pmdl, err), logger.ERROR)
+            snowboy = training_service.Training(*models)
+        except RuntimeError as e:
+            self.log('Ошибка компиляции модели {}: {}'.format(pmdl, e), logger.ERROR)
             self._play.say('Ошибка компиляции модели номер {}'.format(param[1]))
         else:
-            ctime = utils.pretty_time(time.time() - wtime)
-            self.log('Модель скомпилирована успешно за {}: {}'.format(ctime, pmdl), logger.INFO)
-            self._play.say('Модель номер {} скомпилирована успешно за {}'.format(param[1], ctime))
+            work_time = utils.pretty_time(time.time() - work_time)
+            snowboy.save(pmdl)
+            self.log('Модель скомпилирована успешно за {}: {}'.format(work_time, pmdl), logger.INFO)
+            self._play.say('Модель номер {} скомпилирована успешно за {}'.format(param[1], work_time))
             self._cfg.models_load()
             self._terminal.reload()
             # Удаляем временные файлы
