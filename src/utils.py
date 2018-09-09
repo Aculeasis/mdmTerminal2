@@ -28,22 +28,22 @@ RHVOICE_SPEAKER = {
 }
 
 
-class SlowDead:
+class SlowDead(threading.Thread):
     def __init__(self, callback):
+        super().__init__(name='SlowDead')
         self._cb = callback
-        self._thread = threading.Thread(target=self._loop, name='SlowDead')
         self._death_time = 0
         self._work = True
-        self._thread.start()
+        self.start()
 
     def die_in(self, sec: int):
         self._death_time = int(time.time()) + sec
 
     def stop(self):
         self._work = False
-        self._thread.join()
+        self.join()
 
-    def _loop(self):
+    def run(self):
         while self._work:
             time.sleep(1)
             if self._death_time and time.time() > self._death_time and self._work:

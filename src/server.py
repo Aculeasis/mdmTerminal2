@@ -14,9 +14,9 @@ import player
 import lib.snowboy_training as training_service
 
 
-class MDTServer:
-
+class MDTServer(threading.Thread):
     def __init__(self, init_cfg: dict, home: str, die_in):
+        super().__init__(name='MDTServer')
         self.MDAPI = {
             'hi': self._api_voice,
             'voice': self._api_voice,
@@ -51,7 +51,6 @@ class MDTServer:
             die_in=die_in, log=self._logger.add('Terminal')
         )
         self._death_time = 0
-        self._thread = threading.Thread(target=self._loop, name='MDTServer')
         self.work = False
         self._socket = socket.socket()
 
@@ -63,7 +62,7 @@ class MDTServer:
         self._terminal.stop()
         self._stt.stop()
         self._play.stop()
-        self._thread.join()
+        self.join()
         self.log('stop.', logger.INFO)
 
     def start(self):
@@ -73,8 +72,8 @@ class MDTServer:
         self._stt.start()
         self._cfg.join_low_say(self._play.say)
         self._terminal.start()
+        super().start()
         self.log('start', logger.INFO)
-        self._thread.start()
 
     def _open_socket(self) -> bool:
         ip = ''
@@ -91,7 +90,7 @@ class MDTServer:
         self._socket.listen(1)
         return True
 
-    def _loop(self):
+    def run(self):
         if not self._open_socket():
             return
         while self.work:

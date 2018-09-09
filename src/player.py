@@ -189,26 +189,26 @@ class Player:
         self._popen = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
 
 
-class LowPrioritySay:
+class LowPrioritySay(threading.Thread):
     TIMEOUT = 300
 
     def __init__(self, is_busy, say, play, tts):
+        super().__init__(name='LowPrioritySay')
         self._play = play
         self._say = say
         self._tts = tts
         self._is_busy = is_busy
-        self._th = threading.Thread(target=self._loop, name='LowPrioritySay')
         self._work = False
         self._queue_in = queue.Queue()
         self._quiet = False
 
     def stop(self):
         self._work = False
-        self._th.join()
+        self.join()
 
     def start(self):
         self._work = True
-        self._th.start()
+        super().start()
 
     def clear(self):
         self._quiet = True
@@ -229,7 +229,7 @@ class LowPrioritySay:
         if self._work:
             self._queue_in.put_nowait([action, target, wait])
 
-    def _loop(self):
+    def run(self):
         while self._work:
             if self._queue_in.empty() or self._is_busy():
                 time.sleep(0.05)
@@ -261,14 +261,14 @@ def _auto_reconnect(func):
     return wrapper
 
 
-class MPDControl:
+class MPDControl(threading.Thread):
     def __init__(self, cfg: dict, last_play):
+        super().__init__(name='MPDControl')
         self.IP = cfg.get('ip', '127.0.0.1')
         self.PORT = cfg.get('port', 6600)
         self.RESUME_TIME = cfg.get('wait', 13)
 
         self._last_play = last_play
-        self._th = threading.Thread(target=self._loop, name='MPDControl')
         self._work = False
         self._mpd = mpd.MPDClient(use_unicode=True)
         self._resume = False
@@ -305,13 +305,13 @@ class MPDControl:
         if self._work:
             self._resume_check()
             self._work = False
-            self._th.join()
+            self.join()
 
     def start(self):
         msg = self.connect()
         if msg == '':
             self._work = True
-            self._th.start()
+            super().start()
         return msg
 
     def play(self, uri):
@@ -334,7 +334,7 @@ class MPDControl:
             self._resume = False
             self._mpd_pause(0)
 
-    def _loop(self):
+    def run(self):
         ping = 0
         while self._work:
             ping += 1

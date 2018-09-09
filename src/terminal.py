@@ -16,9 +16,9 @@ import player
 wikipedia.set_lang('ru')
 
 
-class MDTerminal:
-
+class MDTerminal(threading.Thread):
     def __init__(self, cfg, play_: player.Player, stt: stts.SpeechToText, die_in, log):
+        super().__init__(name='MDTerminal')
         self.log = log
         self._cfg = cfg
         self._play = play_
@@ -26,7 +26,6 @@ class MDTerminal:
         self.work = False
         self._paused = False
         self._is_paused = False
-        self._thread = threading.Thread(target=self._loop, name='MDTerminal')
         self._snowboy = None
         self._callbacks = []
         self.reload()
@@ -49,13 +48,13 @@ class MDTerminal:
     def stop(self):
         self.work = False
         self.log('stopping...', logger.DEBUG)
-        self._thread.join()
+        self.join()
         self.log('stop.', logger.INFO)
 
     def start(self):
         self.work = True
+        super().start()
         self.log('start', logger.INFO)
-        self._thread.start()
 
     def paused(self, paused: bool):
         if self._paused == paused or self._snowboy is None:
@@ -67,7 +66,7 @@ class MDTerminal:
     def _interrupt_callback(self):
         return not self.work or self._paused or self._api
 
-    def _loop(self):
+    def run(self):
         while self.work:
             self._is_paused = self._paused
             if self._paused:
