@@ -54,8 +54,6 @@ class MDTServer:
         self._thread = threading.Thread(target=self._loop, name='MDTServer')
         self.work = False
         self._socket = socket.socket()
-        self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self._socket.settimeout(1)
 
     def stop(self):
         self.work = False
@@ -78,9 +76,24 @@ class MDTServer:
         self.log('start', logger.INFO)
         self._thread.start()
 
-    def _loop(self):
-        self._socket.bind(('', 7999))
+    def _open_socket(self) -> bool:
+        ip = ''
+        port = 7999
+        self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self._socket.settimeout(1)
+        try:
+            self._socket.bind((ip, port))
+        except OSError as e:
+            say = 'Ошибка запуска сервера{}.'.format(' - адрес уже используется' if e.errno == 98 else '')
+            self.log('Ошибка запуска сервера на {}:{}: {}'.format(ip, port, e), logger.CRIT)
+            self._play.say(say)
+            return False
         self._socket.listen(1)
+        return True
+
+    def _loop(self):
+        if not self._open_socket():
+            return
         while self.work:
             try:
                 conn, ip_info = self._socket.accept()
