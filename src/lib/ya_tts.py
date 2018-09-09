@@ -50,13 +50,9 @@ class TTS:
         except (requests.exceptions.HTTPError, requests.exceptions.RequestException) as e:
             raise Error(code=1, msg=str(e))
 
-        code = rq.status_code
-        if code == 400:
-            raise Error(code=400, msg="Key banned or inactive")
-        elif code == 423:
-            raise Error(code=423, msg="Key locked")
-        elif code != 200:
-            raise Error(code=code, msg="http code != 200")
+        if rq.status_code != 200:
+            msg = {400: 'Key banned or inactive', 423: 'Key locked'}
+            raise Error(code=rq.status_code, msg=msg.get(rq.status_code, 'http code != 200'))
         self._data = rq.iter_content()
 
     def save(self, path="speech"):
