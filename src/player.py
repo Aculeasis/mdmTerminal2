@@ -197,7 +197,7 @@ class LowPrioritySay:
         self._say = say
         self._tts = tts
         self._is_busy = is_busy
-        self._th = threading.Thread(target=self._loop)
+        self._th = threading.Thread(target=self._loop, name='LowPrioritySay')
         self._work = False
         self._queue_in = queue.Queue()
         self._quiet = False
@@ -268,7 +268,7 @@ class MPDControl:
         self.RESUME_TIME = cfg.get('wait', 13)
 
         self._last_play = last_play
-        self._th = threading.Thread(target=self._loop)
+        self._th = threading.Thread(target=self._loop, name='MPDControl')
         self._work = False
         self._mpd = mpd.MPDClient(use_unicode=True)
         self._resume = False

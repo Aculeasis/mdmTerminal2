@@ -31,7 +31,7 @@ RHVOICE_SPEAKER = {
 class SlowDead:
     def __init__(self, callback):
         self._cb = callback
-        self._thread = threading.Thread(target=self._loop)
+        self._thread = threading.Thread(target=self._loop, name='SlowDead')
         self._death_time = 0
         self._work = True
         self._thread.start()

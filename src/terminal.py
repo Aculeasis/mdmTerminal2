@@ -26,7 +26,7 @@ class MDTerminal:
         self.work = False
         self._paused = False
         self._is_paused = False
-        self._thread = threading.Thread(target=self._loop)
+        self._thread = threading.Thread(target=self._loop, name='MDTerminal')
         self._snowboy = None
         self._callbacks = []
         self.reload()

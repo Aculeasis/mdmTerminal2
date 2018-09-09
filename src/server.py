@@ -51,7 +51,7 @@ class MDTServer:
             die_in=die_in, log=self._logger.add('Terminal')
         )
         self._death_time = 0
-        self._thread = threading.Thread(target=self._loop)
+        self._thread = threading.Thread(target=self._loop, name='MDTServer')
         self.work = False
         self._socket = socket.socket()
         self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
