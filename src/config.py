@@ -56,9 +56,6 @@ class ConfigHandler(dict):
         self.path['tts_error'] = os.path.join(self.path['resources'], 'tts_error.mp3')
         self._lost_file(self.path['tts_error'])
 
-        self.path['training_service'] = os.path.join(self.path['resources'], 'training_service.sh')
-        self._lost_file(self.path['training_service'])
-
         self.tts_cache_check()
 
     def allow_connect(self, ip: str) -> bool:
