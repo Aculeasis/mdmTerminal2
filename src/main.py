@@ -44,7 +44,7 @@ CFG = {  # Дефолтные настройки
         'speaker': 'alyss',  # <jane|oksana|alyss|omazh|zahar|ermil>
         # 'apikeytts': 'key',
     },
-    'rhvoice': {
+    'rhvoice-rest': {
         # Адрес rhvoice-rest
         'server': 'http://127.0.0.1:8080',
         'speaker': 'anna',  # anna, aleksandr, elena, irina

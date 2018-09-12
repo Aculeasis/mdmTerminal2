@@ -23,7 +23,7 @@ class TextToSpeech:
     PROVIDERS = {
         'google': 'ru',
         'yandex': 'ru-RU',
-        'rhvoice': '',
+        'rhvoice-rest': '',
     }
 
     def __init__(self, cfg, log):
@@ -94,7 +94,7 @@ class TextToSpeech:
                     lang=self.PROVIDERS[prov],
                     emotion=self._cfg.get(prov, {}).get('emotion', 'good')
                 )
-            elif prov == 'rhvoice':
+            elif prov == 'rhvoice-rest':
                 tts = rhvoice_rest.TTS(
                     text=msg,
                     url=self._cfg.get(prov, {}).get('server', 'http://127.0.0.1:8080'),

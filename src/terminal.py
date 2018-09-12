@@ -305,7 +305,7 @@ class DebugMode:
 
     def _get_who(self, _):
         """получение информации о настройках голосового генератора (только для Яндекса и RHVoice)"""
-        if self._cfg['providertts'] == 'rhvoice':
+        if self._cfg['providertts'] == 'rhvoice-rest':
             speakers = utils.RHVOICE_SPEAKER
         elif self._cfg['providertts'] == 'yandex':
             speakers = utils.YANDEX_SPEAKER
@@ -324,7 +324,7 @@ class DebugMode:
     def _set_mix(self, cmd: str):
         """изменение характера или голоса голосового генератора (только для Яндекса и RHVoice)"""
         cmd = cmd.lower()
-        if self._cfg['providertts'] == 'rhvoice':
+        if self._cfg['providertts'] == 'rhvoice-rest':
             speakers = utils.RHVOICE_SPEAKER
         elif self._cfg['providertts'] == 'yandex':
             speakers = utils.YANDEX_SPEAKER
