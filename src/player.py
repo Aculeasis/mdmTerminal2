@@ -32,7 +32,7 @@ class Player:
         self.tts = stts.TextToSpeech(cfg, logger_.add('TTS')).tts
 
         self.mpd = MPDControl(self._cfg['mpd'], self.last_activity)
-        self._lp_play = LowPrioritySay(self.busy, self.say, self.play, self.tts)
+        self._lp_play = LowPrioritySay(self.busy, self.say, self.play)
 
     def start(self):
         self._work = True
@@ -192,11 +192,10 @@ class Player:
 class LowPrioritySay(threading.Thread):
     TIMEOUT = 300
 
-    def __init__(self, is_busy, say, play, tts):
+    def __init__(self, is_busy, say, play):
         super().__init__(name='LowPrioritySay')
         self._play = play
         self._say = say
-        self._tts = tts
         self._is_busy = is_busy
         self._work = False
         self._queue_in = queue.Queue()
