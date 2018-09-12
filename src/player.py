@@ -223,11 +223,11 @@ class LowPrioritySay(threading.Thread):
 
     def run(self):
         while True:
+            while self._is_busy():
+                time.sleep(0.01)
             say = self._queue_in.get()
             if say is None:
                 break
-            while self._is_busy():
-                time.sleep(0.05)
             if say[0] == 1:
                 self._say(msg=say[1], lvl=1, wait=say[2])
             elif say[0] == 2:
