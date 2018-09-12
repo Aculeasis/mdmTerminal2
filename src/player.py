@@ -197,26 +197,20 @@ class LowPrioritySay(threading.Thread):
         self._play = play
         self._say = say
         self._is_busy = is_busy
-        self._work = False
         self._queue_in = queue.Queue()
         self._quiet = False
 
     def stop(self):
-        self._work = False
+        self._queue_in.put_nowait(None)
         self.join()
-
-    def start(self):
-        self._work = True
-        super().start()
 
     def clear(self):
         self._quiet = True
-        while self._work and not self._queue_in.empty():
-            if not self._queue_in.empty():
-                try:
-                    self._queue_in.get_nowait()
-                except queue.Empty:
-                    continue
+        while not self._queue_in.empty():
+            try:
+                self._queue_in.get_nowait()
+            except queue.Empty:
+                pass
 
     def say(self, msg: str, wait: float or int=0, is_file: bool = False):
         self._put(1 if not is_file else 3, msg, wait)
@@ -225,26 +219,21 @@ class LowPrioritySay(threading.Thread):
         self._put(2, file, wait)
 
     def _put(self, action, target, wait):
-        if self._work:
-            self._queue_in.put_nowait([action, target, wait])
+        self._queue_in.put_nowait([action, target, wait])
 
     def run(self):
-        while self._work:
-            if self._queue_in.empty() or self._is_busy():
+        while True:
+            say = self._queue_in.get()
+            if say is None:
+                break
+            while self._is_busy():
                 time.sleep(0.05)
-                continue
-
-            try:
-                say = self._queue_in.get_nowait()
-            except queue.Empty:
-                pass
-            else:
-                if say[0] == 1:
-                    self._say(msg=say[1], lvl=1, wait=say[2])
-                elif say[0] == 2:
-                    self._play(file=say[1], lvl=1, wait=say[2])
-                elif say[0] == 3:
-                    self._say(msg=say[1], lvl=1, wait=say[2], is_file=True)
+            if say[0] == 1:
+                self._say(msg=say[1], lvl=1, wait=say[2])
+            elif say[0] == 2:
+                self._play(file=say[1], lvl=1, wait=say[2])
+            elif say[0] == 3:
+                self._say(msg=say[1], lvl=1, wait=say[2], is_file=True)
 
 
 def _auto_reconnect(func):
