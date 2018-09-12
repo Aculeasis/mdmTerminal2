@@ -12,44 +12,37 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 set -o errexit
 
+USER="$(whoami)"
+ARCH="$(uname -m)"
+
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
 scripts_dir="$(dirname "${BASH_SOURCE[0]}")"
-install_path=$(pwd)
+repo_path=$(pwd)
 
 # make sure we're running as the owner of the checkout directory
 RUN_AS="$(ls -ld "$scripts_dir" | awk 'NR==1 {print $3}')"
 if [ "$USER" != "$RUN_AS" ]
 then
     echo "This script must run as $RUN_AS, trying to change user..."
-    exec sudo -u $RUN_AS $0
-fi
-#clear
-
-
-#cd mdmPiTerminal
-sudo apt-get update -y
-
-sed 's/#.*//' "$install_path"/Requirements/mdm-orangepizero-system-requirements.txt | xargs sudo apt-get install -y
-
-
-if ! [ -d ~/tmp ]; then
-mkdir ~/tmp
+    exec sudo -u ${RUN_AS} $0
 fi
 
-chmod +x $install_path/src/resources/training_service.sh
+echo 'Подготовка к сборке _snowboydetect.so'
+git clone https://github.com/Kitt-AI/snowboy.git ${repo_path}/snow_boy
+cd ${repo_path}/snow_boy
+git checkout 3f5f944
+if [ "$ARCH" == "aarch64" ]
+then
+    echo 'Use dirty hack for aarch64'
+    cp -f lib/aarch64-ubuntu1604/libsnowboy-detect.a lib/ubuntu64/libsnowboy-detect.a
+fi
+cd swig/Python3
+echo 'Собираю....'
+make
+cp -f _snowboydetect.so ${repo_path}/src/lib/
+cd ${repo_path}
+rm -rf ${repo_path}/snow_boy
+echo "Установлено успешно $repo_path/src/lib/_snowboydetect.so"
 
-python3 -m venv env
-env/bin/python -m pip install --upgrade pip setuptools wheel
-source env/bin/activate
-export TMPDIR=~/tmp
-pip install -r "$install_path"/Requirements/mdm-orangepizero-pip-requirements.txt
-
-# git clone https://github.com/duxingkei33/orangepi_PC_gpio_pyH3
-# cd orangepi_PC_gpio_pyH3
-# python setup.py install
-# cd ~/
-
-rm -R ~/tmp
-echo "Установка завершена"

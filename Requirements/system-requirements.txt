@@ -17,3 +17,5 @@ mpd
 flac
 sox
 python-pip
+swig
+git
