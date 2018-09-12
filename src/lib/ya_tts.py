@@ -1,4 +1,3 @@
-import os
 import requests
 
 #  Скопировано из speech_recognition для прикручивая проверки валидности ключа
@@ -46,35 +45,27 @@ class TTS:
             raise Error(code=2, msg="Number of characters must be less than 2000")
 
         try:
-            rq = requests.get(self.TTS_URL, params=self.__params, stream=False)
+            rq = requests.get(self.TTS_URL, params=self.__params, stream=True)
         except (requests.exceptions.HTTPError, requests.exceptions.RequestException) as e:
             raise Error(code=1, msg=str(e))
 
         if rq.status_code != 200:
             msg = {400: 'Key banned or inactive', 423: 'Key locked'}
             raise Error(code=rq.status_code, msg=msg.get(rq.status_code, 'http code != 200'))
-        self._data = rq.iter_content()
+        self._data = rq.iter_content
 
-    def save(self, path="speech"):
-        """Save data in file.
-
-        Args:
-            path (optional): A path to save file. Defaults to "speech".
-                File extension is optional. Absolute path is allowed.
-
-        Returns:
-            The path to the saved file.
-        """
+    def save(self, file_path, cb=None, after=0):
         if self._data is None:
-            raise Exception("There's nothing to save")
+            raise Exception('There\'s nothing to save')
 
-        extension = "." + self.__params["format"]
-        if os.path.splitext(path)[1] != extension:
-            path += extension
-
-        with open(path, "wb") as f:
-            for d in self._data:
-                f.write(d)
-
-        return path
+        count = 0
+        with open(file_path, 'wb') as f:
+            for chunk in self._data(chunk_size=1024):
+                f.write(chunk)
+                if cb:
+                    count += 1
+                    if count == after:
+                        cb()
+                        cb = None
+        return file_path
 

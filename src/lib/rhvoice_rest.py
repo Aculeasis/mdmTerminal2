@@ -24,23 +24,28 @@ class TTS:
 
     def _generate(self):
         try:
-            rq = requests.get(self._url, params=self.__params, stream=False)
+            rq = requests.get(self._url, params=self.__params, stream=True)
         except (requests.exceptions.HTTPError, requests.exceptions.RequestException) as e:
             raise Error(code=1, msg=str(e))
 
         code = rq.status_code
         if code != 200:
             raise Error(code=code, msg='http code != 200')
-        self._data = rq.iter_content()
+        self._data = rq.iter_content
 
-    def save(self, file_path):
+    def save(self, file_path, cb=None, after=0):
         if self._data is None:
             raise Exception('There\'s nothing to save')
 
+        count = 0
         with open(file_path, 'wb') as f:
-            for d in self._data:
-                f.write(d)
-
+            for chunk in self._data(chunk_size=1024):
+                f.write(chunk)
+                if cb:
+                    count += 1
+                    if count == after:
+                        cb()
+                        cb = None
         return file_path
 
 
