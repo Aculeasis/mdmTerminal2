@@ -149,7 +149,7 @@ class Player:
         if alarm is None:
             alarm = self._cfg.get('alarmtts', 0)
 
-        file = self.tts(msg)[0] if not is_file else msg
+        file = self.tts(msg) if not is_file else msg
         if uid != self._uid:
             return
         self._last_activity = time.time() + 3
@@ -166,7 +166,7 @@ class Player:
                 pass
         if uid != self._uid:
             return
-        self._play(file)
+        self._play(file() if not is_file else file)
 
         self._last_activity = time.time() + wait
         if wait:

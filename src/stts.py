@@ -5,61 +5,95 @@ import os
 import os.path
 import random
 import time
+import threading
 
 
 import pyaudio
 import speech_recognition as sr
-from gtts import gTTS
 
 import logger
 import utils
 from lib import ya_tts
 from lib import rhvoice_rest
 from lib import pocketsphinx_rest as PSR
+from lib import stream_gTTS
 import player
 
 
 class TextToSpeech:
+    def __init__(self, cfg, log):
+        self.log = log
+        self._cfg = cfg
+
+    def tts(self, msg, realtime: bool = True):
+        wrapper = _TTSWrapper(self._cfg, self.log, msg, realtime)
+        if not self._cfg.get('optimistic_nonblock_tts', 0):
+            wrapper.event.wait(600)
+        return wrapper.get
+
+
+class _TTSWrapper(threading.Thread):
     PROVIDERS = {
         'google': 'ru',
         'yandex': 'ru-RU',
         'rhvoice-rest': '',
     }
 
-    def __init__(self, cfg, log):
+    def __init__(self, cfg, log, msg, realtime):
+        super().__init__()
+        self.cfg = cfg
         self.log = log
-        self._cfg = cfg
+        self.msg = msg
+        self.realtime = realtime
+        self.file_path = None
+        self.in_cache = False
+        self.event = threading.Event()
+        self.work_time = None
+        self.start_time = time.time()
+        self.start()
 
-    def tts(self, msg, realtime: bool = True):
+    def get(self):
+        if not self.event.is_set():
+            self.event.wait(600)
+        if self.work_time is None:
+            self.work_time = time.time() - self.start_time
+        return self.file_path
+
+    def run(self):
         wtime = time.time()
-        sha1 = hashlib.sha1(msg.encode('utf-8')).hexdigest()
-        provider = self._cfg.get('providertts', 'google')
+        sha1 = hashlib.sha1(self.msg.encode('utf-8')).hexdigest()
+        provider = self.cfg.get('providertts', 'google')
         rname = '_'+sha1 + '.mp3'
-        file_path = self._find_in_cache(rname, provider)
-        if realtime:
-            self.log('say \'{}\''.format(msg), logger.INFO)
+        self.file_path = self._find_in_cache(rname, provider)
+        if self.realtime:
+            self.log('say \'{}\''.format(self.msg), logger.INFO)
             msg_gen = ''
         else:
-            msg_gen = '\'{}\' '.format(msg)
-        in_cache = False
-        if file_path:
+            msg_gen = '\'{}\' '.format(self.msg)
+        time_diff = ''
+        if self.file_path:
             action = '{}найдено в кэше'.format(msg_gen)
-            in_cache = True
+            self.in_cache = True
+            work_time = time.time() - wtime
         else:
-            file_path = os.path.join(self._cfg.path['tts_cache'], provider + rname)
-            file_path = self._tts_gen(file_path, msg)
+            self.file_path = os.path.join(self.cfg.path['tts_cache'], provider + rname)
+            self.file_path = self._tts_gen(self.file_path, self.msg)
+            work_time = time.time() - wtime
             action = '{}сгенерированно {}'.format(msg_gen, provider)
+            reply = utils.pretty_time(self.work_time) if self.work_time is not None else 'NaN'
+            diff = utils.pretty_time(work_time - self.work_time) if self.work_time is not None else 'NaN'
+            time_diff = ' [reply:{}, diff:{}]'.format(reply, diff)
         self.log(
-            '{} за {}: {}'.format(action, utils.pretty_time(time.time() - wtime), file_path),
-            logger.DEBUG if realtime else logger.INFO
+            '{} за {}{}: {}'.format(action, utils.pretty_time(work_time), time_diff, self.file_path),
+            logger.DEBUG if self.realtime else logger.INFO
         )
-        return file_path, in_cache
+        self.event.set()
 
     def _find_in_cache(self, rname: str, prov: str):
-        if not self._cfg['cache'].get('tts_size', 0):
+        if not self.cfg['cache'].get('tts_size', 0):
             return ''
 
-        prov_priority = self._cfg['cache'].get('tts_priority', '')
+        prov_priority = self.cfg['cache'].get('tts_priority', '')
         file = ''
         if prov_priority in self.PROVIDERS:  # Приоритет
             file = self._file_check(rname, prov_priority)
@@ -76,39 +110,43 @@ class TextToSpeech:
         return file
 
     def _file_check(self, rname, prov):
-        file = os.path.join(self._cfg.path['tts_cache'], prov + rname)
+        file = os.path.join(self.cfg.path['tts_cache'], prov + rname)
         return file if os.path.isfile(file) else ''
 
     def _tts_gen(self, file: str, msg: str):
-        prov = self._cfg.get('providertts', 'unset')
-        key = self._cfg.get(prov, {}).get('apikeytts', None)
+        prov = self.cfg.get('providertts', 'unset')
+        key = self.cfg.get(prov, {}).get('apikeytts')
         try:
             if prov == 'google':
-                tts = gTTS(text=msg, lang=self.PROVIDERS[prov])
+                tts = stream_gTTS.gTTS(text=msg, lang=self.PROVIDERS[prov])
             elif prov == 'yandex':
                 tts = ya_tts.TTS(
                     text=msg,
-                    speaker=self._cfg.get(prov, {}).get('speaker', 'alyss'),
+                    speaker=self.cfg.get(prov, {}).get('speaker', 'alyss'),
                     audio_format='mp3',
                     key=key,
                     lang=self.PROVIDERS[prov],
-                    emotion=self._cfg.get(prov, {}).get('emotion', 'good')
+                    emotion=self.cfg.get(prov, {}).get('emotion', 'good')
                 )
             elif prov == 'rhvoice-rest':
                 tts = rhvoice_rest.TTS(
                     text=msg,
-                    url=self._cfg.get(prov, {}).get('server', 'http://127.0.0.1:8080'),
-                    voice=self._cfg.get(prov, {}).get('speaker', 'anna')
+                    url=self.cfg.get(prov, {}).get('server', 'http://127.0.0.1:8080'),
+                    voice=self.cfg.get(prov, {}).get('speaker', 'anna')
                 )
             else:
                 self.log('Неизвестный провайдер: {}'.format(prov), logger.CRIT)
-                return self._cfg.path['tts_error']
-        except (ya_tts.Error, rhvoice_rest.Error)as e:
+                return self.cfg.path['tts_error']
+        except (ya_tts.Error, rhvoice_rest.Error) as e:
             self.log('Ошибка синтеза речи от {}, ключ \'{}\'. ([{}]:{})'.format(
                 prov, key, e.code, e.msg), logger.CRIT
             )
-            return self._cfg.path['tts_error']
-        tts.save(file)
+            return self.cfg.path['tts_error']
+        stream_race_tts = self.cfg.get('stream_race_tts', 0)
+        if stream_race_tts:
+            tts.save(file, self.event.set, stream_race_tts)
+        else:
+            tts.save(file)
         return file
 
 
@@ -169,13 +207,14 @@ class SpeechToText:
         max_play_time = 120  # максимальное время воспроизведения приветствия
         max_wait_time = 10  # ожидание после приветствия
         lvl = 5  # Включаем монопольный режим
+        file_path = None
+        if not voice:
+            file_path = self._play.tts(random.SystemRandom().choice(self.HELLO) if not hello else hello)
 
         # self._play.quiet()
         if self._cfg['alarmkwactivated']:
             self._play.play(self._cfg.path['ding'], lvl)
         self.log('audio devices: {}'.format(pyaudio.PyAudio().get_device_count() - 1), logger.DEBUG)
-
-        file_path, _ = self._play.tts(random.SystemRandom().choice(self.HELLO) if not hello else hello)
 
         r = sr.Recognizer()
         mic = sr.Microphone(device_index=self.get_mic_index())
@@ -188,7 +227,7 @@ class SpeechToText:
 
         start_wait = time.time()
         if not voice:
-            self._play.play(file_path, lvl)
+            self._play.play(file_path(), lvl)
 
         # Начинаем фоновое распознавание голосом после того как запустился плей.
         listener = NonBlockListener(r=r, source=mic, phrase_time_limit=20)
@@ -228,7 +267,7 @@ class SpeechToText:
             return 'Микрофоны не найдены'
         lvl = 5  # Включаем монопольный режим
 
-        file_path, _ = self._play.tts(hello)
+        file_path = self._play.tts(hello)()
         r = sr.Recognizer()
         # mic = sr.Microphone(device_index=self.get_mic_index())
 
