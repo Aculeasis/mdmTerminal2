@@ -1,5 +1,6 @@
 __pycache__
 .idea
+*.swp
 src/tts_cache
 env
 src/settings.ini

@@ -3,6 +3,7 @@ import subprocess
 from shlex import quote
 
 import requests
+from bs4 import BeautifulSoup
 
 from .stream_gTTS import gTTS as Google
 
@@ -35,7 +36,8 @@ class BaseTTS:
 
     def _reply_check(self):
         if not self._rq.ok:
-            raise RuntimeError('Reply error {}: {}'.format(self._rq.status_code, self._rq.reason))
+            msg = BeautifulSoup(self._rq.text, features='html.parser').text.replace('\n', ' ')[:99]
+            raise RuntimeError('{}: {}'.format(self._rq.status_code, msg))
 
     def iter_me(self):
         if self._data is None:
@@ -71,12 +73,6 @@ class Yandex(BaseTTS):
         if len(self._params['text']) >= self.MAX_CHARS:
             raise RuntimeError('Number of characters must be less than 2000')
 
-    def _reply_check(self):
-        msg = {400: 'Key banned or inactive', 423: 'Key locked'}
-        if self._rq.status_code in msg:
-            raise RuntimeError('{}: {}'.format(self._rq.status_code, msg[self._rq.status_code]))
-        super()._reply_check()
-
 
 class RHVoiceREST(BaseTTS):
     def __init__(self, text, url='http://127.0.0.1:8080', voice='anna', format_='mp3'):
@@ -97,7 +93,7 @@ class RHVoice(BaseTTS):
 
     def _reply_check(self):
         if self._rq.poll():
-            raise RuntimeError('{}: {}'.format(self._rq.poll(), ' '.join(self._rq.stderr.read().decode().split())[:100]))
+            raise RuntimeError('{}: {}'.format(self._rq.poll(), ' '.join(self._rq.stderr.read().decode().split())[:99]))
 
     def iter_me(self):
         if self._data is None:
