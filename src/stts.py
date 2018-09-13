@@ -46,7 +46,6 @@ class _TTSWrapper(threading.Thread):
         self.msg = msg
         self.realtime = realtime
         self.file_path = None
-        self.in_cache = False
         self.event = threading.Event()
         self.work_time = None
         self.start_time = time.time()
@@ -70,14 +69,15 @@ class _TTSWrapper(threading.Thread):
             msg_gen = ''
         else:
             msg_gen = '\'{}\' '.format(self.msg)
-        time_diff = ''
         if self.file_path:
-            action = '{}найдено в кэше'.format(msg_gen)
-            self.in_cache = True
+            self.event.set()
             work_time = time.time() - wtime
+            action = '{}найдено в кэше'.format(msg_gen)
+            time_diff = ''
         else:
             self.file_path = os.path.join(self.cfg.path['tts_cache'], provider + rname)
             self.file_path = self._tts_gen(self.file_path, self.msg)
+            self.event.set()
             work_time = time.time() - wtime
             action = '{}сгенерированно {}'.format(msg_gen, provider)
             reply = utils.pretty_time(self.work_time) if self.work_time is not None else 'NaN'
@@ -87,7 +87,6 @@ class _TTSWrapper(threading.Thread):
             '{} за {}{}: {}'.format(action, utils.pretty_time(work_time), time_diff, self.file_path),
             logger.DEBUG if self.realtime else logger.INFO
         )
-        self.event.set()
 
     def _find_in_cache(self, rname: str, prov: str):
         if not self.cfg['cache'].get('tts_size', 0):
