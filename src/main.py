@@ -60,6 +60,11 @@ CFG = {  # Дефолтные настройки
         'server': 'http://127.0.0.1:8080',
         'speaker': 'anna',  # anna, aleksandr, elena, irina
     },
+    'rhvoice': {
+        # Для работы RHVoice-test и lame должны быть доступны на локальной машине
+        # Проверка: echo 'This is fine' | RHVoice-test -p slt -o - | lame -th -V 4 --silent - | mpg123 -q -
+        'speaker': 'anna',  # anna, aleksandr, elena, irina
+    },
     'pocketsphinx-rest': {
         'server': 'http://127.0.0.1:8085',
     },

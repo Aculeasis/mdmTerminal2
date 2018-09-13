@@ -1,9 +1,12 @@
 
+import subprocess
+from shlex import quote
+
 import requests
 
 from .stream_gTTS import gTTS as Google
 
-__all__ = ['Google', 'Yandex', 'RhvoiceREST']
+__all__ = ['Google', 'Yandex', 'RhvoiceREST', 'Rhvoice']
 
 
 class BaseTTS:
@@ -80,3 +83,29 @@ class RhvoiceREST(BaseTTS):
         super().__init__('{}/say'.format(url), text=text, format=format_, voice=voice)
 
 
+class Rhvoice(BaseTTS):
+    def __init__(self, text, voice='anna'):
+        self.__test = None
+        super().__init__(None, text=text, voice=voice)
+
+    def _request(self):
+        text = quote(self._params['text'])
+        cmd = 'echo {} | RHVoice-test -p {} -o - | lame -ht -V 4 - -'.format(text, self._params['voice'])
+        self._rq = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+        self._data = self._rq.stdout
+        self.__test = self._data.read(self.BUFF_SIZE)  # Ждем запуска, иначе poll() не вернет ошибку
+
+    def _reply_check(self):
+        if self._rq.poll():
+            raise RuntimeError('{}: {}'.format(self._rq.poll(), ' '.join(self._rq.stderr.read().decode().split())[:100]))
+
+    def iter_me(self):
+        if self._data is None:
+            raise RuntimeError('No data')
+        if self.__test:
+            yield self.__test
+        while True:
+            chunk = self._data.read(self.BUFF_SIZE)
+            if not chunk:
+                break
+            yield chunk

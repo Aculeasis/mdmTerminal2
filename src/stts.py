@@ -34,6 +34,7 @@ class _TTSWrapper(threading.Thread):
         'google': 'ru',
         'yandex': 'ru-RU',
         'rhvoice-rest': '',
+        'rhvoice': '',
     }
 
     def __init__(self, cfg, log, msg, realtime):
@@ -130,6 +131,8 @@ class _TTSWrapper(threading.Thread):
                     url=self.cfg.get(prov, {}).get('server', 'http://127.0.0.1:8080'),
                     voice=self.cfg.get(prov, {}).get('speaker', 'anna')
                 )
+            elif prov == 'rhvoice':
+                tts = TTS.Rhvoice(text=msg, voice=self.cfg.get(prov, {}).get('speaker', 'anna'))
             else:
                 self.log('Неизвестный провайдер: {}'.format(prov), logger.CRIT)
                 return self.cfg.path['tts_error']

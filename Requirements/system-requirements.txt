@@ -18,4 +18,5 @@ flac
 sox
 python-pip
 swig
+lame
 git
