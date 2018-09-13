@@ -10,11 +10,11 @@ import time
 import pyaudio
 import speech_recognition as sr
 
+import lib.STT as STT
 import lib.TTS as TTS
 import logger
 import player
 import utils
-from lib import pocketsphinx_rest
 
 
 class TextToSpeech:
@@ -303,11 +303,12 @@ class SpeechToText:
             elif prov == 'microsoft':
                 command = recognizer.recognize_bing(audio, key=prov)
             elif prov == 'pocketsphinx-rest':
-                ps = pocketsphinx_rest.STT(
+                command = STT.PocketSphinxREST(
                     audio_data=audio,
                     url=self._cfg.get(prov, {}).get('server', 'http://127.0.0.1:8085')
-                )
-                command = ps.text()
+                ).text()
+            elif prov == 'yandex':
+                command = STT.Yandex(audio_data=audio, key=self._cfg.get(prov, {}).get('apikeystt')).text()
             else:
                 self.log('Ошибка распознавания - неизвестный провайдер {}'.format(prov), logger.CRIT)
                 return ''
