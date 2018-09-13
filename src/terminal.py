@@ -405,4 +405,4 @@ class DebugMode:
     def _stop(self, _):
         """завершение работы голосового терминала"""
         self._die_in(5)
-        return 'То что мертво умереть не может.'
+        return 'Come Along With Me.'
