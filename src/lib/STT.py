@@ -22,7 +22,8 @@ class BaseSTT:
         self._convert_width = convert_width
         self._audio = self._get_audio(audio_data)
         self._headers = {'Transfer-Encoding': 'chunked'}
-        self._headers.update(headers)
+        if isinstance(headers, dict):
+            self._headers.update(headers)
         self._params = kwargs
 
         self._send()
