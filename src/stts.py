@@ -4,20 +4,17 @@ import hashlib
 import os
 import os.path
 import random
-import time
 import threading
-
+import time
 
 import pyaudio
 import speech_recognition as sr
 
+import lib.TTS as TTS
 import logger
-import utils
-from lib import ya_tts
-from lib import rhvoice_rest
-from lib import pocketsphinx_rest as PSR
-from lib import stream_gTTS
 import player
+import utils
+from lib import pocketsphinx_rest
 
 
 class TextToSpeech:
@@ -117,9 +114,9 @@ class _TTSWrapper(threading.Thread):
         key = self.cfg.get(prov, {}).get('apikeytts')
         try:
             if prov == 'google':
-                tts = stream_gTTS.gTTS(text=msg, lang=self.PROVIDERS[prov])
+                tts = TTS.Google(text=msg, lang=self.PROVIDERS[prov])
             elif prov == 'yandex':
-                tts = ya_tts.TTS(
+                tts = TTS.Yandex(
                     text=msg,
                     speaker=self.cfg.get(prov, {}).get('speaker', 'alyss'),
                     audio_format='mp3',
@@ -128,7 +125,7 @@ class _TTSWrapper(threading.Thread):
                     emotion=self.cfg.get(prov, {}).get('emotion', 'good')
                 )
             elif prov == 'rhvoice-rest':
-                tts = rhvoice_rest.TTS(
+                tts = TTS.RhvoiceREST(
                     text=msg,
                     url=self.cfg.get(prov, {}).get('server', 'http://127.0.0.1:8080'),
                     voice=self.cfg.get(prov, {}).get('speaker', 'anna')
@@ -136,10 +133,8 @@ class _TTSWrapper(threading.Thread):
             else:
                 self.log('Неизвестный провайдер: {}'.format(prov), logger.CRIT)
                 return self.cfg.path['tts_error']
-        except (ya_tts.Error, rhvoice_rest.Error) as e:
-            self.log('Ошибка синтеза речи от {}, ключ \'{}\'. ([{}]:{})'.format(
-                prov, key, e.code, e.msg), logger.CRIT
-            )
+        except RuntimeError as e:
+            self.log('Ошибка синтеза речи от {}, ключ \'{}\'. ({})'.format(prov, key, e), logger.CRIT)
             return self.cfg.path['tts_error']
         stream_race_tts = self.cfg.get('stream_race_tts', 0)
         if stream_race_tts:
@@ -305,7 +300,7 @@ class SpeechToText:
             elif prov == 'microsoft':
                 command = recognizer.recognize_bing(audio, key=prov)
             elif prov == 'pocketsphinx-rest':
-                ps = PSR.STT(
+                ps = pocketsphinx_rest.STT(
                     audio_data=audio,
                     url=self._cfg.get(prov, {}).get('server', 'http://127.0.0.1:8085')
                 )
