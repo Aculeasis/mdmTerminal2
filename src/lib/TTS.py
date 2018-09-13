@@ -6,7 +6,7 @@ import requests
 
 from .stream_gTTS import gTTS as Google
 
-__all__ = ['Google', 'Yandex', 'RhvoiceREST', 'Rhvoice']
+__all__ = ['Google', 'Yandex', 'RHVoiceREST', 'RHVoice']
 
 
 class BaseTTS:
@@ -78,12 +78,12 @@ class Yandex(BaseTTS):
         super()._reply_check()
 
 
-class RhvoiceREST(BaseTTS):
+class RHVoiceREST(BaseTTS):
     def __init__(self, text, url='http://127.0.0.1:8080', voice='anna', format_='mp3'):
         super().__init__('{}/say'.format(url), text=text, format=format_, voice=voice)
 
 
-class Rhvoice(BaseTTS):
+class RHVoice(BaseTTS):
     def __init__(self, text, voice='anna'):
         self.__test = None
         super().__init__(None, text=text, voice=voice)

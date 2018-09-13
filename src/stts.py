@@ -126,13 +126,13 @@ class _TTSWrapper(threading.Thread):
                     emotion=self.cfg.get(prov, {}).get('emotion', 'good')
                 )
             elif prov == 'rhvoice-rest':
-                tts = TTS.RhvoiceREST(
+                tts = TTS.RHVoiceREST(
                     text=msg,
                     url=self.cfg.get(prov, {}).get('server', 'http://127.0.0.1:8080'),
                     voice=self.cfg.get(prov, {}).get('speaker', 'anna')
                 )
             elif prov == 'rhvoice':
-                tts = TTS.Rhvoice(text=msg, voice=self.cfg.get(prov, {}).get('speaker', 'anna'))
+                tts = TTS.RHVoice(text=msg, voice=self.cfg.get(prov, {}).get('speaker', 'anna'))
             else:
                 self.log('Неизвестный провайдер: {}'.format(prov), logger.CRIT)
                 return self.cfg.path['tts_error']
