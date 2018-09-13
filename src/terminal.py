@@ -305,7 +305,9 @@ class DebugMode:
 
     def _get_who(self, _):
         """получение информации о настройках голосового генератора (только для Яндекса и RHVoice)"""
-        if self._cfg['providertts'] == 'rhvoice-rest':
+        def get_yandex_emo():
+            return utils.YANDEX_EMOTION.get(self._cfg['yandex'].get('emotion', 'unset'), 'ошибка')
+        if self._cfg['providertts'] in ['rhvoice-rest', 'rhvoice']:
             speakers = utils.RHVOICE_SPEAKER
         elif self._cfg['providertts'] == 'yandex':
             speakers = utils.YANDEX_SPEAKER
@@ -316,9 +318,7 @@ class DebugMode:
             self._cfg[self._cfg['providertts']] = {}
 
         speaker = self._cfg[self._cfg['providertts']].get('speaker', 'unset')
-        emotion = ' Я очень {}.'.format(self._cfg['yandex'].get('emotion', 'unset')) \
-            if self._cfg['providertts'] == 'yandex' else ''
-
+        emotion = ' Я очень {}.'.format(get_yandex_emo()) if self._cfg['providertts'] == 'yandex' else ''
         return 'Меня зовут {}.{}'.format(speakers.get(speaker, 'Ошибка'), emotion)
 
     def _set_mix(self, cmd: str):
