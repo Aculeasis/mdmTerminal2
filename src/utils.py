@@ -4,6 +4,7 @@ import signal
 import socket
 import threading
 import time
+import os
 
 YANDEX_EMOTION = {
     'good'    : 'добрая',
@@ -112,3 +113,7 @@ def pretty_size(size) -> str:
         index += 1
     size = int(size) if size % 1 < 0.1 else round(size, 1)
     return '{} {}'.format(size, ends[index])
+
+
+def write_permission_check(path):
+    return os.access(os.path.dirname(os.path.abspath(path)), os.W_OK)

@@ -4,6 +4,7 @@ import logging
 import time
 import threading
 import queue
+from utils import write_permission_check
 from logging.handlers import RotatingFileHandler
 
 DEBUG = logging.DEBUG
@@ -76,8 +77,15 @@ class Logger(threading.Thread):
                 break
             self._best_print(*data)
 
+    def permission_check(self):
+        if not write_permission_check(self.file):
+            msg = 'Логгирование в {} невозможно - отсутствуют права на запись. Исправьте это'.format(self.file)
+            self._print('Logger', msg, CRIT)
+            return False
+        return True
+
     def _init(self):
-        if self.file and self.in_file:
+        if self.file and self.in_file and self.permission_check():
             my_handler = RotatingFileHandler(filename=self.file, maxBytes=1024 * 1024,
                                              backupCount=2, delay=0
                                              )
