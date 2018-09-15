@@ -166,7 +166,7 @@ class Player:
                 pass
         if uid != self._uid:
             return
-        self._play(file() if not is_file else file)
+        self._play(file)
 
         self._last_activity = time.time() + wait
         if wait:
@@ -176,7 +176,8 @@ class Player:
             return
         self._busy = False
 
-    def _play(self, path: str):
+    def _play(self, path):
+        path = path() if callable(path) else path
         if not os.path.isfile(path):
             return self.log('Файл {} не найден'.format(path), logger.ERROR)
         extension = os.path.splitext(path)[1]

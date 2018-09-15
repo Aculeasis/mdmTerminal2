@@ -228,7 +228,7 @@ class ConfigHandler(dict):
                 fsize = os.path.getsize(pfile)
                 current_size += fsize
                 files.append([pfile, fsize])
-        normal_size = current_size < max_size
+        normal_size = current_size < max_size or max_size < 0
         self._print(
             'Размер tts кэша {}: {}'.format(utils.pretty_size(current_size), 'Ок.' if normal_size else 'Удаляем...'),
             logger.INFO, 1 if normal_size else 3)

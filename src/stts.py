@@ -87,7 +87,7 @@ class _TTSWrapper(threading.Thread):
         )
 
     def _find_in_cache(self, rname: str, prov: str):
-        if not self.cfg['cache'].get('tts_size', 0):
+        if self.cfg['cache'].get('tts_size', 0) <= 0:
             return ''
 
         prov_priority = self.cfg['cache'].get('tts_priority', '')
@@ -224,7 +224,7 @@ class SpeechToText:
 
         start_wait = time.time()
         if not voice:
-            self._play.play(file_path(), lvl)
+            self._play.play(file_path, lvl)
 
         # Начинаем фоновое распознавание голосом после того как запустился плей.
         listener = NonBlockListener(r=r, source=mic, phrase_time_limit=20)
