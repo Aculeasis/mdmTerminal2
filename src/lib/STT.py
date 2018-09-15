@@ -48,7 +48,8 @@ class BaseSTT:
                 data=self._chunks(),
                 params=self._params,
                 headers=self._headers,
-                stream=True
+                stream=True,
+                timeout=60
             )
         except (requests.exceptions.HTTPError, requests.exceptions.RequestException) as e:
             raise RuntimeError(str(e))
