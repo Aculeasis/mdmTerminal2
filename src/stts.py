@@ -41,7 +41,7 @@ class _TTSWrapper(threading.Thread):
         super().__init__()
         self.cfg = cfg
         self.log = log
-        self.msg = msg
+        self.msg = msg if isinstance(msg, str) else str(msg)
         self.realtime = realtime
         self.file_path = None
         self.event = threading.Event()
