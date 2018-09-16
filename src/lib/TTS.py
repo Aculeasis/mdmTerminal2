@@ -45,19 +45,21 @@ class BaseTTS:
         for chunk in self._data(chunk_size=self.BUFF_SIZE):
             yield chunk
 
-    def save_to_fp(self, fp, cb, after):
-        count = 0
+    def save_to_fp(self, fp, queue_):
         for chunk in self.iter_me():
-            fp.write(chunk)
-            if cb is not None:
-                count += 1
-                if count == after:
-                    cb()
-                    cb = None
+            if queue_:
+                queue_.put_nowait(chunk)
+            if fp:
+                fp.write(chunk)
+        if queue_:
+            queue_.put_nowait(None)
 
-    def save(self, file_path, cb=None, after=0):
-        with open(file_path, 'wb') as fp:
-            self.save_to_fp(fp, cb, after)
+    def save(self, file_path, queue_=None):
+        if file_path:
+            with open(file_path, 'wb') as fp:
+                self.save_to_fp(fp, queue_)
+        else:
+            self.save_to_fp(None, queue_)
         return file_path
 
 

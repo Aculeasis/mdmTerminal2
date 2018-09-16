@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 
 
-import queue
 import hashlib
-import time
-import threading
-import logger
 import os
+import queue
 import subprocess
-import stts
+import threading
+import time
+
 import mpd
+
+import logger
+import stts
 
 
 class Player:
@@ -176,18 +178,53 @@ class Player:
             return
         self._busy = False
 
-    def _play(self, path):
-        path = path() if callable(path) else path
-        if not os.path.isfile(path):
+    def _play(self, obj):
+        (path, queue_, ext) = obj() if callable(obj) else (obj, None, None) if isinstance(obj, str) else obj
+        if not queue_ and not os.path.isfile(path):
             return self.log('Файл {} не найден'.format(path), logger.ERROR)
-        extension = os.path.splitext(path)[1]
-        if extension not in self.PLAY:
-            return self.log('Неизвестный тип файла: {}'.format(extension), logger.CRIT)
-        cmd = self.PLAY[extension].copy()
-        cmd.append(path)
-        self.log('Играю {} ...'.format(path, logger.DEBUG))
-        # TODO: Переделать на pyAudio. wave есть, а вот с mp3 сложнее
+        ext = ext or os.path.splitext(path)[1]
+        if ext not in self.PLAY:
+            return self.log('Неизвестный тип файла: {}'.format(ext), logger.CRIT)
+        cmd = self.PLAY[ext].copy()
+        if queue_ is None:
+            cmd.append(path)
+            self.log('Играю {} ...'.format(path, logger.DEBUG))
+            self._popen = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+        else:
+            cmd.append('-')
+            self.log('Стримлю {} ...'.format(path, logger.DEBUG))
+            self._popen = StreamPlayer(cmd, queue_).get_popen()
+
+
+class StreamPlayer(threading.Thread):
+    def __init__(self, cmd, queue_):
+        super().__init__(name='StreamPlayer')
+        self._queue = queue_
         self._popen = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+        self._work = True
+        self.start()
+
+    def get_popen(self):
+        return self._popen
+
+    def join(self, timeout=None):
+        self._work = False
+        self._queue.put_nowait(None)
+        super().join(timeout)
+
+    def run(self):
+        while self._work:
+            data = self._queue.get()
+            if not data or self._popen.poll() is not None or not self._work:
+                break
+            try:
+                self._popen.stdin.write(data)
+            except BrokenPipeError:
+                break
+        try:
+            self._popen.stdin.close()
+        except BrokenPipeError:
+            pass
 
 
 class LowPrioritySay(threading.Thread):

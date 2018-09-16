@@ -1,25 +1,30 @@
 
 import gtts
-# noinspection PyProtectedMember
-from gtts.utils import _len
 import requests
 import urllib3
+# noinspection PyProtectedMember
+from gtts.utils import _len
 from six.moves import urllib
 
 
 class gTTS(gtts.gTTS):
-    def save(self, file_path, cb=None, after=0):
-        with open(file_path, 'wb') as fp:
-            self.write_to_fp(fp, cb, after)
+    def save(self, file_path, queue_=None):
+        if file_path:
+            with open(file_path, 'wb') as fp:
+                self.write_to_fp(fp, queue_)
+        else:
+            # noinspection PyTypeChecker
+            self.write_to_fp(None, queue_)
+        if queue_:
+            queue_.put_nowait(None)
 
-    def write_to_fp(self, fp, cb=None, after=0):
+    def write_to_fp(self, fp, queue_=None):
         # When disabling ssl verify in requests (for proxies and firewalls),
         # urllib3 prints an insecure warning on stdout. We disable that.
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
         text_parts = self._tokenize(self.text)
         assert text_parts, 'No text to send to TTS API'
-        count = 0
         for idx, part in enumerate(text_parts):
             try:
                 # Calculate token
@@ -56,10 +61,7 @@ class gTTS(gtts.gTTS):
                 # Request failed
                 raise gtts.gTTSError(str(e))
             for chunk in r.iter_content(chunk_size=1024):
-                fp.write(chunk)
-                if cb:
-                    count += 1
-                    if count == after:
-                        cb()
-                        cb = None
-
+                if queue_:
+                    queue_.put_nowait(chunk)
+                if fp:
+                    fp.write(chunk)

@@ -3,6 +3,7 @@
 import hashlib
 import os
 import os.path
+import queue
 import random
 import threading
 import time
@@ -44,38 +45,43 @@ class _TTSWrapper(threading.Thread):
         self.msg = msg if isinstance(msg, str) else str(msg)
         self.realtime = realtime
         self.file_path = None
+        self._queue = None
+        self._ext = None
         self.event = threading.Event()
         self.work_time = None
         self.start_time = time.time()
         self.start()
 
     def get(self):
-        if not self.event.is_set():
-            self.event.wait(600)
-        if self.work_time is None:
-            self.work_time = time.time() - self.start_time
-        return self.file_path
+        self.event.wait(600)
+        self._unlock()
+        return self.file_path, self._queue, self._ext
 
     def run(self):
         wtime = time.time()
-        sha1 = hashlib.sha1(self.msg.encode('utf-8')).hexdigest()
+        sha1 = hashlib.sha1(self.msg.encode()).hexdigest()
         provider = self.cfg.get('providertts', 'google')
         rname = '_'+sha1 + '.mp3'
-        self.file_path = self._find_in_cache(rname, provider)
         if self.realtime:
             self.log('say \'{}\''.format(self.msg), logger.INFO)
             msg_gen = ''
         else:
             msg_gen = '\'{}\' '.format(self.msg)
+        use_cache = self.cfg['cache'].get('tts_size', 50) > 0
+        if not use_cache:
+            self._ext = '.mp3'
+
+        self.file_path = self._find_in_cache(rname, provider) if use_cache else None
         if self.file_path:
-            self.event.set()
+            self._unlock()
             work_time = time.time() - wtime
             action = '{}найдено в кэше'.format(msg_gen)
             time_diff = ''
         else:
-            self.file_path = os.path.join(self.cfg.path['tts_cache'], provider + rname)
-            self.file_path = self._tts_gen(self.file_path, self.msg)
-            self.event.set()
+            self.file_path = os.path.join(self.cfg.path['tts_cache'], provider + rname) if use_cache else \
+                '[{}]'.format(sha1)
+            self._tts_gen(self.file_path if use_cache else None, self.msg)
+            self._unlock()
             work_time = time.time() - wtime
             action = '{}сгенерированно {}'.format(msg_gen, provider)
             reply = utils.pretty_time(self.work_time) if self.work_time is not None else 'NaN'
@@ -86,12 +92,14 @@ class _TTSWrapper(threading.Thread):
             logger.DEBUG if self.realtime else logger.INFO
         )
 
-    def _find_in_cache(self, rname: str, prov: str):
-        if self.cfg['cache'].get('tts_size', 0) <= 0:
-            return ''
+    def _unlock(self):
+        if self.work_time is None:
+            self.work_time = time.time() - self.start_time
+        self.event.set()
 
+    def _find_in_cache(self, rname: str, prov: str):
         prov_priority = self.cfg['cache'].get('tts_priority', '')
-        file = ''
+        file = None
         if prov_priority in self.PROVIDERS:  # Приоритет
             file = self._file_check(rname, prov_priority)
 
@@ -110,7 +118,7 @@ class _TTSWrapper(threading.Thread):
         file = os.path.join(self.cfg.path['tts_cache'], prov + rname)
         return file if os.path.isfile(file) else ''
 
-    def _tts_gen(self, file: str, msg: str):
+    def _tts_gen(self, file, msg: str):
         prov = self.cfg.get('providertts', 'unset')
         key = self.cfg.get(prov, {}).get('apikeytts')
         try:
@@ -135,16 +143,16 @@ class _TTSWrapper(threading.Thread):
                 tts = TTS.RHVoice(text=msg, voice=self.cfg.get(prov, {}).get('speaker', 'anna'))
             else:
                 self.log('Неизвестный провайдер: {}'.format(prov), logger.CRIT)
-                return self.cfg.path['tts_error']
+                self.file_path = self.cfg.path['tts_error']
+                return
         except RuntimeError as e:
             self.log('Ошибка синтеза речи от {}, ключ \'{}\'. ({})'.format(prov, key, e), logger.CRIT)
-            return self.cfg.path['tts_error']
-        stream_race_tts = self.cfg.get('stream_race_tts', 0)
-        if stream_race_tts:
-            tts.save(file, self.event.set, stream_race_tts)
-        else:
-            tts.save(file)
-        return file
+            self.file_path = self.cfg.path['tts_error']
+            return
+        self._queue = queue.Queue()
+        self._unlock()
+        tts.save(file, self._queue)
+        return
 
 
 class SpeechToText:
