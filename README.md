@@ -66,7 +66,8 @@
     sudo systemctl status mdmterminal2.service
 
 # Настройка
-**Важно!** Значительная часть настроек не доступна через MDM VoiceAssistant, их можно изменить отредактировав `mdmTerminal2/src/settings.ini`. Описание всех настроек [TODO]
+### [Описание всех настроек](https://github.com/Aculeasis/mdmTerminal2/wiki/settings.ini)
+**Важно!** Значительная часть настроек не доступна через MDM VoiceAssistant, их можно изменить отредактировав `mdmTerminal2/src/settings.ini`.
 
 ## Подключение к MajorDoMo
 - Заходим в Панель управления MajorDomo > Система > Маркет дополнений > Оборудование > MDM VoiceAssistant и устанавливаем модуль.
