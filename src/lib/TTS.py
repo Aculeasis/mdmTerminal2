@@ -7,7 +7,7 @@ from bs4 import BeautifulSoup
 
 from .stream_gTTS import gTTS as Google
 
-__all__ = ['Google', 'Yandex', 'RHVoiceREST', 'RHVoice']
+__all__ = ['support', 'GetTTS', 'Google', 'Yandex', 'RHVoiceREST', 'RHVoice']
 
 
 class BaseTTS:
@@ -67,8 +67,9 @@ class Yandex(BaseTTS):
     URL = 'https://tts.voicetech.yandex.net/generate'
     MAX_CHARS = 2000
 
-    def __init__(self, text, speaker, audio_format, key, lang='ru-RU', **kwargs):
-        super().__init__(self.URL, text=text, speaker=speaker, format=audio_format, key=key, lang=lang, **kwargs)
+    def __init__(self, text, speaker, audio_format, key, emotion, lang, *_, **__):
+        super().__init__(self.URL, text=text, speaker=speaker or 'alyss',
+                         format=audio_format, key=key, lang=lang or 'ru-RU', emotion=emotion or 'good')
 
     def _request_check(self):
         super()._request_check()
@@ -77,15 +78,12 @@ class Yandex(BaseTTS):
 
 
 class RHVoiceREST(BaseTTS):
-    def __init__(self, text, url='http://127.0.0.1:8080', voice='anna', format_='mp3'):
-        super().__init__('{}/say'.format(url), text=text, format=format_, voice=voice)
+    def __init__(self, text, speaker, audio_format, url, *_, **__):
+        super().__init__('{}/say'.format(url or 'http://127.0.0.1:8080'),
+                         text=text, format=audio_format, voice=speaker or 'anna')
 
 
-class RHVoice(BaseTTS):
-    def __init__(self, text, voice='anna'):
-        self.__test = None
-        super().__init__(None, text=text, voice=voice)
-
+class RHVoice(RHVoiceREST):
     def _request(self):
         text = quote(self._params['text'])
         cmd = 'echo {} | RHVoice-test -p {} -o - | lame -ht -V 4 - -'.format(text, self._params['voice'])
@@ -107,3 +105,16 @@ class RHVoice(BaseTTS):
             if not chunk:
                 break
             yield chunk
+
+
+_CLASS_BY_NAME = {'google': Google, 'yandex': Yandex, 'rhvoice-rest': RHVoiceREST, 'rhvoice': RHVoice}
+
+
+def support(name):
+    return name in _CLASS_BY_NAME
+
+
+def GetTTS(name, **kwargs):
+    if not support(name):
+        raise RuntimeError('TTS {} not found'.format(name))
+    return _CLASS_BY_NAME[name](**kwargs)

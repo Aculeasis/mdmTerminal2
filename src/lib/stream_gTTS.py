@@ -8,6 +8,9 @@ from six.moves import urllib
 
 
 class gTTS(gtts.gTTS):
+    def __init__(self, text, lang, *_, **__):
+        super().__init__(text=text, lang=lang)
+
     def save(self, file_path, queue_=None):
         if file_path:
             with open(file_path, 'wb') as fp:

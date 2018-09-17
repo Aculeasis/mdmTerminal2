@@ -122,25 +122,17 @@ class _TTSWrapper(threading.Thread):
         prov = self.cfg.get('providertts', 'unset')
         key = self.cfg.get(prov, {}).get('apikeytts')
         try:
-            if prov == 'google':
-                tts = TTS.Google(text=msg, lang=self.PROVIDERS[prov])
-            elif prov == 'yandex':
-                tts = TTS.Yandex(
+            if TTS.support(prov):
+                tts = TTS.GetTTS(
+                    prov,
                     text=msg,
-                    speaker=self.cfg.get(prov, {}).get('speaker', 'alyss'),
+                    speaker=self.cfg.get(prov, {}).get('speaker'),
                     audio_format='mp3',
                     key=key,
                     lang=self.PROVIDERS[prov],
-                    emotion=self.cfg.get(prov, {}).get('emotion', 'good')
+                    emotion=self.cfg.get(prov, {}).get('emotion'),
+                    url=self.cfg.get(prov, {}).get('server')
                 )
-            elif prov == 'rhvoice-rest':
-                tts = TTS.RHVoiceREST(
-                    text=msg,
-                    url=self.cfg.get(prov, {}).get('server', 'http://127.0.0.1:8080'),
-                    voice=self.cfg.get(prov, {}).get('speaker', 'anna')
-                )
-            elif prov == 'rhvoice':
-                tts = TTS.RHVoice(text=msg, voice=self.cfg.get(prov, {}).get('speaker', 'anna'))
             else:
                 self.log('Неизвестный провайдер: {}'.format(prov), logger.CRIT)
                 self.file_path = self.cfg.path['tts_error']
