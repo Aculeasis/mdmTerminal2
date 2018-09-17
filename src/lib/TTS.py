@@ -84,10 +84,18 @@ class RHVoiceREST(BaseTTS):
 
 
 class RHVoice(RHVoiceREST):
+    CMD = {
+        'mp3': 'echo {} | RHVoice-test -p {} -o - | lame -ht -V 4 - -',
+        'wav': 'echo {} | RHVoice-test -p {} -o -'
+    }
+
     def _request(self):
-        text = quote(self._params['text'])
-        cmd = 'echo {} | RHVoice-test -p {} -o - | lame -ht -V 4 - -'.format(text, self._params['voice'])
-        self._rq = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+        self._rq = subprocess.Popen(
+            self.CMD[self._params['format']].format(quote(self._params['text']), self._params['voice']),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            shell=True
+        )
         self._data = self._rq.stdout
         self.__test = self._data.read(self.BUFF_SIZE)  # Ждем запуска, иначе poll() не вернет ошибку
 
