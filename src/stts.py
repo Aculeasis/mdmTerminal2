@@ -68,8 +68,6 @@ class _TTSWrapper(threading.Thread):
         else:
             msg_gen = '\'{}\' '.format(self.msg)
         use_cache = self.cfg['cache'].get('tts_size', 50) > 0
-        if not use_cache:
-            self._ext = '.mp3'
 
         self.file_path = self._find_in_cache(rname, provider) if use_cache else None
         if self.file_path:
@@ -78,9 +76,11 @@ class _TTSWrapper(threading.Thread):
             action = '{}найдено в кэше'.format(msg_gen)
             time_diff = ''
         else:
+            format_ = 'mp3' if use_cache or provider in ['google', 'yandex'] else 'wav'
+            self._ext = '.{}'.format(format_) if not use_cache else None
             self.file_path = os.path.join(self.cfg.path['tts_cache'], provider + rname) if use_cache else \
-                '[{}]'.format(sha1)
-            self._tts_gen(self.file_path if use_cache else None, self.msg)
+                '<{}><{}>'.format(sha1, format_)
+            self._tts_gen(self.file_path if use_cache else None, format_, self.msg)
             self._unlock()
             work_time = time.time() - wtime
             action = '{}сгенерированно {}'.format(msg_gen, provider)
@@ -118,7 +118,7 @@ class _TTSWrapper(threading.Thread):
         file = os.path.join(self.cfg.path['tts_cache'], prov + rname)
         return file if os.path.isfile(file) else ''
 
-    def _tts_gen(self, file, msg: str):
+    def _tts_gen(self, file, format_, msg: str):
         prov = self.cfg.get('providertts', 'unset')
         key = self.cfg.get(prov, {}).get('apikeytts')
         try:
@@ -127,7 +127,7 @@ class _TTSWrapper(threading.Thread):
                     prov,
                     text=msg,
                     speaker=self.cfg.get(prov, {}).get('speaker'),
-                    audio_format='mp3',
+                    audio_format=format_,
                     key=key,
                     lang=self.PROVIDERS[prov],
                     emotion=self.cfg.get(prov, {}).get('emotion'),
