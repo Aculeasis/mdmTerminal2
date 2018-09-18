@@ -29,6 +29,7 @@ class ConfigHandler(dict):
 
         # Расширение моделей
         self.path['model_ext'] = '.pmdl'
+        self.path['model_supports'] = ['.pmdl', '.umdl']
 
         # ~/tts_cache/
         self.path['tts_cache'] = os.path.join(self.path['home'], 'tts_cache')
@@ -138,7 +139,7 @@ class ConfigHandler(dict):
         count = 0
         for file in os.listdir(self.path['models']):
             full_path = os.path.join(self.path['models'], file)
-            if os.path.isfile(full_path) and os.path.splitext(file)[1] == self.path['model_ext']:
+            if os.path.isfile(full_path) and os.path.splitext(file)[1] in self.path['model_supports']:
                 self.path['models_list'].append(full_path)
                 count += 1
 
