@@ -188,15 +188,30 @@ class ConfigHandler(dict):
         self._print('Загружено {} опций за {}'.format(count, utils.pretty_time(time.time() - wtime)), logger.INFO)
         self._print('Конфигурация загружена!', logger.INFO, mode=2)
 
-    def json_to_cfg(self, json_: str):
-        try:
-            data = {key.lower(): val for key, val in json.loads(json_).items()}
-        except (json.decoder.JSONDecodeError, TypeError) as err:
-            self._print('Кривой json \'{}\': {}'.format(json_, err.msg), logger.ERROR)
-            return False
+    def _key_parse(self, key, val, dict_):
+        is_change = False
+        if isinstance(dict_.get(key), dict) and isinstance(val, dict):
+            for key_, val_ in val.items():
+                is_change |= self._key_parse(key_, val_, dict_[key])
+        elif isinstance(val, (dict, list)):
+            raise ValueError('This is {}: {}'.format(str(type(val)), key))
         else:
-            self._print('JSON: {}'.format(data))
+            tmp = type(dict_.get(key, ''))(val)
+            is_change |= tmp != dict_.get(key)
+            dict_[key] = tmp
+        return is_change
 
+    def json_to_cfg(self, data: str or dict) -> bool:
+        if isinstance(data, str):
+            try:
+                data = {key.lower(): val for key, val in json.loads(data).items()}
+            except (json.decoder.JSONDecodeError, TypeError) as err:
+                self._print('Кривой json \'{}\': {}'.format(data, err.msg), logger.ERROR)
+                return False
+        return self.dict_to_cfg(data)
+
+    def dict_to_cfg(self, data: dict) -> bool:
+        self._print('JSON: {}'.format(data))
         is_change = False
         for key, val in data.items():
             if key in ['providertts', 'providerstt']:
@@ -207,12 +222,7 @@ class ConfigHandler(dict):
                     is_change |= apikey not in self[val] or self[val][apikey] != data[apikey]
                     self[val][apikey] = data[apikey]
             if key not in ['apikeytts', 'apikeystt']:
-                if type(self.get(key, '')) == dict:
-                    raise Exception('This dictionary!')
-                else:
-                    tmp = type(self.get(key, ''))(val)
-                    is_change |= key not in self or self[key] != tmp
-                    self[key] = tmp
+                is_change |= self._key_parse(key, val, self)
         return is_change
 
     def tts_cache_check(self):
