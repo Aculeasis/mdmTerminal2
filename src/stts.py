@@ -7,6 +7,7 @@ import queue
 import random
 import threading
 import time
+import wave
 
 import pyaudio
 import speech_recognition as sr
@@ -290,7 +291,7 @@ class SpeechToText:
         else:
             return None
 
-    def _voice_recognition(self, audio, recognizer, deaf) ->str:
+    def _voice_recognition(self, audio, recognizer, deaf: bool, quiet=False) ->str:
         prov = self._cfg.get('providerstt', 'google')
         key = self._cfg.get(prov, {}).get('apikeystt', '')
         self.log('Для распознования используем {}'.format(prov), logger.DEBUG)
@@ -313,16 +314,43 @@ class SpeechToText:
                 self.log('Ошибка распознавания - неизвестный провайдер {}'.format(prov), logger.CRIT)
                 return ''
         except sr.UnknownValueError:
-            if deaf:
+            if deaf and not quiet:
                 self._play.say(random.SystemRandom().choice(self.DEAF))
             return ''
         except (sr.RequestError, RuntimeError) as e:
-            self._play.say('Произошла ошибка распознавания')
+            if not quiet:
+                self._play.say('Произошла ошибка распознавания')
             self.log('Произошла ошибка  {}'.format(e), logger.ERROR)
             return ''
         else:
             self.log('Распознано за {}'.format(utils.pretty_time(time.time() - wtime)), logger.DEBUG)
             return command
+
+    def phrase_from_files(self, files: list):
+        if not files:
+            return ''
+        count = len(files)
+        result = [None] * count
+        for i in range(count):
+            threading.Thread(target=self._recognition_worker, args=(files[i], result, i)).start()
+        while [True for x in result if x is None]:
+            time.sleep(0.05)
+        # Фраза с 50% + 1 побеждает
+        consensus = count // 2 + 1
+        phrase = ''
+        for say in result:
+            if result.count(say) >= consensus:
+                phrase = say
+                break
+        self.log('Распознано: {}. Консенсус: {}'.format(', '.join([str(x) for x in result]), phrase), logger.DEBUG)
+        return phrase
+
+    def _recognition_worker(self, file, result, i):
+        r = sr.Recognizer()
+        with wave.open(file, 'rb') as fp:
+            adata = sr.AudioData(fp.readframes(fp.getnframes()), fp.getframerate(), fp.getsampwidth())
+        say = self._voice_recognition(adata, r, False, True) or ''
+        result[i] = say.strip()
 
 
 class NonBlockListener:

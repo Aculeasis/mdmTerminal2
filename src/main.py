@@ -51,6 +51,7 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'tts_priority': 'yandex',
         'tts_size': 100,
     },
+    'models': {},
 }
 
 home = os.path.abspath(sys.path[0])

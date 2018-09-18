@@ -153,14 +153,16 @@ class MDTServer(threading.Thread):
     def _api_run(self, cmd: str):
         self.log('Not implemented yet - run:{}'.format(cmd), logger.WARN)
 
-    def _api_settings(self, cmd: str):
+    def _api_settings(self, cmd: str or dict) -> bool:
         if self._cfg.json_to_cfg(cmd):
             self._cfg.config_save()
             self._terminal.reload()
             self.log('Конфиг обновлен: {}'.format(self._cfg), logger.DEBUG)
             self.log('Конфиг обновлен', logger.INFO)
+            return True
         else:
             self.log('Конфиг не изменился', logger.DEBUG)
+            return False
 
     def _api_rec(self, cmd: str):
         param = cmd.split('_')  # должно быть вида rec_1_1, play_2_1, compile_5_1
@@ -226,21 +228,25 @@ class MDTServer(threading.Thread):
                 self._play.say(err.format(os.path.basename(x)))
         if miss:
             return
-        pmdl = os.path.join(self._cfg.path['models'], 'model' + param[1] + self._cfg.path['model_ext'])
-        self.log('Компилирую {}'.format(pmdl), logger.INFO)
+        pmdl_name = 'model' + param[1] + self._cfg.path['model_ext']
+        pmdl_path = os.path.join(self._cfg.path['models'], pmdl_name)
+        self.log('Компилирую {}'.format(pmdl_path), logger.INFO)
         work_time = time.time()
         try:
             snowboy = training_service.Training(*models)
         except RuntimeError as e:
-            self.log('Ошибка компиляции модели {}: {}'.format(pmdl, e), logger.ERROR)
+            self.log('Ошибка компиляции модели {}: {}'.format(pmdl_path, e), logger.ERROR)
             self._play.say('Ошибка компиляции модели номер {}'.format(param[1]))
         else:
             work_time = utils.pretty_time(time.time() - work_time)
-            snowboy.save(pmdl)
-            self.log('Модель скомпилирована успешно за {}: {}'.format(work_time, pmdl), logger.INFO)
-            self._play.say('Модель номер {} скомпилирована успешно за {}'.format(param[1], work_time))
+            snowboy.save(pmdl_path)
+            phrase = self._stt.phrase_from_files(models)
+            msg = ', "{}",'.format(phrase) if phrase else ''
+            self.log('Модель{} скомпилирована успешно за {}: {}'.format(msg, work_time, pmdl_path), logger.INFO)
+            self._play.say('Модель{} номер {} скомпилирована успешно за {}'.format(msg, param[1], work_time))
             self._cfg.models_load()
-            self._terminal.reload()
+            if not self._api_settings({'models': {pmdl_name: phrase}}):
+                self._terminal.reload()
             # Удаляем временные файлы
             for x in models:
                 os.remove(x)

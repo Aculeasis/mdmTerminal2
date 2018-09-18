@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import os
 import threading
 import time
 import urllib.parse
@@ -8,10 +9,10 @@ import urllib.request
 import wikipedia
 
 import logger
+import player
 import stts
 import utils
 from lib import snowboydecoder
-import player
 
 wikipedia.set_lang('ru')
 
@@ -114,7 +115,15 @@ class MDTerminal(threading.Thread):
         if not model:
             self.log('Очень странный вызов от сновбоя. Это нужно исправить', logger.CRIT)
         else:
-            self.log('Голосовая активация по ключевому слову номер {}'.format(model), logger.INFO)
+            model -= 1
+            if model < len(self._cfg.path['models_list']):
+                model_name = os.path.split(self._cfg.path['models_list'][model])[1]
+                phrase = self._cfg['models'].get(model_name)
+                phrase = '' if not phrase else ': "{}"'.format(phrase)
+            else:
+                model_name = str(model)
+                phrase = ''
+            self.log('Голосовая активация по {}{}'.format(model_name, phrase), logger.INFO)
         self.detected()
 
     def detected(self, hello: str = ''):
