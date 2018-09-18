@@ -11,6 +11,10 @@ from speech_recognition import AudioData
 __all__ = ['Yandex', 'PocketSphinxREST']
 
 
+class UnknownValueError(Exception):
+    pass
+
+
 class BaseSTT:
     BUFF_SIZE = 1024
 
@@ -94,6 +98,8 @@ class Yandex(BaseSTT):
         for test in self._rq.text.split('\n'):
             if test.startswith('\t'):
                 text = test[1:]
+        if not text:
+            raise UnknownValueError('No variants')
         end_point = 10  # '</variant>'
         if len(text) > end_point + 2:
             text = text[:-end_point]

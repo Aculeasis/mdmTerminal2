@@ -313,7 +313,7 @@ class SpeechToText:
             else:
                 self.log('Ошибка распознавания - неизвестный провайдер {}'.format(prov), logger.CRIT)
                 return ''
-        except sr.UnknownValueError:
+        except (sr.UnknownValueError, STT.UnknownValueError):
             if deaf and not quiet:
                 self._play.say(random.SystemRandom().choice(self.DEAF))
             return ''
