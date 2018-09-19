@@ -77,7 +77,6 @@ class _TTSWrapper(threading.Thread):
             time_diff = ''
         else:
             format_ = 'mp3' if use_cache or provider in ['google', 'yandex'] else 'wav'
-            self._ext = '.{}'.format(format_) if not use_cache else None
             self.file_path = os.path.join(self.cfg.path['tts_cache'], provider + rname) if use_cache else \
                 '<{}><{}>'.format(sha1, format_)
             self._tts_gen(self.file_path if use_cache else None, format_, self.msg)
@@ -145,6 +144,7 @@ class _TTSWrapper(threading.Thread):
         write_to = [self._stream]
         if file:
             write_to.append(open(file, 'wb'))
+        self._ext = '.{}'.format(format_) if not file else None
         self._unlock()
         tts.stream_to_fps(write_to)
         for fp in write_to:
