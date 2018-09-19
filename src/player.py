@@ -187,7 +187,7 @@ class Player:
         self._only_one.acquire()
         (path, stream, ext) = obj() if callable(obj) else (obj, None, None) if isinstance(obj, str) else obj
         self.kill_popen()
-        ext = ext or os.path.splitext(path)[1]
+        ext = ext if stream else os.path.splitext(path)[1]
         if not stream and not os.path.isfile(path):
             self._only_one.release()
             return self.log('Файл {} не найден'.format(path), logger.ERROR)
