@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 
+import os
+import queue
 import signal
 import socket
+import subprocess
 import threading
 import time
-import os
 
 YANDEX_EMOTION = {
     'good'    : 'добрая',
@@ -81,6 +83,39 @@ class SignalHandler:
             self._sleep.wait(sleep_time)
         elif self._healing:
             time.sleep(self.SUPPRESS_SIGNAL)
+
+
+class FakeFP(threading.Thread, queue.Queue):
+    def __init__(self):
+        threading.Thread.__init__(self)
+        queue.Queue.__init__(self)
+        self._popen = None
+
+    def run(self):
+        while True:
+            data = self.get()
+            if not data or self._popen.poll() is not None:
+                break
+            try:
+                self._popen.stdin.write(data)
+            except BrokenPipeError:
+                break
+
+        try:
+            self._popen.stdin.close()
+        except BrokenPipeError:
+            pass
+
+    def __call__(self, cmd, *args, **kwargs):
+        self._popen = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+        super().start()
+        return self._popen
+
+    def write(self, n):
+        self.put_nowait(n)
+
+    def close(self):
+        self.write(b'')
 
 
 def get_ip_address():

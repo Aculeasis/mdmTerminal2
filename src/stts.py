@@ -3,7 +3,6 @@
 import hashlib
 import os
 import os.path
-import queue
 import random
 import threading
 import time
@@ -46,7 +45,7 @@ class _TTSWrapper(threading.Thread):
         self.msg = msg if isinstance(msg, str) else str(msg)
         self.realtime = realtime
         self.file_path = None
-        self._queue = None
+        self._stream = None
         self._ext = None
         self.event = threading.Event()
         self.work_time = None
@@ -56,7 +55,7 @@ class _TTSWrapper(threading.Thread):
     def get(self):
         self.event.wait(600)
         self._unlock()
-        return self.file_path, self._queue, self._ext
+        return self.file_path, self._stream, self._ext
 
     def run(self):
         wtime = time.time()
@@ -142,9 +141,14 @@ class _TTSWrapper(threading.Thread):
             self.log('Ошибка синтеза речи от {}, ключ \'{}\'. ({})'.format(prov, key, e), logger.CRIT)
             self.file_path = self.cfg.path['tts_error']
             return
-        self._queue = queue.Queue()
+        self._stream = utils.FakeFP()
+        write_to = [self._stream]
+        if file:
+            write_to.append(open(file, 'wb'))
         self._unlock()
-        tts.save(file, self._queue)
+        tts.stream_to_fps(write_to)
+        for fp in write_to:
+            fp.close()
         return
 
 

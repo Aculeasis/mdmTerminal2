@@ -179,52 +179,22 @@ class Player:
         self._busy = False
 
     def _play(self, obj):
-        (path, queue_, ext) = obj() if callable(obj) else (obj, None, None) if isinstance(obj, str) else obj
-        if not queue_ and not os.path.isfile(path):
-            return self.log('Файл {} не найден'.format(path), logger.ERROR)
+        (path, stream, ext) = obj() if callable(obj) else (obj, None, None) if isinstance(obj, str) else obj
         ext = ext or os.path.splitext(path)[1]
+        if not stream and not os.path.isfile(path):
+            return self.log('Файл {} не найден'.format(path), logger.ERROR)
         if ext not in self.PLAY:
             return self.log('Неизвестный тип файла: {}'.format(ext), logger.CRIT)
         cmd = self.PLAY[ext].copy()
-        if queue_ is None:
+        if stream is None:
             cmd.append(path)
             self.log('Играю {} ...'.format(path, logger.DEBUG))
             self._popen = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
         else:
             cmd.append('-')
             self.log('Стримлю {} ...'.format(path, logger.DEBUG))
-            self._popen = StreamPlayer(cmd, queue_).get_popen()
-
-
-class StreamPlayer(threading.Thread):
-    def __init__(self, cmd, queue_):
-        super().__init__(name='StreamPlayer')
-        self._queue = queue_
-        self._popen = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
-        self._work = True
-        self.start()
-
-    def get_popen(self):
-        return self._popen
-
-    def join(self, timeout=None):
-        self._work = False
-        self._queue.put_nowait(None)
-        super().join(timeout)
-
-    def run(self):
-        while self._work:
-            data = self._queue.get()
-            if not data or self._popen.poll() is not None or not self._work:
-                break
-            try:
-                self._popen.stdin.write(data)
-            except BrokenPipeError:
-                break
-        try:
-            self._popen.stdin.close()
-        except BrokenPipeError:
-            pass
+            # noinspection PyCallingNonCallable
+            self._popen = stream(cmd)
 
 
 class LowPrioritySay(threading.Thread):

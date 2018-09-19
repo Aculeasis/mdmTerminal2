@@ -11,19 +11,9 @@ class gTTS(gtts.gTTS):
     def __init__(self, text, lang, *_, **__):
         super().__init__(text=text, lang=lang)
 
-    def save(self, file_path, queue_=None):
-        if file_path:
-            with open(file_path, 'wb') as fp:
-                self.write_to_fp(fp, queue_)
-        else:
-            # noinspection PyTypeChecker
-            self.write_to_fp(None, queue_)
-        if queue_:
-            queue_.put_nowait(None)
-
-    def write_to_fp(self, fp, queue_=None):
-        # When disabling ssl verify in requests (for proxies and firewalls),
-        # urllib3 prints an insecure warning on stdout. We disable that.
+    def stream_to_fps(self, fps):
+        if not isinstance(fps, list):
+            fps = [fps]
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
         text_parts = self._tokenize(self.text)
@@ -64,7 +54,5 @@ class gTTS(gtts.gTTS):
                 # Request failed
                 raise gtts.gTTSError(str(e))
             for chunk in r.iter_content(chunk_size=1024):
-                if queue_:
-                    queue_.put_nowait(chunk)
-                if fp:
-                    fp.write(chunk)
+                for f in fps:
+                    f.write(chunk)

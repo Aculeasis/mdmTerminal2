@@ -45,21 +45,16 @@ class BaseTTS:
         for chunk in self._data(chunk_size=self.BUFF_SIZE):
             yield chunk
 
-    def save_to_fp(self, fp, queue_):
+    def stream_to_fps(self, fps):
+        if not isinstance(fps, list):
+            fps = [fps]
         for chunk in self.iter_me():
-            if queue_:
-                queue_.put_nowait(chunk)
-            if fp:
-                fp.write(chunk)
-        if queue_:
-            queue_.put_nowait(None)
+            for f in fps:
+                f.write(chunk)
 
-    def save(self, file_path, queue_=None):
-        if file_path:
-            with open(file_path, 'wb') as fp:
-                self.save_to_fp(fp, queue_)
-        else:
-            self.save_to_fp(None, queue_)
+    def save(self, file_path):
+        with open(file_path, 'wb') as fp:
+            self.stream_to_fps(fp)
         return file_path
 
 
