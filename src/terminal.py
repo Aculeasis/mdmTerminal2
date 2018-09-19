@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import os
+import random
 import threading
 import time
 import urllib.parse
@@ -112,6 +113,7 @@ class MDTerminal(threading.Thread):
         self._api_time = int(time.time())
 
     def _detected(self, model: int=0):
+        phrase = ''
         if not model:
             self.log('Очень странный вызов от сновбоя. Это нужно исправить', logger.CRIT)
         else:
@@ -119,12 +121,12 @@ class MDTerminal(threading.Thread):
             if model < len(self._cfg.path['models_list']):
                 model_name = os.path.split(self._cfg.path['models_list'][model])[1]
                 phrase = self._cfg['models'].get(model_name)
-                phrase = '' if not phrase else ': "{}"'.format(phrase)
+                msg = '' if not phrase else ': "{}"'.format(phrase)
             else:
                 model_name = str(model)
-                phrase = ''
-            self.log('Голосовая активация по {}{}'.format(model_name, phrase), logger.INFO)
-        self.detected()
+                msg = ''
+            self.log('Голосовая активация по {}{}'.format(model_name, msg), logger.INFO)
+        self.detected('{} слушает'.format(phrase) if phrase and not random.SystemRandom().randrange(0, 4) else '')
 
     def detected(self, hello: str = ''):
         if self._snowboy is not None:
