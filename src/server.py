@@ -57,6 +57,7 @@ class MDTServer(threading.Thread):
     def stop(self):
         self.work = False
         self._play.quiet()
+        self._play.kill_popen()
         self._play.say('Голосовой терминал мажордомо завершает свою работу.')
         self.log('stopping...')
         self._terminal.stop()

@@ -26,6 +26,7 @@ class Player:
         self.log = logger_.add('Player')
         # 0 - играем в фоне, до 5 снимаем блокировку автоматически. 5 - монопольный режим, нужно снять блокировку руками
         self._lvl = 0
+        self._only_one = threading.Lock()
         self._work = False
         self._popen = None
         self._busy = False
@@ -57,6 +58,7 @@ class Player:
             time.sleep(0.01)
             count += 1
         self.quiet()
+        self.kill_popen()
 
         self._last_activity = 0  # Отжим паузы
         self.mpd.stop()
@@ -98,12 +100,15 @@ class Player:
     def busy(self):
         return self._work and (self.popen_work() or self._busy)
 
+    def kill_popen(self):
+        if self.popen_work():
+            self._popen.kill()
+            self.log('Stop playing', logger.DEBUG)
+
     def quiet(self):
         if self.popen_work():
             self._lp_play.clear()
-            self._popen.kill()
             self._busy = False
-            self.log('Stop playing', logger.DEBUG)
 
     def last_activity(self):
         if self.popen_work():
@@ -179,11 +184,15 @@ class Player:
         self._busy = False
 
     def _play(self, obj):
+        self._only_one.acquire()
         (path, stream, ext) = obj() if callable(obj) else (obj, None, None) if isinstance(obj, str) else obj
+        self.kill_popen()
         ext = ext or os.path.splitext(path)[1]
         if not stream and not os.path.isfile(path):
+            self._only_one.release()
             return self.log('Файл {} не найден'.format(path), logger.ERROR)
         if ext not in self.PLAY:
+            self._only_one.release()
             return self.log('Неизвестный тип файла: {}'.format(ext), logger.CRIT)
         cmd = self.PLAY[ext].copy()
         if stream is None:
@@ -195,6 +204,7 @@ class Player:
             self.log('Стримлю {} ...'.format(path, logger.DEBUG))
             # noinspection PyCallingNonCallable
             self._popen = stream(cmd)
+        self._only_one.release()
 
 
 class LowPrioritySay(threading.Thread):
