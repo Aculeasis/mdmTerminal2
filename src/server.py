@@ -207,6 +207,7 @@ class MDTServer(threading.Thread):
         self.log(hello, logger.INFO)
 
         err = self._stt.voice_record(hello=hello, save_to=save_to, convert_rate=16000, convert_width=2)
+        self._terminal.paused(False)
         if err is None:
             bye = 'Запись {} образца завершена. Вы можете прослушать свою запись.'.format(nums[param[2]])
             self._play.say(bye)
@@ -215,8 +216,6 @@ class MDTServer(threading.Thread):
             err = 'Ошибка сохранения образца {}: {}'.format(nums[param[2]], err)
             self.log(err, logger.ERROR)
             self._play.say(err)
-
-        self._terminal.paused(False)
 
     def _rec_compile(self, param: list):
         models = [os.path.join(self._cfg.path['tmp'], param[1] + x + '.wav') for x in ['1', '2', '3']]
