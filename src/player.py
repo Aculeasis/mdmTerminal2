@@ -29,8 +29,6 @@ class Player:
         self._only_one = threading.Lock()
         self._work = False
         self._popen = None
-        self._busy = False
-        self._uid = 0
         self._last_activity = time.time()
         self.tts = stts.TextToSpeech(cfg, logger_.add('TTS')).tts
 
@@ -65,8 +63,7 @@ class Player:
 
         self.log('stop.', logger.INFO)
 
-    def set_lvl(self, lvl, uid):
-
+    def set_lvl(self, lvl):
         if lvl > 1:
             self._lp_play.clear()
 
@@ -75,16 +72,14 @@ class Player:
                 while self.busy() and time.time() - start_time < self.MAX_BUSY_WAIT:
                     pass
         if lvl >= self.get_lvl():
-            self.set_busy(lvl, uid)
+            self._lvl = lvl
+            self.quiet()
             return True
+        try:
+            self._only_one.release()
+        except RuntimeError:
+            pass
         return False
-
-    def set_busy(self, lvl, uid):
-        self._lvl = lvl
-        self._uid = uid
-        self._busy = True
-        self.quiet()
-        self._busy = True
 
     def get_lvl(self):
         if self._lvl < 5:
@@ -98,7 +93,7 @@ class Player:
         self._lvl = 0
 
     def busy(self):
-        return self._work and (self.popen_work() or self._busy)
+        return self.popen_work() and self._work
 
     def kill_popen(self):
         if self.popen_work():
@@ -108,7 +103,6 @@ class Player:
     def quiet(self):
         if self.popen_work():
             self._lp_play.clear()
-            self._busy = False
 
     def last_activity(self):
         if self.popen_work():
@@ -121,78 +115,60 @@ class Player:
     def play(self, file, lvl: int=2, wait=0):
         if not lvl:
             self.log('low play \'{}\' pause {}'.format(file, wait), logger.DEBUG)
-            self._lp_play.play(file, wait)
-            return
+            return self._lp_play.play(file, wait)
+        self._only_one.acquire(timeout=20)
 
-        uid = hashlib.sha256(str(time.time()).encode()).hexdigest()
-        if not self.set_lvl(lvl, uid):
+        if not self.set_lvl(lvl):
             return
 
         self._last_activity = time.time() + 3
         self.mpd.pause(True)
 
         time.sleep(0.01)
-        if uid != self._uid:
-            return
         self._play(file)
+        self._only_one.release()
 
         self._last_activity = time.time() + wait
         if wait:
             time.sleep(wait)
-        if uid != self._uid:
-            return
-        self._busy = False
 
     def say(self, msg: str, lvl: int=2, alarm=None, wait=0, is_file: bool = False):
         if not lvl:
             self.log('low say \'{}\' pause {}'.format(msg, wait), logger.DEBUG)
-            self._lp_play.say(msg, wait, is_file)
-            return
+            return self._lp_play.say(msg, wait, is_file)
+        self._only_one.acquire(timeout=20)
 
-        uid = hashlib.sha256(str(time.time()).encode()).hexdigest()
-        if not self.set_lvl(lvl, uid):
+        if not self.set_lvl(lvl):
             return
 
         if alarm is None:
             alarm = self._cfg.get('alarmtts', 0)
 
         file = self.tts(msg) if not is_file else msg
-        if uid != self._uid:
-            return
         self._last_activity = time.time() + 3
         self.mpd.pause(True)
 
         time.sleep(0.01)
         if alarm:
-            if uid != self._uid:
-                return
             self._play(self._cfg.path['dong'])
             try:
                 self._popen.wait(2)
             except subprocess.TimeoutExpired:
                 pass
-        if uid != self._uid:
-            return
         self._play(file)
+        self._only_one.release()
 
         self._last_activity = time.time() + wait
         if wait:
             time.sleep(wait)
 
-        if uid != self._uid:
-            return
-        self._busy = False
-
     def _play(self, obj):
-        self._only_one.acquire()
         (path, stream, ext) = obj() if callable(obj) else (obj, None, None) if isinstance(obj, str) else obj
         self.kill_popen()
         ext = ext or os.path.splitext(path)[1]
         if not stream and not os.path.isfile(path):
-            self._only_one.release()
             return self.log('Файл {} не найден'.format(path), logger.ERROR)
         if ext not in self.PLAY:
-            self._only_one.release()
             return self.log('Неизвестный тип файла: {}'.format(ext), logger.CRIT)
         cmd = self.PLAY[ext].copy()
         if stream is None:
@@ -204,7 +180,6 @@ class Player:
             self.log('Стримлю {} ...'.format(path, logger.DEBUG))
             # noinspection PyCallingNonCallable
             self._popen = stream(cmd)
-        self._only_one.release()
 
 
 class LowPrioritySay(threading.Thread):
@@ -217,8 +192,14 @@ class LowPrioritySay(threading.Thread):
         self._is_busy = is_busy
         self._queue_in = queue.Queue()
         self._quiet = False
+        self._work = False
+
+    def start(self):
+        self._work = True
+        super().start()
 
     def stop(self):
+        self._work = False
         self._queue_in.put_nowait(None)
         self.join()
 
@@ -240,18 +221,16 @@ class LowPrioritySay(threading.Thread):
         self._queue_in.put_nowait([action, target, wait])
 
     def run(self):
-        while True:
-            while self._is_busy():
-                time.sleep(0.01)
+        while self._work:
             say = self._queue_in.get()
-            if say is None:
+            while self._is_busy() and self._work:
+                time.sleep(0.01)
+            if say is None or not self._work:
                 break
-            if say[0] == 1:
-                self._say(msg=say[1], lvl=1, wait=say[2])
+            if say[0] in [1, 3]:
+                self._say(msg=say[1], lvl=1, wait=say[2], is_file=say[0] == 3)
             elif say[0] == 2:
                 self._play(file=say[1], lvl=1, wait=say[2])
-            elif say[0] == 3:
-                self._say(msg=say[1], lvl=1, wait=say[2], is_file=True)
 
 
 def _auto_reconnect(func):
