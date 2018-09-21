@@ -283,7 +283,11 @@ class SpeechToText:
 
         # Пишем
         with sr.Microphone(device_index=self.get_mic_index()) as mic:
-            adata = r.listen(source=mic, timeout=5, phrase_time_limit=3)
+            try:
+                adata = r.listen(source=mic, timeout=5, phrase_time_limit=3)
+            except sr.WaitTimeoutError as e:
+                self._play.clear_lvl()
+                return str(e)
 
         self._play.clear_lvl()
 
