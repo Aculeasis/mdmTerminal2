@@ -33,7 +33,7 @@ class Player:
         self.tts = stts.TextToSpeech(cfg, logger_.add('TTS')).tts
 
         self.mpd = MPDControl(self._cfg['mpd'], self.last_activity)
-        self._lp_play = LowPrioritySay(self.busy, self.say, self.play)
+        self._lp_play = LowPrioritySay(self.really_busy, self.say, self.play)
 
     def start(self):
         self._work = True
@@ -94,6 +94,9 @@ class Player:
 
     def busy(self):
         return self.popen_work() and self._work
+
+    def really_busy(self):
+        return self._only_one.locked() or self.busy()
 
     def kill_popen(self):
         if self.popen_work():

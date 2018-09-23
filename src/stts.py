@@ -234,7 +234,7 @@ class SpeechToText:
         # Начинаем фоновое распознавание голосом после того как запустился плей.
         listener = NonBlockListener(r=r, source=mic, phrase_time_limit=20)
         if not voice:
-            while listener.work() and self._play.popen_work() and time.time() - start_wait < max_play_time and self._work:
+            while listener.work() and self._play.really_busy() and time.time() - start_wait < max_play_time and self._work:
                 # Ждем пока время не выйдет, голос не распознался и файл играет
                 time.sleep(0.01)
         self._play.quiet()
@@ -278,7 +278,7 @@ class SpeechToText:
         self._play.play(self._cfg.path['ding'], lvl)
 
         start_time = time.time()
-        while self._play.popen_work() and time.time() - start_time < 30 and self._work:
+        while self._play.really_busy() and time.time() - start_time < 30 and self._work:
             time.sleep(0.01)
 
         # Пишем
