@@ -5,6 +5,7 @@ import time
 from io import BytesIO
 
 import requests
+import urllib3
 from bs4 import BeautifulSoup
 from speech_recognition import AudioData
 
@@ -55,7 +56,11 @@ class BaseSTT:
                 stream=True,
                 timeout=60
             )
-        except (requests.exceptions.HTTPError, requests.exceptions.RequestException) as e:
+        except (
+                requests.exceptions.HTTPError,
+                requests.exceptions.RequestException,
+                urllib3.exceptions.NewConnectionError
+        ) as e:
             raise RuntimeError(str(e))
 
     def _reply_check(self):

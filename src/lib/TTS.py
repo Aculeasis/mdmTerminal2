@@ -3,6 +3,7 @@ import subprocess
 from shlex import quote
 
 import requests
+import urllib3
 from bs4 import BeautifulSoup
 
 from .stream_gTTS import gTTS as Google
@@ -30,7 +31,11 @@ class BaseTTS:
     def _request(self):
         try:
             self._rq = requests.get(self._url, params=self._params, stream=True, timeout=60)
-        except (requests.exceptions.HTTPError, requests.exceptions.RequestException) as e:
+        except (
+                requests.exceptions.HTTPError,
+                requests.exceptions.RequestException,
+                urllib3.exceptions.NewConnectionError
+        ) as e:
             raise RuntimeError(str(e))
         self._data = self._rq.iter_content
 
