@@ -14,7 +14,6 @@ import speech_recognition as sr
 import lib.STT as STT
 import lib.TTS as TTS
 import logger
-import player
 import utils
 
 
@@ -156,7 +155,7 @@ class SpeechToText:
     HELLO = ['Привет', 'Слушаю', 'На связи', 'Привет-Привет']
     DEAF = ['Вы что то сказали?', 'Я ничего не услышала', 'Что Вы спросили?', 'Не поняла']
 
-    def __init__(self, cfg, play_: player.Player, log):
+    def __init__(self, cfg, play_, log):
         self.log = log
         self._cfg = cfg
         self._busy = False
