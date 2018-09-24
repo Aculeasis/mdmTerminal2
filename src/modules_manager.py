@@ -60,13 +60,13 @@ class ModuleManager:
     def __init__(self, log, cfg, die_in, say):
         self._log = log
         self.cfg = cfg
-        self.set_die_in = die_in
+        self._set_die_in = die_in
         self._say = say
         # Режим разработчика
         self.debug = False
         # Если установлено, будет всегда вызывать его
         self.one_way = None
-        self.check_words = [NM, ANY]
+        self._check_words = [NM, ANY]
         self.all = None
         # Для поиска по имени
         self.by_name = None
@@ -124,7 +124,7 @@ class ModuleManager:
     def _set_debug(self, mode_: bool):
         if self.is_debug == mode_:
             return False
-        self.check_words = [NM, ANY] if not mode_ else [DM, ANY]
+        self._check_words = [NM, ANY] if not mode_ else [DM, ANY]
         self.debug = mode_
         return True
 
@@ -177,7 +177,7 @@ class ModuleManager:
             return self.debug == (val['mode'] == DM)
 
         val = self.all[f]
-        for words_target in self.check_words:
+        for words_target in self._check_words:
             if words_target in val and allow_any():
                 for check in val[words_target]:
                     if isinstance(check, str):
@@ -205,7 +205,7 @@ class ModuleManager:
                     'one_way': self._set_one_way,
                     'mod_mode': self._set_mod_mode,
                     'mod_enable': self._set_mod_enable,
-                    'die': self.set_die_in,
+                    'die': self._set_die_in,
                 }
                 for key, val in reply.set.items():
                     if key in f_by_key:
