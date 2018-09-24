@@ -15,7 +15,7 @@ ANY = 'words'  # Оба режима. by default for words
 
 def get_mode_say(mode_):
     pretty = {NM: 'Обычный', DM: 'Отладка', ANY: 'Любой'}
-    return pretty.get(mode_, 'Удален')
+    return pretty.get(mode_)
 
 
 def get_enable_say(enable):
