@@ -131,26 +131,27 @@ class ModuleManager:
         self.one_way = f
 
     def _set_mod_enable(self, f, enable: bool):
-        if f not in self.all:
-            self._log('Module {} not found'.format(f), logger.WARN)
-            return
-        if self.all[f]['hardcoded']:
-            self._log('Module {} hardcoded - not to change mode'.format(self.all[f].get('name', f)), logger.WARN)
+        if not self.__set_mod_check(f):
             return
         if self.all[f]['enable'] == enable:
             self._log('Module {} already {}'.format(self.all[f].get('name', f), get_enable_say(enable)), logger.INFO)
         self.all[f]['enable'] = enable
 
     def _set_mod_mode(self, f, mode_):
-        if f not in self.all:
-            self._log('Module {} not found'.format(f), logger.WARN)
-            return
-        if self.all[f]['hardcoded']:
-            self._log('Module {} hardcoded - not to change mode'.format(self.all[f].get('name', f)), logger.WARN)
+        if not self.__set_mod_check(f):
             return
         if self.all[f]['mode'] == mode_:
             self._log('Module {} already {}'.format(self.all[f].get('name', f), get_mode_say(mode_)), logger.INFO)
         self.all[f]['mode'] = mode_
+
+    def __set_mod_check(self, f):
+        if f not in self.all:
+            self._log('Module {} not found'.format(f), logger.WARN)
+            return False
+        if self.all[f]['hardcoded']:
+            self._log('Module {} hardcoded - not to change mode'.format(self.all[f].get('name', f)), logger.WARN)
+            return False
+        return True
 
     @property
     def get_one_way(self):
@@ -170,6 +171,26 @@ class ModuleManager:
         self._check_words = [NM, ANY] if not mode_ else [DM, ANY]
         self.debug = mode_
         return True
+
+    def _phrases_testing(self, phrase, phrase_check):
+        reply = Next
+        self._code = 0
+        for f, words, mode_ in self._words_iter():
+            if words == '':
+                reply = self._call_func(f, phrase_check, phrase)
+            elif mode_ == EQ:
+                if phrase_check == words:
+                    reply = self._call_func(f, words, phrase)
+            elif mode_ == SW:
+                if phrase_check.startswith(words):
+                    reply = self._call_func(f, words, phrase[len(words):].strip())
+            elif mode_ == EW:
+                if phrase_check.endswith(words):
+                    reply = self._call_func(f, words, phrase[:-len(words)].strip())
+
+            if reply is not Next:
+                return self._return_wrapper(f, reply)
+        return self._return_wrapper(None, [Say('Соответствие фразе не найдено: {}'.format(phrase))])
 
     def tester(self, phrase: str, call_me=None):
         reply = Next
@@ -192,24 +213,7 @@ class ModuleManager:
             self._log('Вы ничего не сказали?', logger.DEBUG)
             return self._return_wrapper(None, None)
 
-        self._code = 0
-        for f, words, mode_ in self._words_iter():
-            if words == '':
-                reply = self._call_func(f, phrase_check, phrase)
-            elif mode_ == EQ:
-                if phrase_check == words:
-                    reply = self._call_func(f, words, phrase)
-            elif mode_ == SW:
-                if phrase_check.startswith(words):
-                    reply = self._call_func(f, words, phrase[len(words):].strip())
-            elif mode_ == EW:
-                if phrase_check.endswith(words):
-                    reply = self._call_func(f, words, phrase[:-len(words)].strip())
-
-            if reply is not Next:
-                return self._return_wrapper(f, reply)
-
-        return self._return_wrapper(None, [Say('Соответствие фразе не найдено: {}'.format(phrase))])
+        return self._phrases_testing(phrase, phrase_check)
 
     def words_by_f(self, f):
         def allow_any():
@@ -233,6 +237,25 @@ class ModuleManager:
             for words in self.words_by_f(key):
                 yield key, words[0], words[1]
 
+    def _processing_set(self, to_set: Set or None):
+        if to_set is None:
+            return
+        f_by_key = {
+            'debug': self._set_debug,
+            'one_way': self._set_one_way,
+            'mod_mode': self._set_mod_mode,
+            'mod_enable': self._set_mod_enable,
+            'die': self._set_die_in,
+        }
+        for key, val in to_set.set.items():
+            if key in f_by_key:
+                if isinstance(val, dict):
+                    f_by_key[key](**val)
+                elif not isinstance(val, (tuple, list)):
+                    f_by_key[key](val)
+                else:
+                    f_by_key[key](*val)
+
     def _return_wrapper(self, f, replies):
         if replies is None:
             return None, None
@@ -243,21 +266,7 @@ class ModuleManager:
         for reply in replies:
             reply_type = type(reply)
             if reply_type is Set:
-                f_by_key = {
-                    'debug': self._set_debug,
-                    'one_way': self._set_one_way,
-                    'mod_mode': self._set_mod_mode,
-                    'mod_enable': self._set_mod_enable,
-                    'die': self._set_die_in,
-                }
-                for key, val in reply.set.items():
-                    if key in f_by_key:
-                        if isinstance(val, dict):
-                            f_by_key[key](**val)
-                        elif not isinstance(val, (tuple, list)):
-                            f_by_key[key](val)
-                        else:
-                            f_by_key[key](*val)
+                self._processing_set(reply)
             elif reply_type is Say:
                 result = reply.text
             elif reply_type is Ask:
@@ -266,7 +275,6 @@ class ModuleManager:
             elif reply_type is SayLow:
                 for text in reply.iter():
                     self._say(*text)
-
         return result, asking
 
     def _call_func(self, f, *args):
