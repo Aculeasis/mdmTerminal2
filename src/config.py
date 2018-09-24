@@ -105,6 +105,28 @@ class ConfigHandler(dict):
             to_save = True
         return to_save
 
+    def save_dict(self, name: str, data: dict) -> bool:
+        file_path = os.path.join(self.path['home'], name + '.json')
+        try:
+            with open(file_path, 'w') as fp:
+                json.dump(data, fp)
+        except TypeError as e:
+            self._print('Ошибка сохранения {}: {}'.format(file_path, str(e)), logger.ERROR)
+            return False
+        return True
+
+    def load_dict(self, name: str) -> dict or None:
+        file_path = os.path.join(self.path['home'], name + '.json')
+        if not os.path.isfile(file_path):
+            self._print('Файл не найден: {}'.format(file_path))
+            return None
+        try:
+            with open(file_path) as fp:
+                return json.load(fp)
+        except (json.decoder.JSONDecodeError, TypeError) as e:
+            self._print('Ошибка загрузки {}: {}'.format(file_path, str(e)), logger.ERROR)
+            return None
+
     def join_low_say(self, low_say):
         self._say = low_say
         # Произносим накопленные фразы

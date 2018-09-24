@@ -6,4 +6,5 @@ env
 src/settings.ini
 src/test.py
 src/test.mp3
+src/modules.json
 src/resources/models/

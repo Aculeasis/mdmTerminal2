@@ -71,15 +71,58 @@ class ModuleManager:
         # Для поиска по имени
         self.by_name = None
         self._code = 0
+        # Без расширения
+        self._cfg_name = 'modules'
+        self._cfg_options = ['enable', 'mode', 'hardcoded']
 
     def start(self):
         import modules
         self.all, conflict = modules.mod.get
         # Для поиска по имени
         self.by_name = {val['name']: key for key, val in self.all.items()}
+        # Загружаем настройки модулей
+        self._set_options(self.cfg.load_dict(self._cfg_name))
         self._log('Загружены модули: {}'.format(', '.join([key for key in self.by_name])))
         if conflict:
             self._log(conflict, logger.WARN)
+
+    def save(self):
+        # Сохраняем настройки модулей
+        self.cfg.save_dict(self._cfg_name, self._get_options())
+
+    def _get_options(self):
+        data = {}
+        for _, val in self.all.items():
+            data[val['name']] = {}
+            for key in self._cfg_options:
+                data[val['name']][key] = val[key]
+        return data
+
+    def __option_check(self, name, option: str, val) -> bool:
+        if option in ['enable', 'hardcoded']:
+            if isinstance(val, bool):
+                return True
+            else:
+                self._log('{} bad option type. {} must be bool, not {}'.format(name, option, type(val)), logger.ERROR)
+        elif option == 'mode':
+            if val in [NM, DM, ANY]:
+                return True
+            else:
+                self._log('{} unknown mode value - {}'.format(name, val), logger.ERROR)
+        else:
+            self._log('{} get unknown option \'{}\''.format(name, option), logger.ERROR)
+        return False
+
+    def _set_options(self, data: dict or None):
+        if data is None:
+            return
+        for key, val in data.items():
+            f_name = self.by_name.get(key)
+            if not f_name:
+                continue
+            for option in self._cfg_options:
+                if option in val and self.__option_check(key, option, val[option]):
+                    self.all[f_name][option] = val[option]
 
     def m_log(self, name, msg, *args):
         self._log('*{}*: {}'.format(name, msg), *args)
