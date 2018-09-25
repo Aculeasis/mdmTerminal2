@@ -18,7 +18,7 @@ class Player:
         '.mp3': ['mpg123', '-q'],
         '.wav': ['aplay', '-q'],
     }
-    MAX_BUSY_WAIT = 120  # Макс время блокировки, потом отлуп. Поможет от возможных зависаний
+    MAX_BUSY_WAIT = 60  # Макс время блокировки, потом отлуп. Поможет от возможных зависаний
 
     def __init__(self, cfg, logger_: logger.Logger):
         self._cfg = cfg
@@ -74,10 +74,7 @@ class Player:
             self._lvl = lvl
             self.quiet()
             return True
-        try:
-            self._only_one.release()
-        except RuntimeError:
-            pass
+        self._only_one.release()
         return False
 
     def get_lvl(self):
@@ -118,7 +115,7 @@ class Player:
         if not lvl:
             self.log('low play \'{}\' pause {}'.format(file, wait), logger.DEBUG)
             return self._lp_play.play(file, wait)
-        self._only_one.acquire(timeout=20)
+        self._only_one.acquire()
 
         if not self.set_lvl(lvl):
             return
@@ -138,7 +135,7 @@ class Player:
         if not lvl:
             self.log('low say \'{}\' pause {}'.format(msg, wait), logger.DEBUG)
             return self._lp_play.say(msg, wait, is_file)
-        self._only_one.acquire(timeout=20)
+        self._only_one.acquire()
 
         if not self.set_lvl(lvl):
             return

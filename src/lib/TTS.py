@@ -30,7 +30,7 @@ class BaseTTS:
 
     def _request(self):
         try:
-            self._rq = requests.get(self._url, params=self._params, stream=True, timeout=60)
+            self._rq = requests.get(self._url, params=self._params, stream=True, timeout=30)
         except (
                 requests.exceptions.HTTPError,
                 requests.exceptions.RequestException,
