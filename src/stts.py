@@ -118,7 +118,7 @@ class _TTSWrapper(threading.Thread):
 
     def _tts_gen(self, file, format_, msg: str):
         prov = self.cfg.get('providertts', 'unset')
-        key = self.cfg.get(prov, {}).get('apikeytts')
+        key = self.cfg.key(prov, 'apikeytts')
         try:
             if TTS.support(prov):
                 tts = TTS.GetTTS(
@@ -300,7 +300,7 @@ class SpeechToText:
 
     def _voice_recognition(self, audio, recognizer, deaf: bool, quiet=False) ->str:
         prov = self._cfg.get('providerstt', 'google')
-        key = self._cfg.get(prov, {}).get('apikeystt', '')
+        key = self._cfg.key(prov, 'apikeystt')
         self.log('Для распознования используем {}'.format(prov), logger.DEBUG)
         wtime = time.time()
         try:
@@ -309,14 +309,14 @@ class SpeechToText:
             elif prov == 'wit.ai':
                 command = recognizer.recognize_wit(audio, key=key)
             elif prov == 'microsoft':
-                command = recognizer.recognize_bing(audio, key=prov)
+                command = recognizer.recognize_bing(audio, key=key)
             elif prov == 'pocketsphinx-rest':
                 command = STT.PocketSphinxREST(
                     audio_data=audio,
                     url=self._cfg.get(prov, {}).get('server', 'http://127.0.0.1:8085')
                 ).text()
             elif prov == 'yandex':
-                command = STT.Yandex(audio_data=audio, key=self._cfg.get(prov, {}).get('apikeystt')).text()
+                command = STT.Yandex(audio_data=audio, key=key).text()
             else:
                 self.log('Ошибка распознавания - неизвестный провайдер {}'.format(prov), logger.CRIT)
                 return ''

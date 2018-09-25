@@ -8,6 +8,7 @@ import tempfile
 
 import logger
 import utils
+from lib import yandex_apikey
 
 
 class ConfigHandler(dict):
@@ -21,6 +22,19 @@ class ConfigHandler(dict):
         self._log = print  # а тут логгер
         self._to_tts = []  # Пока tts нет храним принты тут.
         self._config_init()
+        self._yandex = None
+
+    def key(self, prov, api_key):
+        key_ = self.get(prov, {}).get(api_key)
+        if prov == 'yandex' and not key_:
+            # Будем брать ключ у транслита
+            if self._yandex is None:
+                self._yandex = yandex_apikey.APIKey()
+            try:
+                key_ = self._yandex.key
+            except RuntimeError as e:
+                self._log('Ошибка получения ключа для Yandex: {}'.format(e), logger.ERROR)
+        return key_
 
     def configure(self, log):
         self._log = log
