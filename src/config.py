@@ -109,7 +109,7 @@ class ConfigHandler(dict):
         file_path = os.path.join(self.path['home'], name + '.json')
         try:
             with open(file_path, 'w') as fp:
-                json.dump(data, fp)
+                json.dump(data, fp, ensure_ascii=False)
         except TypeError as e:
             self._print('Ошибка сохранения {}: {}'.format(file_path, str(e)), logger.ERROR)
             return False
