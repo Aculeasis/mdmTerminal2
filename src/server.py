@@ -48,7 +48,7 @@ class MDTServer(threading.Thread):
         self._stt = stts.SpeechToText(cfg=self._cfg, play_=self._play, log=self._logger.add('STT'))
 
         self._mm = modules_manager.ModuleManager(
-            log=self._logger.add('MM'), cfg=self._cfg, die_in=self.die_in, say=self._play.say
+            log=self._logger.add_plus('MM'), cfg=self._cfg, die_in=self.die_in, say=self._play.say
         )
 
         self._terminal = MDTerminal(

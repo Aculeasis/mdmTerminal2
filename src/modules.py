@@ -46,7 +46,7 @@ def debug(_, phrase, *__):
 def manager(self, phrase, mod_name):
     mod_name = mod_name.lower()
     if mod_name not in self.by_name:
-        self.m_log('manager', 'Модуль {} не найден'.format(mod_name), logger.INFO)
+        self.log('Модуль {} не найден'.format(mod_name), logger.INFO)
         return Next
     mod_ = self.by_name[mod_name]
     if self.all[mod_]['hardcoded']:
@@ -69,7 +69,7 @@ def manager(self, phrase, mod_name):
         say = 'Модуль {} {}'.format(mod_name, get_enable_say(enable))
         return Say(say), Set(mod_enable=[mod_, enable])
     else:
-        self.m_log('manager', 'Это невозможно, откуда тут {}'.format(phrase), logger.CRIT)
+        self.log('Это невозможно, откуда тут {}'.format(phrase), logger.CRIT)
         return Next
 
 
@@ -213,7 +213,7 @@ def wiki(self, _, phrase):
         phrase.strip()
     if not phrase:
         return Next
-    self.m_log('wiki', 'Ищу в вики о \'{}\''.format(phrase), logger.INFO)
+    self.log('Ищу в вики о \'{}\''.format(phrase), logger.INFO)
 
     try:
         return Say(wikipedia.summary(phrase, sentences=2, chars=1000))
@@ -270,11 +270,11 @@ def reboot_(*_):
 @mod.phrase('')  # Захватит любые фразы
 def majordomo(self, _, phrase):
     if not phrase:
-        self.m_log('majordomo', 'Вы ничего не сказали?', logger.DEBUG)
+        self.log('Вы ничего не сказали?', logger.DEBUG)
         return
 
     if not self.cfg['ip_server']:
-        self.m_log('majordomo', 'IP сервера majordomo не задан.', logger.CRIT)
+        self.log('IP сервера majordomo не задан.', logger.CRIT)
         return Say('IP сервера MajorDoMo не задан, исправте это! Мой IP адрес: {}'.format(self.cfg.get('ip', 'ошибка')))
 
     # FIX: 'Скажи ' -> 'скажи '
@@ -285,11 +285,11 @@ def majordomo(self, _, phrase):
     try:
         f = urllib.request.urlopen(url)
     except urllib.request.URLError as err:
-        self.m_log('majordomo', 'Ошибка коммуникации с сервером {}: {}'.format(err.errno, err.strerror), logger.ERROR)
+        self.log('Ошибка коммуникации с сервером {}: {}'.format(err.errno, err.strerror), logger.ERROR)
         return Say('Ошибка коммуникации с сервером majordomo: {}'.format(err.strerror))
     else:
         f.close()
-        self.m_log('majordomo', 'Запрос был успешен: {}'.format(url), logger.DEBUG)
+        self.log('Запрос был успешен: {}'.format(url), logger.DEBUG)
 
 
 @mod.name(ANY, 'Терминатор', 'Информацию что соответствие фразе не найдено')

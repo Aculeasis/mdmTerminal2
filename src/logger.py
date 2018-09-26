@@ -32,6 +32,7 @@ COLORS = {
 }
 COLOR_END = '\033[0m'
 NAME_COLOR = '1;36'
+MODULE_COLOR = 36
 
 
 def colored(msg, color):
@@ -49,6 +50,9 @@ class _LogWrapper:
 
     def p(self, msg, lvl=DEBUG):
         self._print(self.name, msg, lvl)
+
+    def mp(self, module_name, msg, lvl=DEBUG):
+        self._print(self.name, msg, lvl, module_name)
 
 
 class Logger(threading.Thread):
@@ -101,22 +105,30 @@ class Logger(threading.Thread):
     def add(self, name):
         return _LogWrapper(name, self._print).p
 
-    def _print(self, name, msg, lvl):
-        self._queue.put_nowait((name, msg, lvl, time.time()))
+    def add_plus(self, name):
+        _ = _LogWrapper(name, self._print)
+        return _.p, _.mp
 
-    def _best_print(self, name, msg, lvl, l_time):
+    def _print(self, *args):
+        self._queue.put_nowait((time.time(), *args))
+
+    def _best_print(self, l_time, name, msg, lvl, m_name=''):
         if lvl not in COLORS:
             raise RuntimeError('Incorrect log level:{}'.format(lvl))
         if self.in_print and lvl >= self.print_lvl:
-            self._to_print(name, msg, lvl, l_time)
+            self._to_print(name, msg, lvl, l_time, m_name)
         if self._app_log and lvl >= self.file_lvl:
+            if m_name:
+                name = '{}->{}'.format(name, m_name)
             self._to_file(name, msg, lvl)
 
     def _to_file(self, name, msg, lvl):
         self._app_log.log(lvl, '{}: {}'.format(name, msg))
 
     @staticmethod
-    def _to_print(name, msg, lvl, l_time):
+    def _to_print(name, msg, lvl, l_time, m_name):
+        if m_name:
+            m_name = '->{}'.format(colored(m_name, MODULE_COLOR))
         time_ = time.strftime('%Y.%m.%d %H:%M:%S', time.localtime(l_time))
-        print('{} {}: {}'.format(time_, colored(name, NAME_COLOR), colored(msg, COLORS[lvl])))
+        print('{} {}{}: {}'.format(time_, colored(name, NAME_COLOR), m_name, colored(msg, COLORS[lvl])))
 

@@ -58,7 +58,7 @@ class SayLow:  # Говорим с низким приоритетом
 
 class ModuleManager:
     def __init__(self, log, cfg, die_in, say):
-        self._log = log
+        (self._log, self._m_log) = log
         self.cfg = cfg
         self._set_die_in = die_in
         self._say = say
@@ -71,6 +71,8 @@ class ModuleManager:
         # Для поиска по имени
         self.by_name = None
         self._code = 0
+        # Имя модуля (.__name__) который вызван в данный момент.
+        self._module_name = None
         # Без расширения
         self._cfg_name = 'modules'
         self._cfg_options = ['enable', 'mode', 'hardcoded']
@@ -170,8 +172,8 @@ class ModuleManager:
                 if option in val and self.__option_check(key, option, val[option]):
                     self.all[f_name][option] = val[option]
 
-    def m_log(self, name, msg, *args):
-        self._log('*{}*: {}'.format(name, msg), *args)
+    def log(self, *args):
+        self._m_log(self._module_name, *args)
 
     def _set_one_way(self, f):
         self.one_way = f
@@ -324,14 +326,16 @@ class ModuleManager:
         return result, asking
 
     def _call_func(self, f, *args):
+        self._module_name = f.__name__
         self._log('Захвачено {}'.format(f), logger.DEBUG)
         return f(self, *args)
 
     def _call_this(self, obj, *args):
-        if callable(obj):
+        if isinstance(obj, function):
             return self._call_func(obj, *args)
         elif isinstance(obj, str) and obj in self.by_name:
             return self._call_func(self.by_name[obj], *args)
+        self._log('Unknown object called: {}, type: {}'.format(obj, type(obj)), logger.ERROR)
         return Next
 
 
