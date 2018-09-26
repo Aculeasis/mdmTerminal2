@@ -74,21 +74,67 @@ class ModuleManager:
         # Без расширения
         self._cfg_name = 'modules'
         self._cfg_options = ['enable', 'mode', 'hardcoded']
+        # Не проверяем данные модули на конфликты
+        self._no_check = ['мажордом', 'терминатор']
 
     def start(self):
         import modules
-        self.all, conflict = modules.mod.get
+        self.all = modules.mod.get
         # Для поиска по имени
         self.by_name = {val['name']: key for key, val in self.all.items()}
         # Загружаем настройки модулей
         self._set_options(self.cfg.load_dict(self._cfg_name))
         self._log('Загружены модули: {}'.format(', '.join([key for key in self.by_name])))
-        if conflict:
-            self._log(conflict, logger.WARN)
+        self._conflicts_checker()
 
     def save(self):
         # Сохраняем настройки модулей
         self.cfg.save_dict(self._cfg_name, self._get_options())
+
+    def _conflicts_checker(self):
+        # Ищет возможные конфликты в модулях. Разные режимы сравниваются отдельно
+        no_check = [self.by_name[x] for x in self._no_check if x in self.by_name]
+        result = {}
+        self._set_debug(True)
+        result[DM] = self._conflicts_finder(no_check)
+        self._set_debug(False)
+        result[NM] = self._conflicts_finder(no_check)
+        for key, val in result.items():
+            msg = []
+            for target, data in val.items():
+                msg.append('{}: [{}]'.format(target, ', '.join([self.all[x]['name'] for x in data])))
+            if msg:
+                self._log('Обнаружены конфликты в режиме {}: {}'.format(get_mode_say(key), ', '.join(msg)), logger.WARN)
+
+    def _conflicts_finder(self, no_check) -> dict:
+        conflicts = {}
+        all_ = [x for x in self._words_iter()]  # Метод, слово, режим слова
+        count = len(all_)
+        for num in range(count):
+            sample = all_[num]
+            for target in all_[num:]:
+                if sample[0] == target[0] or sample[0] in no_check:
+                    continue
+                if self._words_compare(sample[1:], target[1:]):  # Конфликт
+                    if sample[1] not in conflicts:
+                        conflicts[sample[1]] = set()
+                    conflicts[sample[1]].add(sample[0])
+                    conflicts[sample[1]].add(target[0])
+        return conflicts
+
+    @staticmethod
+    def _words_compare(one, two) -> bool:  # [фраза, метод]
+        if len(one[0]) > len(two[0]):
+            return False
+        if one[0] == '':  # Перехватит все
+            return True
+        if one[0] == two[0]:
+            return True
+        if two[0].startswith(one[0]) and one[1] in [EQ, SW] and two[1] != EW:
+            return True
+        if one[1] == EW and two[1] in [EQ, EW] and two[0].endswith(one[0]):
+            return True
+        return False
 
     def _get_options(self):
         data = {}
@@ -190,7 +236,7 @@ class ModuleManager:
 
             if reply is not Next:
                 return self._return_wrapper(f, reply)
-        return self._return_wrapper(None, [Say('Соответствие фразе не найдено: {}'.format(phrase))])
+        return self._return_wrapper(None, None)
 
     def tester(self, phrase: str, call_me=None):
         reply = Next
@@ -293,12 +339,9 @@ class ModuleWrapper:
     def __init__(self):
         # Приоритет проверки будет по порядку появления в коде
         self.__is_all = OrderedDict()
-        self.__conflict = {}  # hotword: [name, name, ..] Просто для информации
-        self.__words = {}  # Лучше что-бы фразы не повторялись
         self.__names = set()  # Имя модуля уникально
 
         self.__prepare_all_ = None
-        self.__prepare_conflict_ = None
 
     def _prepare_is_all(self):
         if self.__prepare_all_ is not None:
@@ -322,53 +365,33 @@ class ModuleWrapper:
         else:
             return str(self.__is_all.get(f, {}).get('name', f))
 
-    def _prepare_conflict(self):
-        if self.__prepare_conflict_ is not None:
-            return self.__prepare_conflict_
-        self.__prepare_conflict_ = ''
-        if len(self.__conflict):
-            self.__prepare_conflict_ = 'Возможны {} конфликтов: '.format(len(self.__conflict))
-            for key, val in self.__conflict.items():
-                self.__prepare_conflict_ += '\'{}\' -> [{}] '.format(key, ', '.join(self._name(k) for k in val))
-        del self.__conflict
-        return self.__prepare_conflict_
-
     @property
     def get(self):
-        if self.__words:
-            del self.__words
-            self.__words = None
         if self.__names:
             del self.__names
             self.__names = None
-        return self._prepare_is_all(), self._prepare_conflict()
+        return self._prepare_is_all()
 
     def _add(self, f, **kwargs):
         if f not in self.__is_all:
             self.__is_all[f] = {'enable': True}
         self.__is_all[f].update(kwargs)
 
-    def _add_phrases(self, f, param, phrases: list):
+    def _add_phrases(self, f, param, phrases: list or str or tuple):
         name = self.__is_all.get(f, {}).get('name', f)
-        for target in phrases:
-            if isinstance(target, list) and len(target) == 2 and target[1] in [EQ, SW, EW]:
-                check = target[0]
-            elif isinstance(target, str):
-                check = target
-            else:
-                raise RuntimeError('Bad word \'{}\' from \'{}\''.format(target, name))
 
-            if check in self.__words:
-                prevent = self.__words[check]
-                if prevent == f:
-                    pass
-                elif check in self.__conflict:
-                    self.__conflict[check].add(f)
-                else:
-                    self.__conflict[check] = {prevent, f}
-                self.__words[check] = f
+        if isinstance(phrases, str) or \
+                (isinstance(phrases, (tuple, list)) and len(phrases) == 2 and phrases[1] in [EQ, SW, EW]):
+            phrases = [phrases]
+        for idx in range(len(phrases)):
+            if isinstance(phrases[idx], str):
+                phrases[idx] = phrases[idx].lower()
+            elif isinstance(phrases[idx], (tuple, list)) and isinstance(phrases[idx][0], str) \
+                    and len(phrases[idx]) == 2 and phrases[idx][1] in [EQ, SW, EW]:
+                phrases[idx][0] = phrases[idx][0].lower()
             else:
-                self.__words[check] = f
+                raise RuntimeError('Bad word \'{}\' from \'{}\''.format(phrases[idx], name))
+
         self._add(f, **{param: phrases})
 
     def name(self, mode_, name, description):
@@ -386,7 +409,7 @@ class ModuleWrapper:
             return f
         return wrap
 
-    def phrase(self, phrases_, mode_=None):
+    def phrase(self, phrases, mode_=None):
         # Если mode_ задан, фразы доступны только в заданном режиме
         # Если нет или ANY, доступны в любом режиме
         # При условии что сам  модулю в этом режиме, или в ANY
@@ -396,20 +419,9 @@ class ModuleWrapper:
         mode_ = mode_ or ANY
         if mode_ not in [NM, DM, ANY]:
             raise RuntimeError('Unknown phrases mode: {}'.format(mode_))
-        if isinstance(phrases_, str) or \
-                (isinstance(phrases_, list) and len(phrases_) == 2 and phrases_[1] in [EQ, SW, EW]):
-            phrases_ = [phrases_]
-
-        for idx in range(len(phrases_)):
-            if isinstance(phrases_[idx], str):
-                phrases_[idx] = phrases_[idx].lower()
-            elif isinstance(phrases_[idx], list) and isinstance(phrases_[idx][0], str):
-                phrases_[idx][0] = phrases_[idx][0].lower()
-            else:
-                raise RuntimeError('Hot words {} - invalid format'.format(phrases_[idx]))
 
         def wrap(f):
-            self._add_phrases(f, mode_, phrases_)
+            self._add_phrases(f, mode_, phrases)
             return f
         return wrap
 

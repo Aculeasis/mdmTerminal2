@@ -290,3 +290,9 @@ def majordomo(self, _, phrase):
     else:
         f.close()
         self.m_log('majordomo', 'Запрос был успешен: {}'.format(url), logger.DEBUG)
+
+
+@mod.name(ANY, 'Терминатор', 'Информацию что соответствие фразе не найдено')
+@mod.phrase('')
+def terminator(_, __, phrase):
+    return Say('Соответствие фразе не найдено: {}'.format(phrase))
