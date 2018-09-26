@@ -326,12 +326,16 @@ class ModuleManager:
         return result, asking
 
     def _call_func(self, f, *args):
-        self._module_name = f.__name__
+        try:
+            self._module_name = f.__name__
+        except AttributeError:
+            self._module_name = str(f)
         self._log('Захвачено {}'.format(f), logger.DEBUG)
         return f(self, *args)
 
     def _call_this(self, obj, *args):
-        if isinstance(obj, function):
+        if callable(obj):
+            # noinspection PyTypeChecker
             return self._call_func(obj, *args)
         elif isinstance(obj, str) and obj in self.by_name:
             return self._call_func(self.by_name[obj], *args)
