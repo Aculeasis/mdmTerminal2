@@ -10,9 +10,7 @@ python3-venv
 python3
 python3-pip
 build-essential
-socat
 mpg123
-nmap
 mpd
 flac
 sox
