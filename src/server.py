@@ -7,16 +7,11 @@ import time
 
 import lib.snowboy_training as training_service
 import logger
-import modules_manager
-import player
-import stts
 import utils
-from config import ConfigHandler
-from terminal import MDTerminal
 
 
 class MDTServer(threading.Thread):
-    def __init__(self, init_cfg: dict, home: str, die_in):
+    def __init__(self, cfg, log, play, terminal, die_in, stt):
         super().__init__(name='MDTServer')
         self.MDAPI = {
             'hi': self._api_voice,
@@ -34,59 +29,27 @@ class MDTServer(threading.Thread):
             'settings': self._api_settings,
             'rec': self._api_rec,
         }
+
+        self._cfg = cfg
+        self.log = log
+        self._play = play
+        self._terminal = terminal
         self._die_in = die_in
-        self.reload = False
-        self._cfg = ConfigHandler(cfg=init_cfg, path={'home': home})
+        self._stt = stt
 
-        self._logger = logger.Logger(self._cfg['log'])
-        self._cfg.configure(self._logger.add('CFG'))
-
-        self.log = self._logger.add('SERVER')
-
-        self._play = player.Player(cfg=self._cfg, logger_=self._logger)
-
-        self._stt = stts.SpeechToText(cfg=self._cfg, play_=self._play, log=self._logger.add('STT'))
-
-        self._mm = modules_manager.ModuleManager(
-            log=self._logger.add_plus('MM'), cfg=self._cfg, die_in=self.die_in, say=self._play.say
-        )
-
-        self._terminal = MDTerminal(
-            cfg=self._cfg, play_=self._play, stt=self._stt,
-            log=self._logger.add('Terminal'), handler=self._mm.tester
-        )
-        self._death_time = 0
         self.work = False
         self._socket = socket.socket()
 
-    def stop(self):
+    def join(self, timeout=None):
         self.work = False
-        self._mm.save()
-        self._play.quiet()
-        self._play.kill_popen()
-        self._play.say('Голосовой терминал мажордомо завершает свою работу.')
         self.log('stopping...')
-        self._terminal.stop()
-        self._stt.stop()
-        self._play.stop()
-        self.join()
+        super().join(timeout)
         self.log('stop.', logger.INFO)
-        self._logger.stop()
 
     def start(self):
         self.work = True
-        self._play.start()
-        self._play.say('Приветствую. Голосовой терминал Мажордомо настраивается, три... два... один...', 0, wait=0.5)
-        self._stt.start()
-        self._cfg.join_low_say(self._play.say)
-        self._mm.start()
-        self._terminal.start()
         super().start()
         self.log('start', logger.INFO)
-
-    def die_in(self, wait, reload=False):
-        self.reload = reload
-        self._die_in(wait)
 
     def _open_socket(self) -> bool:
         ip = ''
@@ -187,7 +150,7 @@ class MDTServer(threading.Thread):
         if param[0] == 'play':
             self._rec_play(param)
         elif param[0] == 'save':
-            self.die_in(3, True)
+            self._die_in(3, True)
         elif param[0] == 'rec':
             self._rec_rec(param)
         elif param[0] == 'compile':

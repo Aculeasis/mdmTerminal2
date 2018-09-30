@@ -44,10 +44,10 @@ class MDTerminal(threading.Thread):
             self._snowboy = None
         self.paused(False)
 
-    def stop(self):
+    def join(self, timeout=None):
         self.work = False
         self.log('stopping...', logger.DEBUG)
-        self.join()
+        super().join()
         self.log('stop.', logger.INFO)
 
     def start(self):

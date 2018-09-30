@@ -7,10 +7,7 @@ import subprocess
 import threading
 import time
 
-import mpd
-
 import logger
-import stts
 
 
 class Player:
@@ -20,28 +17,24 @@ class Player:
     }
     MAX_BUSY_WAIT = 60  # Макс время блокировки, потом отлуп. Поможет от возможных зависаний
 
-    def __init__(self, cfg, logger_: logger.Logger):
+    def __init__(self, cfg, log, tts):
         self._cfg = cfg
-        self.log = logger_.add('Player')
+        self.log = log
         # 0 - играем в фоне, до 5 снимаем блокировку автоматически. 5 - монопольный режим, нужно снять блокировку руками
         self._lvl = 0
         self._only_one = threading.Lock()
         self._work = False
         self._popen = None
         self._last_activity = time.time()
-        self.tts = stts.TextToSpeech(cfg, logger_.add('TTS')).tts
+        self._tts = tts
 
-        self.mpd = MPDControl(self._cfg['mpd'], self.last_activity)
+        self.mpd = None
         self._lp_play = LowPrioritySay(self.really_busy, self.say, self.play)
 
-    def start(self):
+    def start(self, mpd):
         self._work = True
+        self.mpd = mpd
         self._lp_play.start()
-        if self._cfg['mpd'].get('control', 0):
-            msg = self.mpd.start()
-            if msg:
-                self.log('Ошибка подключения к MPD-серверу: {}'.format(msg), logger.ERROR)
-                self.say('Ошибка подключения к MPD-серверу')
         self.log('start.', logger.INFO)
 
     def stop(self):
@@ -58,7 +51,6 @@ class Player:
         self.kill_popen()
 
         self._last_activity = 0  # Отжим паузы
-        self.mpd.stop()
 
         self.log('stop.', logger.INFO)
 
@@ -143,7 +135,7 @@ class Player:
         if alarm is None:
             alarm = self._cfg.get('alarmtts', 0)
 
-        file = self.tts(msg) if not is_file else msg
+        file = self._tts(msg) if not is_file else msg
         self._last_activity = time.time() + 3
         self.mpd.pause(True)
 
@@ -231,127 +223,5 @@ class LowPrioritySay(threading.Thread):
             elif say[0] == 2:
                 self._play(file=say[1], lvl=1, wait=say[2])
 
-
-def _auto_reconnect(func):
-    def wrapper(*args):
-        try:
-            return func(*args)
-        except (mpd.MPDError, IOError):
-            args[0].connect()
-            if not args[0].is_conn:
-                return False
-            else:
-                return func(*args)
-    return wrapper
-
-
-class MPDControl(threading.Thread):
-    def __init__(self, cfg: dict, last_play):
-        super().__init__(name='MPDControl')
-        self.IP = cfg.get('ip', '127.0.0.1')
-        self.PORT = cfg.get('port', 6600)
-        self.RESUME_TIME = cfg.get('wait', 13)
-
-        self._last_play = last_play
-        self._work = False
-        self._mpd = mpd.MPDClient(use_unicode=True)
-        self._resume = False
-        self.is_conn = False
-
-    def connect(self):
-        if self.is_conn:
-            self._disconnect()
-        try:
-            self._mpd.connect(self.IP, self.PORT)
-        except (mpd.MPDError, IOError) as e:
-            self.is_conn = False
-            return str(e)
-        else:
-            self.is_conn = True
-            return ''
-
-    def _disconnect(self):
-        try:
-            self._mpd.close()
-        except (mpd.MPDError, IOError):
-            pass
-        try:
-            self._mpd.disconnect()
-        except (mpd.MPDError, IOError):
-            self._mpd = mpd.MPDClient(use_unicode=True)
-        finally:
-            self.is_conn = False
-
-    def allow(self):
-        return self.is_conn and self._work
-
-    def stop(self):
-        if self._work:
-            self._resume_check()
-            self._work = False
-            self.join()
-
-    def start(self):
-        msg = self.connect()
-        if msg == '':
-            self._work = True
-            super().start()
-        return msg
-
-    def play(self, uri):
-        if not self.allow():
-            return
-        self._mpd_add(uri)
-        self._resume = False
-
-    def pause(self, paused=None):
-        if not self.allow():
-            return
-        if paused is None:
-            self._resume = False
-            self._mpd_pause()
-        elif paused:
-            if self._mpd_is_play():
-                self._resume = True
-                self._mpd_pause(1)
-        else:
-            self._resume = False
-            self._mpd_pause(0)
-
-    def run(self):
-        ping = 0
-        while self._work:
-            ping += 1
-            time.sleep(0.5)
-            self._resume_check()
-            if ping > 20:
-                ping = 0
-                self._mpd_ping()
-        self._disconnect()
-
-    def _resume_check(self):
-        if self._resume and time.time() - self._last_play() > self.RESUME_TIME:
-            self.pause(False)
-
-    @_auto_reconnect
-    def _mpd_pause(self, pause=None):
-        if pause is not None:
-            self._mpd.pause(pause)
-        else:
-            self._mpd.pause()
-
-    @_auto_reconnect
-    def _mpd_add(self, uri):
-        self._mpd.clear()
-        self._mpd.add(uri)
-        self._mpd.play(0)
-
-    @_auto_reconnect
-    def _mpd_is_play(self):
-        return self._mpd.status().get('state', 'stop') == 'play'
-
-    @_auto_reconnect
-    def _mpd_ping(self):
-        self._mpd.ping()
 
 

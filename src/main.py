@@ -4,7 +4,7 @@ import os
 import signal
 import sys
 
-from server import MDTServer
+from loader import Loader
 from utils import SignalHandler
 
 CFG = {  # Дефолтные настройки https://github.com/Aculeasis/mdmTerminal2/wiki/settings.ini
@@ -60,14 +60,14 @@ home = os.path.abspath(sys.path[0])
 def main():
     print('MAIN: Start...')
     sig = SignalHandler((signal.SIGINT, signal.SIGTERM))
-    server = MDTServer(init_cfg=CFG.copy(), home=home, die_in=sig.die_in)
-    server.start()
+    loader = Loader(init_cfg=CFG.copy(), home=home, die_in=sig.die_in)
+    loader.start()
     while not sig.interrupted():
         sig.sleep(100)
     sig.stop()
-    server.stop()
+    loader.stop()
     print('MAIN: bye.')
-    return server.reload
+    return loader.reload
 
 
 if __name__ == '__main__':

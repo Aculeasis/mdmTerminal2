@@ -155,12 +155,13 @@ class SpeechToText:
     HELLO = ['Привет', 'Слушаю', 'На связи', 'Привет-Привет']
     DEAF = ['Вы что то сказали?', 'Я ничего не услышала', 'Что Вы спросили?', 'Не поняла']
 
-    def __init__(self, cfg, play_, log):
+    def __init__(self, cfg, play_, log, tts):
         self.log = log
         self._cfg = cfg
         self._busy = False
         self._work = True
         self._play = play_
+        self._tts = tts
         try:
             self.max_mic_index = len(sr.Microphone().list_microphone_names()) - 1
         except OSError as e:
@@ -210,7 +211,7 @@ class SpeechToText:
         lvl = 5  # Включаем монопольный режим
         file_path = None
         if not voice:
-            file_path = self._play.tts(random.SystemRandom().choice(self.HELLO) if not hello else hello)
+            file_path = self._tts(random.SystemRandom().choice(self.HELLO) if not hello else hello)
 
         # self._play.quiet()
         if self._cfg['alarmkwactivated']:
@@ -268,7 +269,7 @@ class SpeechToText:
             return 'Микрофоны не найдены'
         lvl = 5  # Включаем монопольный режим
 
-        file_path = self._play.tts(hello)()
+        file_path = self._tts(hello)()
         r = sr.Recognizer()
         # mic = sr.Microphone(device_index=self.get_mic_index())
 

@@ -69,10 +69,10 @@ class Logger(threading.Thread):
         self._print('Logger', 'start', INFO)
         self.start()
 
-    def stop(self):
+    def join(self, timeout=None):
         self._print('Logger', 'stop.', INFO)
         self._queue.put_nowait(None)
-        self.join()
+        super().join()
 
     def run(self):
         while True:
