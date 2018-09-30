@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 
 import logging
-import time
-import threading
+import os
 import queue
-from utils import write_permission_check
+import threading
+import time
+import zlib
 from logging.handlers import RotatingFileHandler
+
+from utils import write_permission_check
 
 DEBUG = logging.DEBUG
 INFO = logging.INFO
@@ -41,6 +44,19 @@ def colored(msg, color):
 
 def get_loglvl(str_lvl) -> int:
     return LOG_LEVEL.get(str_lvl, 100500)
+
+
+def _namer(name):
+    return name + '.gz'
+
+
+def _rotator(source, dest):
+    with open(source, 'rb') as sf:
+        data = sf.read()
+        compressed = zlib.compress(data, 9)
+        with open(dest, 'wb') as df:
+            df.write(compressed)
+    os.remove(source)
 
 
 class _LogWrapper:
@@ -93,6 +109,8 @@ class Logger(threading.Thread):
             my_handler = RotatingFileHandler(filename=self.file, maxBytes=1024 * 1024,
                                              backupCount=2, delay=0
                                              )
+            my_handler.rotator = _rotator
+            my_handler.namer = _namer
             my_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
             my_handler.setLevel(logging.DEBUG)
 
