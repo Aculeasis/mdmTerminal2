@@ -36,6 +36,16 @@ class ConfigHandler(dict):
                 self._log('Ошибка получения ключа для Yandex: {}'.format(e), logger.ERROR)
         return key_
 
+    def get_uint(self, key: str, default=0) -> int:
+        try:
+            result = int(self.get(key, default))
+        except ValueError:
+            result = 0
+        else:
+            if result < 0:
+                result = 0
+        return result
+
     def configure(self, log):
         self._log = log
 

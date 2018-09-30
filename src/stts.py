@@ -153,12 +153,13 @@ class _TTSWrapper(threading.Thread):
 
 class SpeechToText:
     HELLO = ['Привет', 'Слушаю', 'На связи', 'Привет-Привет']
-    DEAF = ['Вы что то сказали?', 'Я ничего не услышала', 'Что Вы спросили?', 'Не поняла']
+    DEAF = ['Я ничего не услышала', 'Вы ничего не сказали', 'Ничего не слышно', 'Не поняла']
+    ASK_AGAIN = 'Ничего не слышно, повторите ваш запрос'
 
     def __init__(self, cfg, play_, log, tts):
         self.log = log
         self._cfg = cfg
-        self._busy = False
+        self._lock = threading.Lock()
         self._work = True
         self._play = play_
         self._tts = tts
@@ -177,22 +178,35 @@ class SpeechToText:
         self.log('stop.', logger.INFO)
 
     def busy(self):
-        return self._busy and self._work
+        return self._lock.locked() and self._work
 
     def listen(self, hello: str = '', deaf: bool = True, voice: bool = False) -> str:
-        while self.busy():
-            time.sleep(0.01)
         if not self._work:
             return ''
-
-        self._busy = True
         if self.max_mic_index != -2:
-            msg = self._listen(hello, deaf, voice)
+            self._lock.acquire()
+            try:
+                msg = self._listen_and_take(hello, deaf, voice)
+            finally:
+                self._lock.release()
         else:
             self.log('Микрофоны не найдены', logger.ERROR)
             msg = 'Микрофоны не найдены'
-        self._busy = False
         return msg
+
+    def _listen_and_take(self, hello, deaf, voice) -> str:
+        ask_me_again = self._cfg.get_uint('ask_me_again')
+        msg = self._listen(hello, voice)
+
+        while msg is None and ask_me_again:  # Переспрашиваем
+            ask_me_again -= 1
+            msg = self._listen(self.ASK_AGAIN, False)
+        if msg is None and deaf:
+            self._say_deaf()
+        return msg or ''
+
+    def _say_deaf(self):
+        self._play.say(random.SystemRandom().choice(self.DEAF))
 
     def get_mic_index(self):
         device_index = self._cfg.get('mic_index', -1)
@@ -205,13 +219,11 @@ class SpeechToText:
             return None
         return None if device_index < 0 else device_index
 
-    def _listen(self, hello: str, deaf, voice) -> str:
+    def _listen(self, hello: str, voice) -> str or None:
         max_play_time = 120  # максимальное время воспроизведения приветствия
         max_wait_time = 10  # ожидание после приветствия
         lvl = 5  # Включаем монопольный режим
-        file_path = None
-        if not voice:
-            file_path = self._tts(random.SystemRandom().choice(self.HELLO) if not hello else hello)
+        file_path = self._tts(random.SystemRandom().choice(self.HELLO) if not hello else hello) if not voice else None
 
         # self._play.quiet()
         if self._cfg['alarmkwactivated']:
@@ -250,14 +262,11 @@ class SpeechToText:
         # Выключаем монопольный режим
         self._play.clear_lvl()
 
-        if listener.audio is None:
-            if deaf:
-                self._play.say(random.SystemRandom().choice(self.DEAF))
-            commands = ''
-        else:
+        commands = None
+        if listener.audio is not None:
             if self._cfg['alarmstt']:
                 self._play.play(self._cfg.path['dong'])
-            commands = self._voice_recognition(listener.audio, listener.recognizer, deaf)
+            commands = self._voice_recognition(listener.audio, listener.recognizer)
 
         if commands:
             self.log('Распознано: {}'.format(commands), logger.INFO)
@@ -267,13 +276,19 @@ class SpeechToText:
         if self.max_mic_index == -2:
             self.log('Микрофоны не найдены', logger.ERROR)
             return 'Микрофоны не найдены'
+        self._lock.acquire()
+        try:
+            return self._voice_record(hello, save_to, convert_rate, convert_width)
+        finally:
+            self._play.clear_lvl()
+            self._lock.release()
+
+    def _voice_record(self, hello: str, save_to: str, convert_rate=None, convert_width=None):
         lvl = 5  # Включаем монопольный режим
 
         file_path = self._tts(hello)()
         r = sr.Recognizer()
-        # mic = sr.Microphone(device_index=self.get_mic_index())
 
-        # self._play.quiet()
         self._play.say(file_path, lvl, True, is_file=True)
         self._play.play(self._cfg.path['ding'], lvl)
 
@@ -286,11 +301,7 @@ class SpeechToText:
             try:
                 adata = r.listen(source=mic, timeout=5, phrase_time_limit=3)
             except sr.WaitTimeoutError as e:
-                self._play.clear_lvl()
                 return str(e)
-
-        self._play.clear_lvl()
-
         try:
             with open(save_to, "wb") as f:
                 f.write(adata.get_wav_data(convert_rate, convert_width))
@@ -299,7 +310,7 @@ class SpeechToText:
         else:
             return None
 
-    def _voice_recognition(self, audio, recognizer, deaf: bool, quiet=False) ->str:
+    def _voice_recognition(self, audio, recognizer, quiet=False) -> str or None:
         prov = self._cfg.get('providerstt', 'google')
         key = self._cfg.key(prov, 'apikeystt')
         self.log('Для распознования используем {}'.format(prov), logger.DEBUG)
@@ -322,9 +333,7 @@ class SpeechToText:
                 self.log('Ошибка распознавания - неизвестный провайдер {}'.format(prov), logger.CRIT)
                 return ''
         except (sr.UnknownValueError, STT.UnknownValueError):
-            if deaf and not quiet:
-                self._play.say(random.SystemRandom().choice(self.DEAF))
-            return ''
+            return None
         except (sr.RequestError, RuntimeError) as e:
             if not quiet:
                 self._play.say('Произошла ошибка распознавания')
@@ -332,7 +341,7 @@ class SpeechToText:
             return ''
         else:
             self.log('Распознано за {}'.format(utils.pretty_time(time.time() - wtime)), logger.DEBUG)
-            return command
+            return command or ''
 
     def phrase_from_files(self, files: list):
         if not files:
@@ -357,7 +366,7 @@ class SpeechToText:
         r = sr.Recognizer()
         with wave.open(file, 'rb') as fp:
             adata = sr.AudioData(fp.readframes(fp.getnframes()), fp.getframerate(), fp.getsampwidth())
-        say = self._voice_recognition(adata, r, False, True) or ''
+        say = self._voice_recognition(adata, r, True) or ''
         result[i] = say.strip()
 
 
