@@ -134,3 +134,5 @@ class PocketSphinxREST(BaseSTT):
         if 'code' not in result or 'text' not in result or result['code']:
             raise RuntimeError('Response error: {}: {}'.format(result.get('code', 'None'), result.get('text', 'None')))
         self._text = result['text']
+        if not self._text:
+            raise UnknownValueError('No variants')
