@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 
-import requests
 import time
+
+import requests
+
+from utils import REQUEST_ERRORS
 
 
 class APIKey:
@@ -25,7 +28,7 @@ class APIKey:
     def _extract(self):
         try:
             response = requests.get(self.URL)
-        except (requests.exceptions.HTTPError, requests.exceptions.RequestException) as e:
+        except REQUEST_ERRORS as e:
             raise RuntimeError(str(e))
         line = response.text
         end = 0

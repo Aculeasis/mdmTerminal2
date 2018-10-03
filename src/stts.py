@@ -119,8 +119,8 @@ class _TTSWrapper(threading.Thread):
     def _tts_gen(self, file, format_, msg: str):
         prov = self.cfg.get('providertts', 'unset')
         key = self.cfg.key(prov, 'apikeytts')
-        try:
-            if TTS.support(prov):
+        if TTS.support(prov):
+            try:
                 tts = TTS.GetTTS(
                     prov,
                     text=msg,
@@ -131,12 +131,12 @@ class _TTSWrapper(threading.Thread):
                     emotion=self.cfg.get(prov, {}).get('emotion'),
                     url=self.cfg.get(prov, {}).get('server')
                 )
-            else:
-                self.log('Неизвестный провайдер: {}'.format(prov), logger.CRIT)
+            except RuntimeError as e:
+                self._synthesis_error(prov, key, e)
                 self.file_path = self.cfg.path['tts_error']
                 return
-        except RuntimeError as e:
-            self.log('Ошибка синтеза речи от {}, ключ \'{}\'. ({})'.format(prov, key, e), logger.CRIT)
+        else:
+            self.log('Неизвестный провайдер: {}'.format(prov), logger.CRIT)
             self.file_path = self.cfg.path['tts_error']
             return
         self._stream = utils.FakeFP()
@@ -145,10 +145,16 @@ class _TTSWrapper(threading.Thread):
             write_to.append(open(file, 'wb'))
         self._ext = '.{}'.format(format_) if not file else None
         self._unlock()
-        tts.stream_to_fps(write_to)
+        try:
+            tts.stream_to_fps(write_to)
+        except RuntimeError as e:
+            self._synthesis_error(prov, key, e)
         for fp in write_to:
             fp.close()
         return
+
+    def _synthesis_error(self, prov, key, e):
+        self.log('Ошибка синтеза речи от {}, ключ \'{}\'. ({})'.format(prov, key, e), logger.CRIT)
 
 
 class SpeechToText:

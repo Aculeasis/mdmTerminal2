@@ -3,9 +3,9 @@ import subprocess
 from shlex import quote
 
 import requests
-import urllib3
 from bs4 import BeautifulSoup
 
+from utils import REQUEST_ERRORS
 from .stream_gTTS import gTTS as Google
 
 __all__ = ['support', 'GetTTS', 'Google', 'Yandex', 'RHVoiceREST', 'RHVoice']
@@ -31,11 +31,7 @@ class BaseTTS:
     def _request(self):
         try:
             self._rq = requests.get(self._url, params=self._params, stream=True, timeout=30)
-        except (
-                requests.exceptions.HTTPError,
-                requests.exceptions.RequestException,
-                urllib3.exceptions.NewConnectionError
-        ) as e:
+        except REQUEST_ERRORS as e:
             raise RuntimeError(str(e))
         self._data = self._rq.iter_content
 
@@ -47,8 +43,11 @@ class BaseTTS:
     def iter_me(self):
         if self._data is None:
             raise RuntimeError('No data')
-        for chunk in self._data(chunk_size=self.BUFF_SIZE):
-            yield chunk
+        try:
+            for chunk in self._data(chunk_size=self.BUFF_SIZE):
+                yield chunk
+        except REQUEST_ERRORS as e:
+            raise RuntimeError(e)
 
     def stream_to_fps(self, fps):
         if not isinstance(fps, list):

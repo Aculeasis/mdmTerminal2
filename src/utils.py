@@ -8,6 +8,14 @@ import subprocess
 import threading
 import time
 
+import requests
+import urllib3
+
+REQUEST_ERRORS = (
+    requests.exceptions.HTTPError, requests.exceptions.RequestException, urllib3.exceptions.NewConnectionError,
+    requests.exceptions.ChunkedEncodingError
+)
+
 YANDEX_EMOTION = {
     'good'    : 'добрая',
     'neutral' : 'нейтральная',

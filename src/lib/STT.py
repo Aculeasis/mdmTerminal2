@@ -5,9 +5,10 @@ import time
 from io import BytesIO
 
 import requests
-import urllib3
 from bs4 import BeautifulSoup
 from speech_recognition import AudioData
+
+from utils import REQUEST_ERRORS
 
 __all__ = ['Yandex', 'PocketSphinxREST']
 
@@ -56,11 +57,7 @@ class BaseSTT:
                 stream=True,
                 timeout=60
             )
-        except (
-                requests.exceptions.HTTPError,
-                requests.exceptions.RequestException,
-                urllib3.exceptions.NewConnectionError
-        ) as e:
+        except REQUEST_ERRORS as e:
             raise RuntimeError(str(e))
 
     def _reply_check(self):

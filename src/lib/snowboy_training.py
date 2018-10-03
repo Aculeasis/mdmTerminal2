@@ -1,5 +1,8 @@
 import base64
+
 import requests
+
+from utils import REQUEST_ERRORS
 
 
 def file_to_base64(file_name) -> str:
@@ -34,7 +37,7 @@ class Training:
     def _request(self):
         try:
             response = requests.post(self.URL, json=self.__params)
-        except (requests.exceptions.HTTPError, requests.exceptions.RequestException) as e:
+        except REQUEST_ERRORS as e:
             raise RuntimeError('Request error: {}'.format(e))
         if not response.ok:
             raise RuntimeError('Server error: {}'.format(response.status_code))
