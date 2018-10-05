@@ -32,39 +32,39 @@
   `alsamixer` -> F4 выбираем Mic1 и жмем space, выходим
 
 Узнайте на каком устройстве находятся микрофон и динамик через команды:
-
+```bash
     aplay -l
     arecord -l
-
+```
 и отредактировать если нужно `"hw:X,0"` в `/etc/asound.conf`
 
 Если запись или воспроизведение все еще не работают, можно поискать решение [на форуме](https://majordomo.smartliving.ru/forum/viewtopic.php?f=5&t=5460)
 
 ### Установка
 Клонируйте репозиторий и запустите скрипт установки:
-
+```bash
     cd ~/
     git clone https://github.com/Aculeasis/mdmTerminal2
     cd mdmTerminal2
     chmod +x scripts/install.sh
     ./scripts/install.sh
-
+```
 **Важно!** файл _snowboydetect.so собран под aarch64 и python 3.6. [Пересоберите его](#Сборка-snowboy-_snowboydetectso), если нужно.
 
 Теперь можно запустить терминал в консоли и проверить его работоспособность:
-
+```bash
     chmod +x src/main.py
     env/bin/python -u src/main.py
-
+```
 Если все работает можно добавить сервис в systemd - терминал будет запускаться автоматически:
-
+```bash
     chmod +x scripts/systemd_install.sh
     ./scripts/systemd_install.sh
-
+```
 И посмотреть статус сервиса:
-
+```bash
     sudo systemctl status mdmterminal2.service
-
+```
 # Настройка
 ### [Описание всех настроек](https://github.com/Aculeasis/mdmTerminal2/wiki/settings.ini)
 **Важно!** Значительная часть настроек не доступна через MDM VoiceAssistant, их можно изменить отредактировав `mdmTerminal2/src/settings.ini`.
@@ -97,9 +97,10 @@
 
 # Сборка snowboy (_snowboydetect.so)
 Изначально библиотека собрана под aarch64 и python 3.6. Проще всего собрать библиотеку скриптом.
-
+```bash
     chmod +x scripts/snowboy_build.sh
     ./scripts/snowboy_build.sh
+```
 **Важно!** Сборку нужно делать после выполнения `./scripts/install.sh`, т.к. он устанавливает все необходимые зависимости.
 
 # Дополнительные возможности
