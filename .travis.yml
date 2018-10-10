@@ -14,7 +14,7 @@ git:
 
 before_install:
   - sudo apt-get update -y
-  - sed 's/#.*//' Requirements/system-requirements.txt | sed 's/python-.*//' | xargs sudo apt-get install -y
+  - sed 's/#.*//; s/python.*//;' Requirements/system-requirements.txt | sed 's/python-.*//' | xargs sudo apt-get install -y
 
 install:
   - pip install --upgrade pip setuptools wheel
