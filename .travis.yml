@@ -15,10 +15,10 @@ git:
 addons:
   apt:
     packages:
-      - swig
+      - swig3.0
 
 before_install:
-  - sed 's/#.*//; s/python.*//; s/swig//;' Requirements/system-requirements.txt | xargs sudo apt-get install -y
+  - sed 's/#.*//; s/python.*//; s/swig//;' Requirements/system-requirements.txt | xargs sudo apt-get install --no-install-recommends -y
 
 install:
   - pip install --upgrade pip setuptools wheel
