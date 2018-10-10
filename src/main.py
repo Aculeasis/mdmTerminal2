@@ -3,10 +3,12 @@
 import os
 import signal
 import sys
+import tempfile
 
 from loader import Loader
 from utils import SignalHandler
 
+HOME = os.path.abspath(sys.path[0])
 CFG = {  # Дефолтные настройки https://github.com/Aculeasis/mdmTerminal2/wiki/settings.ini
     'linkedroom'      : '',
     'providertts'     : 'google',
@@ -55,13 +57,35 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
     'models': {},
 }
 
-home = os.path.abspath(sys.path[0])
+
+def get_path(home) -> dict:
+    path = {
+        'home': home,
+        # Расширение моделей
+        'model_ext': '.pmdl',
+        # Поддерживаемые модели
+        'model_supports': ['.pmdl', '.umdl'],
+        # Временные файлы
+        'tmp': tempfile.gettempdir(),
+    }
+    # ~/settings.ini
+    path['settings'] = os.path.join(path['home'], 'settings.ini')
+    # ~/tts_cache/
+    path['tts_cache'] = os.path.join(path['home'], 'tts_cache')
+    # ~/resources/
+    path['resources'] = os.path.join(path['home'], 'resources')
+    # ~/resources/models/
+    path['models'] = os.path.join(path['resources'], 'models')
+    # ~/resources/ding.wav ~/resources/dong.wav ~/resources/tts_error.mp3
+    for (key, val) in [['ding', 'ding.wav'], ['dong', 'dong.wav'], ['tts_error', 'tts_error.mp3']]:
+        path[key] = os.path.join(path['resources'], val)
+    return path
 
 
 def main():
     print('MAIN: Start...')
     sig = SignalHandler((signal.SIGINT, signal.SIGTERM))
-    loader = Loader(init_cfg=CFG.copy(), home=home, die_in=sig.die_in)
+    loader = Loader(init_cfg=CFG.copy(), path=get_path(HOME), die_in=sig.die_in)
     loader.start()
     while not sig.interrupted():
         sig.sleep(100)

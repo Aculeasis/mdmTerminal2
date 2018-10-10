@@ -11,11 +11,11 @@ from terminal import MDTerminal
 
 
 class Loader:
-    def __init__(self, init_cfg: dict, home: str, die_in):
+    def __init__(self, init_cfg: dict, path: dict, die_in):
         self._die_in = die_in
         self.reload = False
 
-        self._cfg = ConfigHandler(cfg=init_cfg, path={'home': home})
+        self._cfg = ConfigHandler(cfg=init_cfg, path=path)
         self._logger = Logger(self._cfg['log'])
         self._cfg.configure(self._logger.add('CFG'))
 

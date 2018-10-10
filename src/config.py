@@ -4,7 +4,6 @@ import configparser
 import json
 import os
 import time
-import tempfile
 
 import logger
 import utils
@@ -48,39 +47,20 @@ class ConfigHandler(dict):
 
     def configure(self, log):
         self._log = log
-
         self._print(msg='CFG: {}'.format(self))
 
-        # Расширение моделей
-        self.path['model_ext'] = '.pmdl'
-        self.path['model_supports'] = ['.pmdl', '.umdl']
-
         # ~/tts_cache/
-        self.path['tts_cache'] = os.path.join(self.path['home'], 'tts_cache')
         self._make_dir(self.path['tts_cache'])
-
-        # /tmp
-        self.path['tmp'] = tempfile.gettempdir()
-
         # ~/resources/
-        self.path['resources'] = os.path.join(self.path['home'], 'resources')
         self._make_dir(self.path['resources'])
-
         # ~/resources/models/
-        self.path['models'] = os.path.join(self.path['resources'], 'models')
         self._make_dir(self.path['models'])
-        self.models_load()
-
-        # ~/resources/ding.wav ~/resources/dong.wav ~/resources/tts_error.mp3 ~/resources/training_service.sh
-        self.path['ding'] = os.path.join(self.path['resources'], 'ding.wav')  # TODO: mp3?
+        # ~/resources/ding.wav ~/resources/dong.wav ~/resources/tts_error.mp3
         self._lost_file(self.path['ding'])
-
-        self.path['dong'] = os.path.join(self.path['resources'], 'dong.wav')
         self._lost_file(self.path['dong'])
-
-        self.path['tts_error'] = os.path.join(self.path['resources'], 'tts_error.mp3')
         self._lost_file(self.path['tts_error'])
 
+        self.models_load()
         self.tts_cache_check()
 
     def allow_connect(self, ip: str) -> bool:
@@ -92,9 +72,6 @@ class ConfigHandler(dict):
         return True
 
     def _config_init(self):
-        # ~/settings.ini
-        self.path['settings'] = os.path.join(self.path['home'], 'settings.ini')
-
         self.config_load()
         self._cfg_check()
 
