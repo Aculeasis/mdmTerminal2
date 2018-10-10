@@ -16,16 +16,24 @@ addons:
   apt:
     packages:
       - swig3.0
+      - libxml2-dev
+      - libatlas-base-dev
+      - portaudio19-dev
+      - libssl-dev
+      - mpg123
+      - flac
+      - sox
+      - lame
 
 before_install:
-  - sed 's/#.*//; s/python.*//; s/swig//;' Requirements/system-requirements.txt | xargs sudo apt-get install --no-install-recommends -y
+  - sudo apt-get install --no-install-recommends -y mpd
 
 install:
-  - pip install --upgrade pip setuptools wheel
   - pip install -r Requirements/pip-requirements.txt
 
 before_script:
   - chmod +x scripts/snowboy_build.sh
+  - alias swig='swig3.0'
   - ./scripts/snowboy_build.sh
 
 script:
