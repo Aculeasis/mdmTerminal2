@@ -9,7 +9,7 @@ from loader import Loader
 
 def check_log(log_file):
     include = ['WARNING', 'ERROR', 'CRITICAL']
-    exclude = []
+    exclude = ['Error get list microphones']
     result = []
     if not os.path.isfile(log_file):
         return result
@@ -35,11 +35,11 @@ def tests_mono():
     try:
         loader = Loader(init_cfg=cfg, path=path, die_in=dummy)
         loader.start()
-        time.sleep(25)
+        time.sleep(10)
         loader.stop()
-        print()
-        for err in check_log(test_log_file):
-            print(err)
+        err = check_log(test_log_file)
+        if err:
+            RuntimeError('{}'.format(', '.join(err)))
     finally:
         for target in [test_settings, test_log_file]:
             if os.path.isfile(target):

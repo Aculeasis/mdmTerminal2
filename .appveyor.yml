@@ -1,0 +1,27 @@
+version: 1.0.{build}
+
+image:
+  - Ubuntu1804
+
+clone_depth: 1
+
+build: off
+
+install:
+  # - sudo apt-get update -y -qq
+  # - sudo apt-get install -y -qq --no-install-recommends alsa-utils flac locales mpg123 libatlas3-base libexpat1 python3-dev libjack-jackd2-dev portaudio19-dev libxml2-dev libxslt-dev libffi-dev libssl-dev build-essential swig sox libatlas-base-dev python3-pip python3-setuptools python3-wheel
+  - sudo apt-get install -y -qq --no-install-recommends mpd alsa-utils flac locales mpg123 libatlas3-base libexpat1 python3-dev python3-pip python3-setuptools python3-wheel portaudio19-dev
+  - sudo locale-gen ru_RU.UTF-8
+  - sudo -H pip3 install -r Requirements/pip-requirements.txt
+
+before_test:
+  - cp -f bin/_snowboydetect.so.appveyor src/lib/_snowboydetect.so
+  # - chmod +x scripts/snowboy_build.sh
+  # - ./scripts/snowboy_build.sh
+
+test_script:
+  - python3 -u src/tests.py
+
+#artifacts:
+#  path: src/lib/_snowboydetect.so
+#  name: _snowboydetect.so

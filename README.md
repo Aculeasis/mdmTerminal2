@@ -1,4 +1,6 @@
 # mdmTerminal 2
+[![Build status](https://ci.appveyor.com/api/projects/status/v98bcj9mr2s1g13a/branch/master?svg=true)](https://ci.appveyor.com/project/Aculeasis/mdmterminal2)
+
 Голосовой терминал для [MajorDoMo](https://github.com/sergejey/majordomo), форк [mdmPiTerminal](https://github.com/devoff/mdmPiTerminal).
 
 Полностью совместим с [MDM VoiceAssistant](https://github.com/lanket/mdmPiTerminalModule).
