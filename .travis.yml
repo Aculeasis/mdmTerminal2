@@ -12,9 +12,13 @@ sudo:
 git:
   depth: 1
 
+addons:
+  apt:
+    packages:
+      - swig
+
 before_install:
-  - sudo apt-get update -y
-  - sed 's/#.*//; s/python.*//;' Requirements/system-requirements.txt | sed 's/python-.*//' | xargs sudo apt-get install -y
+  - sed 's/#.*//; s/python.*//; s/swig//;' Requirements/system-requirements.txt | xargs sudo apt-get install -y
 
 install:
   - pip install --upgrade pip setuptools wheel
