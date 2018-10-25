@@ -74,7 +74,7 @@ class HotwordDetector(object):
     """
     def __init__(self, decoder_model,
                  resource=RESOURCE_FILE,
-                 sensitivity=[],
+                 sensitivity=None,
                  audio_gain=1):
 
         def audio_callback(in_data, frame_count, time_info, status):
@@ -82,11 +82,10 @@ class HotwordDetector(object):
             play_data = chr(0) * len(in_data)
             return play_data, pyaudio.paContinue
 
-        tm = type(decoder_model)
-        ts = type(sensitivity)
-        if tm is not list:
+        sensitivity = sensitivity or []
+        if not isinstance(decoder_model, list):
             decoder_model = [decoder_model]
-        if ts is not list:
+        if not isinstance(sensitivity, list):
             sensitivity = [sensitivity]
         model_str = ",".join(decoder_model)
 
