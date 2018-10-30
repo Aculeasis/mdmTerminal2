@@ -8,6 +8,7 @@ import threading
 import time
 
 import logger
+import utils
 
 
 class Player:
@@ -154,7 +155,14 @@ class Player:
             time.sleep(wait)
 
     def _play(self, obj):
-        (path, stream, ext) = obj() if callable(obj) else (obj, None, None) if isinstance(obj, str) else obj
+        if isinstance(obj, str):
+            (path, stream, ext) = obj, None, None
+        elif callable(obj):
+            (path, stream, ext) = obj()
+        elif isinstance(obj, (tuple, list)):
+            (path, stream, ext) = obj
+        else:
+            raise RuntimeError('Get unknown object: {}'.format(str(obj)))
         self.kill_popen()
         ext = ext or os.path.splitext(path)[1]
         if not stream and not os.path.isfile(path):
@@ -165,12 +173,11 @@ class Player:
         if stream is None:
             cmd.append(path)
             self.log('Играю {} ...'.format(path, logger.DEBUG))
-            self._popen = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+            self._popen = subprocess.Popen(cmd, stderr=subprocess.PIPE)
         else:
             cmd.append('-')
             self.log('Стримлю {} ...'.format(path, logger.DEBUG))
-            # noinspection PyCallingNonCallable
-            self._popen = stream(cmd)
+            self._popen = utils.StreamPlayer(cmd, stream)
 
 
 class LowPrioritySay(threading.Thread):

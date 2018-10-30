@@ -93,37 +93,51 @@ class SignalHandler:
             time.sleep(self.SUPPRESS_SIGNAL)
 
 
-class FakeFP(threading.Thread, queue.Queue):
-    def __init__(self):
-        threading.Thread.__init__(self)
-        queue.Queue.__init__(self)
-        self._popen = None
-
-    def run(self):
-        while True:
-            data = self.get()
-            if not data or self._popen.poll() is not None:
-                break
-            try:
-                self._popen.stdin.write(data)
-            except BrokenPipeError:
-                break
-
-        try:
-            self._popen.stdin.close()
-        except BrokenPipeError:
-            pass
-
-    def __call__(self, cmd, *args, **kwargs):
-        self._popen = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
-        super().start()
-        return self._popen
+class FakeFP(queue.Queue):
+    def read(self, _=None):
+        return self.get()
 
     def write(self, n):
         self.put_nowait(n)
 
     def close(self):
         self.write(b'')
+
+
+class StreamPlayer(threading.Thread):
+    def __init__(self, cmd: list, fp):
+        super().__init__()
+        self._fp = fp
+        self._popen = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+        self.poll = self._popen.poll
+        self.start()
+
+    def wait(self, timeout=None):
+        try:
+            self._popen.wait(timeout)
+        finally:
+            self._fp.write(b'')
+
+    def kill(self):
+        self._fp.write(b'')
+        self._popen.kill()
+
+    def run(self):
+        data = self._fp.read()
+        while data and self.poll() is None:
+            try:
+                self._popen.stdin.write(data)
+            except BrokenPipeError:
+                break
+            data = self._fp.read()
+        try:
+            self._popen.stdin.close()
+        except BrokenPipeError:
+            pass
+        try:
+            self._popen.stderr.close()
+        except BrokenPipeError:
+            pass
 
 
 def get_ip_address():
