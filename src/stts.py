@@ -120,6 +120,7 @@ class _TTSWrapper(threading.Thread):
         prov = self.cfg.get('providertts', 'unset')
         key = self.cfg.key(prov, 'apikeytts')
         if TTS.support(prov):
+            sets = utils.rhvoice_rest_sets(self.cfg[prov]) if prov == 'rhvoice-rest' else None
             try:
                 tts = TTS.GetTTS(
                     prov,
@@ -129,7 +130,8 @@ class _TTSWrapper(threading.Thread):
                     key=key,
                     lang=self.PROVIDERS[prov],
                     emotion=self.cfg.get(prov, {}).get('emotion'),
-                    url=self.cfg.get(prov, {}).get('server')
+                    url=self.cfg.get(prov, {}).get('server'),
+                    sets=sets
                 )
             except RuntimeError as e:
                 self._synthesis_error(prov, key, e)

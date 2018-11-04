@@ -77,9 +77,9 @@ class Yandex(BaseTTS):
 
 
 class RHVoiceREST(BaseTTS):
-    def __init__(self, text, speaker, audio_format, url, *_, **__):
+    def __init__(self, text, speaker, audio_format, url, sets, *_, **__):
         super().__init__('{}/say'.format(url or 'http://127.0.0.1:8080'),
-                         text=text, format=audio_format, voice=speaker or 'anna')
+                         text=text, format=audio_format, voice=speaker or 'anna', **sets)
 
 
 class RHVoice(RHVoiceREST):

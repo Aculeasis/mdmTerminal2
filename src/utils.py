@@ -174,3 +174,13 @@ def pretty_size(size) -> str:
 
 def write_permission_check(path):
     return os.access(os.path.dirname(os.path.abspath(path)), os.W_OK)
+
+
+def rhvoice_rest_sets(data: dict):
+    ignore = 50
+    sets = {}
+    for param in ['rate', 'pitch', 'volume']:
+        val = data.get(param, ignore)
+        if val != ignore:
+            sets[param] = val
+    return sets

@@ -43,6 +43,9 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
     'rhvoice-rest': {
         'server': 'http://127.0.0.1:8080',
         'speaker': 'anna',
+        'rate': 50,
+        'pitch': 50,
+        'volume': 50,
     },
     'rhvoice': {
         'speaker': 'anna',
