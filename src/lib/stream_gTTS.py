@@ -2,8 +2,6 @@
 import gtts
 import requests
 import urllib3
-# noinspection PyProtectedMember
-from gtts.utils import _len
 from six.moves import urllib
 
 
@@ -34,7 +32,7 @@ class gTTS(gtts.gTTS):
                        'total': len(text_parts),
                        'idx': idx,
                        'client': 'tw-ob',
-                       'textlen': _len(part),
+                       'textlen': len(part),
                        'tk': part_tk}
             r = None
             try:
