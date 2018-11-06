@@ -367,12 +367,6 @@ class ModuleWrapper:
         del self.__is_all
         return self.__prepare_all_
 
-    def _name(self, f):
-        if self.__prepare_all_:
-            return str(self.__prepare_all_.get(f, {}).get('name', f))
-        else:
-            return str(self.__is_all.get(f, {}).get('name', f))
-
     @property
     def get(self):
         if self.__names:

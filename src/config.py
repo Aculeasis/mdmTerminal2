@@ -144,9 +144,6 @@ class ConfigHandler(dict):
         [self._log(msg, lvl) for (msg, lvl) in self._to_log]
         self._to_log.clear()
 
-    def join_logger(self, log):
-        self._log = log
-
     def config_save(self):
         wtime = time.time()
 

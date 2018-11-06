@@ -186,15 +186,12 @@ class Player:
 
 
 class LowPrioritySay(threading.Thread):
-    TIMEOUT = 300
-
     def __init__(self, is_busy, say, play):
         super().__init__(name='LowPrioritySay')
         self._play = play
         self._say = say
         self._is_busy = is_busy
         self._queue_in = queue.Queue()
-        self._quiet = False
         self._work = False
 
     def start(self):
@@ -207,7 +204,6 @@ class LowPrioritySay(threading.Thread):
         self.join()
 
     def clear(self):
-        self._quiet = True
         while not self._queue_in.empty():
             try:
                 self._queue_in.get_nowait()
