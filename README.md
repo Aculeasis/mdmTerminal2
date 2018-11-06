@@ -8,7 +8,7 @@
 **Возможности**
 - Запуск распознавания по любым ключевым словам
 - Передача команды в MajorDoMo
-- Ответ в терминал через sayReply
+- Взаимодействие через [MajorDroid API](http://majordomo.smartliving.ru/forum/viewtopic.php?f=5&t=518) (sayReply, ask etc.)
 - Воспроизведение музыки через MajorDroid API
 - [Дополнительные возможности](#Дополнительные-возможности)
 
@@ -127,10 +127,10 @@
 [TODO]
 
 # Ссылки
-- mdmPiTerminal https://github.com/devoff/mdmPiTerminal
-- В докере https://github.com/Aculeasis/mdmt2-docker
-- MDM VoiceAssistant https://github.com/lanket/mdmPiTerminalModule
-- MajorDoMo https://github.com/sergejey/majordomo
-- Snowboy https://github.com/Kitt-AI/snowboy
-- rhvoice-rest https://github.com/Aculeasis/rhvoice-rest
-- pocketsphinx-rest https://github.com/Aculeasis/pocketsphinx-rest
+- [mdmPiTerminal](https://github.com/devoff/mdmPiTerminal)
+- [В докере](https://github.com/Aculeasis/mdmt2-docker)
+- [MDM VoiceAssistant](https://github.com/lanket/mdmPiTerminalModule)
+- [MajorDoMo](https://github.com/sergejey/majordomo)
+- [Snowboy](https://github.com/Kitt-AI/snowboy)
+- [rhvoice-rest](https://github.com/Aculeasis/rhvoice-rest)
+- [pocketsphinx-rest](https://github.com/Aculeasis/pocketsphinx-rest)
