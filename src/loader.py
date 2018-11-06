@@ -11,6 +11,9 @@ from terminal import MDTerminal
 
 
 class Loader:
+    HELLO = 'Приветствую. Голосовой терминал Мажордомо настраивается, три... два... один...'
+    BYE = 'Голосовой терминал мажордомо завершает свою работу.'
+
     def __init__(self, init_cfg: dict, path: dict, die_in):
         self._die_in = die_in
         self.reload = False
@@ -51,9 +54,9 @@ class Loader:
         self._play.start(self._mpd)
         if mpd_err:
             self._play.say('Ошибка подключения к MPD-серверу')
-        self._play.say('Приветствую. Голосовой терминал Мажордомо настраивается, три... два... один...', 0, wait=0.5)
+        self._play.say_info(self.HELLO, 0, wait=0.5)
         self._stt.start()
-        self._cfg.join_low_say(self._play.say)
+        self._cfg.add_play(self._play)
         self._mm.start()
         self._terminal.start()
         self._server.start()
@@ -65,7 +68,7 @@ class Loader:
 
         self._play.quiet()
         self._play.kill_popen()
-        self._play.say('Голосовой терминал мажордомо завершает свою работу.')
+        self._play.say_info(self.BYE)
 
         self._stt.stop()
         self._play.stop()

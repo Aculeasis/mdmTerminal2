@@ -7,15 +7,22 @@ import main
 from loader import Loader
 
 
+def test_line(include: list, line: str):
+    for test in include:
+        if line.find(test) > 0:
+            return True
+    return False
+
+
 def check_log(log_file):
     include = ['WARNING', 'ERROR', 'CRITICAL']
-    exclude = ['Error get list microphones']
+    exclude = ['Error get list microphones', 'Терминал еще не настроен']
     result = []
     if not os.path.isfile(log_file):
         return result
     with open(log_file) as fp:
         for line in fp.readlines():
-            if [True for k in include if line.find(k) > 0] and not [True for k in exclude if line.find(k) > 0]:
+            if test_line(include, line) and not test_line(exclude, line):
                 result.append(line.strip('\n').strip())
     return result
 
@@ -39,7 +46,7 @@ def tests_mono():
         loader.stop()
         err = check_log(test_log_file)
         if err:
-            RuntimeError('{}'.format(', '.join(err)))
+            raise RuntimeError('{}'.format(', '.join(err)))
     finally:
         for target in [test_settings, test_log_file]:
             if os.path.isfile(target):

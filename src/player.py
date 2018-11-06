@@ -124,6 +124,11 @@ class Player:
         if wait:
             time.sleep(wait)
 
+    def say_info(self, msg: str, lvl: int=2, alarm=None, wait=0, is_file: bool = False):
+        if self._cfg.get('quiet'):
+            return
+        self.say(msg, lvl, alarm, wait, is_file)
+
     def say(self, msg: str, lvl: int=2, alarm=None, wait=0, is_file: bool = False):
         if not lvl:
             self.log('low say \'{}\' pause {}'.format(msg, wait), logger.DEBUG)

@@ -17,11 +17,15 @@ class ConfigHandler(dict):
         super().__init__()
         self.update(cfg)
         self.path = path
-        self._say = None  # Тут будет tts, потом
-        self._log = print  # а тут логгер
-        self._to_tts = []  # Пока tts нет храним принты тут.
+        self._play = None  # Тут будет player, потом
+        self._log = self.__print  # а тут логгер
+        self._to_tts = []  # Пока player нет храним фразы тут.
+        self._to_log = []  # А тут принты в лог
         self._config_init()
         self._yandex = None
+
+    def __print(self, msg, lvl):
+        self._to_log.append((msg, lvl))
 
     def key(self, prov, api_key):
         key_ = self.get(prov, {}).get(api_key)
@@ -46,7 +50,7 @@ class ConfigHandler(dict):
         return result
 
     def configure(self, log):
-        self._log = log
+        self._add_log(log)
         self._print(msg='CFG: {}'.format(self))
 
         # ~/tts_cache/
@@ -128,11 +132,17 @@ class ConfigHandler(dict):
             self._print('Ошибка загрузки {}: {}'.format(file_path, str(e)), logger.ERROR)
             return None
 
-    def join_low_say(self, low_say):
-        self._say = low_say
+    def add_play(self, play):
+        self._play = play
         # Произносим накопленные фразы
-        while len(self._to_tts):
-            self._say(self._to_tts.pop(0), lvl=0, wait=0.5)
+        for (phrase, is_info) in self._to_tts:
+            self._play.say_info(phrase, lvl=0, wait=0.5) if is_info else self._play.say(phrase, lvl=0, wait=0.5)
+        self._to_tts.clear()
+
+    def _add_log(self, log):
+        self._log = log
+        [self._log(msg, lvl) for (msg, lvl) in self._to_log]
+        self._to_log.clear()
 
     def join_logger(self, log):
         self._log = log
@@ -263,9 +273,8 @@ class ConfigHandler(dict):
                 current_size += fsize
                 files.append([pfile, fsize])
         normal_size = not files or current_size < max_size or max_size < 0
-        self._print(
-            'Размер tts кэша {}: {}'.format(utils.pretty_size(current_size), 'Ок.' if normal_size else 'Удаляем...'),
-            logger.INFO, 1 if normal_size else 3)
+        say = 'Размер tts кэша {}: {}'.format(utils.pretty_size(current_size), 'Ок.' if normal_size else 'Удаляем...')
+        self._print(say, logger.INFO, 1 if normal_size else 3)
         if normal_size:
             return
 
@@ -298,10 +307,11 @@ class ConfigHandler(dict):
         if mode in [1, 3]:
             self._log(msg, lvl)
         if mode in [2, 3]:
-            if self._say is None:  # tts еще нет
-                self._to_tts.append(msg)
+            is_info = lvl <= logger.INFO
+            if self._play is None:
+                self._to_tts.append((msg, is_info))
             else:
-                self._say(msg, lvl=0)
+                self._play.say_info(msg, lvl=0) if is_info else self._play.say(msg, lvl=0)
 
     def _first(self):
         to_save = False
@@ -309,5 +319,5 @@ class ConfigHandler(dict):
             self['ip'] = utils.get_ip_address()
             to_save = True
         if 'ip_server' not in self or not self['ip_server']:
-            self._print('Терминал еще не настроен, мой IP адрес: {}'.format(self['ip']), logger.INFO, 3)
+            self._print('Терминал еще не настроен, мой IP адрес: {}'.format(self['ip']), logger.WARN, 3)
         return to_save
