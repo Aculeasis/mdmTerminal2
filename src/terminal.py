@@ -5,14 +5,10 @@ import random
 import threading
 import time
 
-import wikipedia
-
 import logger
 import player
 import stts
 from lib import snowboydecoder
-
-wikipedia.set_lang('ru')
 
 
 class MDTerminal(threading.Thread):
