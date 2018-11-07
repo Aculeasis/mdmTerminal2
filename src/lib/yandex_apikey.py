@@ -10,7 +10,7 @@ from utils import REQUEST_ERRORS
 class APIKey:
     URL = 'https://translate.yandex.ru'
     TARGET = 'SPEECHKIT_KEY:'
-    LIFE_TIME = 5 * 60
+    LIFE_TIME = 12 * 60 * 60
 
     def __init__(self):
         self._api_key = None
