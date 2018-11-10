@@ -108,7 +108,7 @@ class Player:
         try:
             self._popen.wait(timeout)
         except subprocess.TimeoutExpired:
-            pass
+            self.kill_popen()
 
     def play(self, file, lvl: int=2, wait=0, blocking: int=0):
         if not lvl:

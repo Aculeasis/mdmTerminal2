@@ -228,18 +228,38 @@ class SpeechToText:
         return None if device_index < 0 else device_index
 
     def _listen(self, hello: str, voice) -> str or None:
-        max_play_time = 120  # максимальное время воспроизведения приветствия
-        max_wait_time = 10  # ожидание после приветствия
         lvl = 5  # Включаем монопольный режим
         file_path = self._tts(random.SystemRandom().choice(self.HELLO) if not hello else hello) if not voice else None
+        commands = None
 
         if self._cfg['alarmkwactivated']:
-            self._play.play(self._cfg.path['ding'], lvl, blocking=2)
-            time.sleep(0.01)
+            self._play.play(self._cfg.path['ding'], lvl, wait=0.01, blocking=2)
         else:
             self._play.set_lvl(lvl)
             self._play.kill_popen()
         self.log('audio devices: {}'.format(pyaudio.PyAudio().get_device_count() - 1), logger.DEBUG)
+
+        if self._cfg.get('blocking_listener'):
+            audio, recognizer, record_time = self._block_listen(hello, lvl, file_path)
+        else:
+            audio, recognizer, record_time = self._non_block_listen(hello, lvl, file_path)
+
+        self.log('Голос записан за {}'.format(utils.pretty_time(record_time)), logger.INFO)
+        # Выключаем монопольный режим
+        self._play.clear_lvl()
+
+        if self._cfg['alarmstt']:
+            self._play.play(self._cfg.path['dong'])
+        if audio is not None:
+            commands = self._voice_recognition(audio, recognizer)
+
+        if commands:
+            self.log('Распознано: {}'.format(commands), logger.INFO)
+        return commands
+
+    def _non_block_listen(self, hello, lvl, file_path):
+        max_play_time = 120  # максимальное время воспроизведения приветствия
+        max_wait_time = 10  # ожидание после приветствия
 
         r = sr.Recognizer()
         mic = sr.Microphone(device_index=self.get_mic_index())
@@ -251,12 +271,12 @@ class SpeechToText:
             self._play.play(self._cfg.path['dong'], lvl)
 
         start_wait = time.time()
-        if not voice:
+        if file_path:
             self._play.play(file_path, lvl)
 
         # Начинаем фоновое распознавание голосом после того как запустился плей.
         listener = NonBlockListener(r=r, source=mic, phrase_time_limit=20)
-        if not voice:
+        if file_path:
             while listener.work() and self._play.really_busy() and time.time() - start_wait < max_play_time and self._work:
                 # Ждем пока время не выйдет, голос не распознался и файл играет
                 time.sleep(0.01)
@@ -267,21 +287,29 @@ class SpeechToText:
             # ждем еще секунд 10
             time.sleep(0.01)
 
-        self.log('Голос записан за {}'.format(utils.pretty_time(time.time() - start_wait)), logger.INFO)
+        record_time = time.time() - start_wait
         listener.stop()
+        return listener.audio, listener.recognizer, record_time
 
-        # Выключаем монопольный режим
-        self._play.clear_lvl()
+    def _block_listen(self, hello, lvl, file_path):
+        with sr.Microphone() as source:
+            r = sr.Recognizer()
+            r.adjust_for_ambient_noise(source)
 
-        commands = None
-        if listener.audio is not None:
-            if self._cfg['alarmstt']:
-                self._play.play(self._cfg.path['dong'])
-            commands = self._voice_recognition(listener.audio, listener.recognizer)
+            if self._cfg['alarmtts'] and not hello:
+                self._play.play(self._cfg.path['dong'], lvl, wait=0.01, blocking=2)
 
-        if commands:
-            self.log('Распознано: {}'.format(commands), logger.INFO)
-        return commands
+            if file_path:
+                self._play.play(file_path, lvl, wait=0.01, blocking=120)
+
+            record_time = time.time()
+            try:
+                audio = r.listen(source, timeout=10, phrase_time_limit=15)
+            except sr.WaitTimeoutError:
+                audio = None
+            record_time = time.time() - record_time
+
+            return audio, r, record_time
 
     def voice_record(self, hello: str, save_to: str, convert_rate=None, convert_width=None):
         if self.max_mic_index == -2:
