@@ -229,7 +229,6 @@ class SpeechToText:
 
     def _listen(self, hello: str, voice) -> str or None:
         lvl = 5  # Включаем монопольный режим
-        file_path = self._tts(random.SystemRandom().choice(self.HELLO) if not hello else hello) if not voice else None
         commands = None
 
         if self._cfg['alarmkwactivated']:
@@ -238,6 +237,8 @@ class SpeechToText:
             self._play.set_lvl(lvl)
             self._play.kill_popen()
         self.log('audio devices: {}'.format(pyaudio.PyAudio().get_device_count() - 1), logger.DEBUG)
+
+        file_path = self._tts(random.SystemRandom().choice(self.HELLO) if not hello else hello) if not voice else None
 
         if self._cfg.get('blocking_listener'):
             audio, recognizer, record_time = self._block_listen(hello, lvl, file_path)
@@ -294,13 +295,14 @@ class SpeechToText:
     def _block_listen(self, hello, lvl, file_path):
         with sr.Microphone() as source:
             r = sr.Recognizer()
-            r.adjust_for_ambient_noise(source)
 
             if self._cfg['alarmtts'] and not hello:
                 self._play.play(self._cfg.path['dong'], lvl, wait=0.01, blocking=2)
 
             if file_path:
                 self._play.play(file_path, lvl, wait=0.01, blocking=120)
+
+            r.adjust_for_ambient_noise(source)
 
             record_time = time.time()
             try:
