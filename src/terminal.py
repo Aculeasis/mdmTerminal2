@@ -116,7 +116,11 @@ class MDTerminal(threading.Thread):
                 model_name = str(model)
                 msg = ''
             self.log('Голосовая активация по {}{}'.format(model_name, msg), logger.INFO)
-        self.detected('{} слушает'.format(phrase) if phrase and not random.SystemRandom().randrange(0, 4) else '')
+        no_hello = self._cfg.get('no_hello', 0)
+        hello = ''
+        if phrase and not random.SystemRandom().randrange(0, 4) and not no_hello:
+            hello = '{} слушает'.format(phrase)
+        self.detected(hello=hello, voice=no_hello)
 
     def detected(self, hello: str = '', voice=False):
         if self._snowboy is not None:

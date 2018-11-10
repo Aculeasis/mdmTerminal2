@@ -25,6 +25,7 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
     'optimistic_nonblock_tts': 1,
     'ask_me_again': 0,
     'quiet': 0,
+    'no_hello': 0,
     'mpd': {
         'control': 1,
         'ip': '127.0.0.1',
