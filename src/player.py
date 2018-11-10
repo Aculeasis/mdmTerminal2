@@ -104,7 +104,13 @@ class Player:
     def popen_work(self):
         return self._popen is not None and self._popen.poll() is None
 
-    def play(self, file, lvl: int=2, wait=0):
+    def _wait_popen(self, timeout=2):
+        try:
+            self._popen.wait(timeout)
+        except subprocess.TimeoutExpired:
+            pass
+
+    def play(self, file, lvl: int=2, wait=0, blocking: int=0):
         if not lvl:
             self.log('low play \'{}\' pause {}'.format(file, wait), logger.DEBUG)
             return self._lp_play.play(file, wait)
@@ -118,6 +124,8 @@ class Player:
 
         time.sleep(0.01)
         self._play(file)
+        if blocking:
+            self._wait_popen(blocking)
         self._only_one.release()
 
         self._last_activity = time.time() + wait
@@ -148,10 +156,7 @@ class Player:
         time.sleep(0.01)
         if alarm:
             self._play(self._cfg.path['dong'])
-            try:
-                self._popen.wait(2)
-            except subprocess.TimeoutExpired:
-                pass
+            self._wait_popen()
         self._play(file)
         self._only_one.release()
 

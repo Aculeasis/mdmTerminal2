@@ -233,9 +233,12 @@ class SpeechToText:
         lvl = 5  # Включаем монопольный режим
         file_path = self._tts(random.SystemRandom().choice(self.HELLO) if not hello else hello) if not voice else None
 
-        # self._play.quiet()
         if self._cfg['alarmkwactivated']:
-            self._play.play(self._cfg.path['ding'], lvl)
+            self._play.play(self._cfg.path['ding'], lvl, blocking=2)
+            time.sleep(0.01)
+        else:
+            self._play.set_lvl(lvl)
+            self._play.kill_popen()
         self.log('audio devices: {}'.format(pyaudio.PyAudio().get_device_count() - 1), logger.DEBUG)
 
         r = sr.Recognizer()
