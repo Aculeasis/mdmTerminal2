@@ -37,7 +37,7 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'file_lvl' : 'debug',
         'print_lvl': 'debug',
         'method': 3,
-        'file': '/var/log/mdmterminal.log',
+        'file': '',
     },
     'yandex': {
         'emotion': 'good',

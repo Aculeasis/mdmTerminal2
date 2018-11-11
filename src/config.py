@@ -87,9 +87,22 @@ class ConfigHandler(dict):
             to_save |= self._cfg_dict_checker(self['providerstt'])
         to_save |= self._cfg_checker('yandex', 'emotion', utils.YANDEX_EMOTION, 'good')
         to_save |= self._cfg_checker('yandex', 'speaker', utils.YANDEX_SPEAKER, 'alyss')
+        to_save |= self._log_file_init()
         to_save |= self._first()
         if to_save:
             self.config_save()
+
+    def _log_file_init(self):  # Выбираем доступную для записи директорию для логов
+        if self['log']['file']:
+            return False
+
+        file = 'mdmterminal.log'
+        for path in ('/var/log', self.path['home'], self.path['tmp']):
+            target = os.path.join(path, file)
+            if utils.write_permission_check(target):
+                break
+        self['log']['file'] = target
+        return True
 
     def _cfg_dict_checker(self, key: str):
         if key and (key not in self or type(self[key]) != dict):
