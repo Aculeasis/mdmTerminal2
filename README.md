@@ -10,6 +10,7 @@
 - Передача команды в MajorDoMo
 - Взаимодействие через [MajorDroid API](http://majordomo.smartliving.ru/forum/viewtopic.php?f=5&t=518) (sayReply, ask etc.)
 - Воспроизведение музыки через MajorDroid API
+- [Работа через прокси](https://github.com/Aculeasis/mdmTerminal2/wiki/proxy)
 - [Дополнительные возможности](#Дополнительные-возможности)
 
 # Установка
