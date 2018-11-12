@@ -52,7 +52,8 @@ class gTTS(gtts.gTTS):
                 gtts.tts.tokenizer_cases.tone_marks,
                 gtts.tts.tokenizer_cases.period_comma,
                 gtts.tts.tokenizer_cases.other_punctuation
-            ]).run
+            ]).run,
+            **_
     ):
 
         if pre_processor_funcs is None:
