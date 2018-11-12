@@ -9,7 +9,7 @@ from .proxy import proxies
 
 
 class APIKey:
-    URL = 'https://translate.yandex.ru'
+    URL = 'https://translate.yandex.com'
     TARGET = 'SPEECHKIT_KEY:'
     LIFE_TIME = 12 * 60 * 60
 
@@ -32,6 +32,8 @@ class APIKey:
         except REQUEST_ERRORS as e:
             raise RuntimeError(str(e))
         line = response.text
+        if line.find('<title>Oops!</title>') > -1:
+            raise RuntimeError('Yandex blocked automated requests')
         end = 0
         result = None
         start = line.find(self.TARGET)
