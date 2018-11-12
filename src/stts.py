@@ -241,9 +241,9 @@ class SpeechToText:
         file_path = self._tts(random.SystemRandom().choice(self.HELLO) if not hello else hello) if not voice else None
 
         if self._cfg.get('blocking_listener'):
-            audio, recognizer, record_time = self._block_listen(hello, lvl, file_path)
+            audio, recognizer, record_time, energy_threshold_msg = self._block_listen(hello, lvl, file_path)
         else:
-            audio, recognizer, record_time = self._non_block_listen(hello, lvl, file_path)
+            audio, recognizer, record_time, energy_threshold_msg = self._non_block_listen(hello, lvl, file_path)
 
         self.log('Голос записан за {}'.format(utils.pretty_time(record_time)), logger.INFO)
         # Выключаем монопольный режим
@@ -255,7 +255,7 @@ class SpeechToText:
             commands = self._voice_recognition(audio, recognizer)
 
         if commands:
-            self.log('Распознано: {}'.format(commands), logger.INFO)
+            self.log('Распознано: {}{}'.format(commands, energy_threshold_msg), logger.INFO)
         return commands
 
     def _non_block_listen(self, hello, lvl, file_path):
@@ -266,7 +266,7 @@ class SpeechToText:
         mic = sr.Microphone(device_index=self.get_mic_index())
 
         with mic as source:  # Слушаем шум 1 секунду, потом распознаем, если раздажает задержка можно закомментировать.
-            r.adjust_for_ambient_noise(source)
+            energy_threshold_msg = self._correct_energy_threshold(r, source)
 
         if self._cfg['alarmtts'] and not hello:
             self._play.play(self._cfg.path['dong'], lvl)
@@ -290,7 +290,7 @@ class SpeechToText:
 
         record_time = time.time() - start_wait
         listener.stop()
-        return listener.audio, listener.recognizer, record_time
+        return listener.audio, listener.recognizer, record_time, energy_threshold_msg
 
     def _block_listen(self, hello, lvl, file_path):
         with sr.Microphone() as source:
@@ -302,7 +302,7 @@ class SpeechToText:
             if file_path:
                 self._play.play(file_path, lvl, wait=0.01, blocking=120)
 
-            r.adjust_for_ambient_noise(source)
+            energy_threshold_msg = self._correct_energy_threshold(r, source)
 
             record_time = time.time()
             try:
@@ -311,7 +311,16 @@ class SpeechToText:
                 audio = None
             record_time = time.time() - record_time
 
-            return audio, r, record_time
+            return audio, r, record_time, energy_threshold_msg
+
+    def _correct_energy_threshold(self, r: sr.Recognizer, source):
+        energy_threshold = self._cfg.get('energy_threshold', 0)
+        if energy_threshold > 0:
+            r.energy_threshold = energy_threshold
+            return ''
+        else:
+            r.adjust_for_ambient_noise(source)
+            return ', energy_threshold={}'.format(int(r.energy_threshold))
 
     def voice_record(self, hello: str, save_to: str, convert_rate=None, convert_width=None):
         if self.max_mic_index == -2:
