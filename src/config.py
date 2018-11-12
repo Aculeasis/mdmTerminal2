@@ -8,6 +8,7 @@ import time
 import logger
 import utils
 from lib import yandex_apikey
+from lib import proxy
 
 
 class ConfigHandler(dict):
@@ -78,6 +79,7 @@ class ConfigHandler(dict):
     def _config_init(self):
         self.config_load()
         self._cfg_check()
+        proxy.setting(self.get('proxy', {}))
 
     def _cfg_check(self):
         to_save = False

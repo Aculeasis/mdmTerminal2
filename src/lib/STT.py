@@ -9,6 +9,7 @@ from bs4 import BeautifulSoup
 from speech_recognition import AudioData
 
 from utils import REQUEST_ERRORS
+from .proxy import proxies
 
 __all__ = ['Yandex', 'PocketSphinxREST']
 
@@ -20,7 +21,8 @@ class UnknownValueError(Exception):
 class BaseSTT:
     BUFF_SIZE = 1024
 
-    def __init__(self, url, audio_data: AudioData, headers=None, convert_rate=None, convert_width=None, **kwargs):
+    def __init__(self, url, audio_data: AudioData,
+                 headers=None, convert_rate=None, convert_width=None, proxy_args=None, **kwargs):
         self._text = None
         self._rq = None
         self._url = url
@@ -32,7 +34,7 @@ class BaseSTT:
             self._headers.update(headers)
         self._params = kwargs
 
-        self._send()
+        self._send(proxy_args)
         self._reply_check()
         self._parse_response()
 
@@ -47,7 +49,7 @@ class BaseSTT:
                 if not chunk:
                     break
 
-    def _send(self):
+    def _send(self, proxy_args):
         try:
             self._rq = requests.post(
                 self._url,
@@ -55,7 +57,8 @@ class BaseSTT:
                 params=self._params,
                 headers=self._headers,
                 stream=True,
-                timeout=60
+                timeout=60,
+                proxies=proxies(proxy_args)
             )
         except REQUEST_ERRORS as e:
             raise RuntimeError(str(e))
@@ -89,7 +92,8 @@ class Yandex(BaseSTT):
             'lang': lang,
             'disableAntimat': 'true'
         }
-        super().__init__(self.URL, audio_data, headers, rate, width, **kwargs)
+        proxy_args = ('yandex_stt', 'yandex')
+        super().__init__(self.URL, audio_data, headers, rate, width, proxy_args, **kwargs)
 
     def _get_audio(self, audio_data: AudioData):
         return audio_data.get_raw_data(self._convert_rate, self._convert_width)
@@ -120,7 +124,8 @@ class Yandex(BaseSTT):
 
 class PocketSphinxREST(BaseSTT):
     def __init__(self, audio_data: AudioData, url='http://127.0.0.1:8085'):
-        super().__init__('{}/stt'.format(url), audio_data, {'Content-Type': 'audio/wav'}, 16000, 2)
+        proxy_args = ('pocketsphinx-rest',)
+        super().__init__('{}/stt'.format(url), audio_data, {'Content-Type': 'audio/wav'}, 16000, 2, proxy_args)
 
     def _parse_response(self):
         try:

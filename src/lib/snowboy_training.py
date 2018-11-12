@@ -3,6 +3,7 @@ import base64
 import requests
 
 from utils import REQUEST_ERRORS
+from .proxy import proxies
 
 
 def file_to_base64(file_name) -> str:
@@ -36,7 +37,7 @@ class Training:
 
     def _request(self):
         try:
-            response = requests.post(self.URL, json=self.__params)
+            response = requests.post(self.URL, json=self.__params, proxies=proxies(('snowboy',)))
         except REQUEST_ERRORS as e:
             raise RuntimeError('Request error: {}'.format(e))
         if not response.ok:

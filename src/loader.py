@@ -2,6 +2,7 @@
 
 import stts
 from config import ConfigHandler
+from lib import proxy
 from logger import Logger
 from modules_manager import ModuleManager
 from mpd_control import MPDControl
@@ -21,6 +22,8 @@ class Loader:
         self._cfg = ConfigHandler(cfg=init_cfg, path=path)
         self._logger = Logger(self._cfg['log'])
         self._cfg.configure(self._logger.add('CFG'))
+
+        proxy.add_logger(self._logger.add('Proxy'))
 
         self._tts = stts.TextToSpeech(cfg=self._cfg, log=self._logger.add('TTS')).tts
 

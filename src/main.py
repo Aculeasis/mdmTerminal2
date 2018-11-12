@@ -61,6 +61,11 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'tts_size': 100,
     },
     'models': {},
+    'proxy': {
+        'enable': 0,
+        'monkey_patching': 1,
+        'proxy': 'socks5h://127.0.0.1:9050'
+    }
 }
 
 

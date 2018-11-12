@@ -9,12 +9,15 @@ import threading
 import time
 
 import requests
+import socks  # install socks-proxy dependencies - pip install requests[socks]
 import urllib3
 
+_PROXY_ERROR = socks.GeneralProxyError, socks.ProxyConnectionError, socks.SOCKS5AuthError, \
+               socks.SOCKS5Error, socks.SOCKS4Error, socks.HTTPError
 REQUEST_ERRORS = (
     requests.exceptions.HTTPError, requests.exceptions.RequestException, urllib3.exceptions.NewConnectionError,
     requests.exceptions.ChunkedEncodingError
-)
+) + _PROXY_ERROR
 
 YANDEX_EMOTION = {
     'good'    : 'добрая',

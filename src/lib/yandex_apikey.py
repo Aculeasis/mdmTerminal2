@@ -5,6 +5,7 @@ import time
 import requests
 
 from utils import REQUEST_ERRORS
+from .proxy import proxies
 
 
 class APIKey:
@@ -27,7 +28,7 @@ class APIKey:
 
     def _extract(self):
         try:
-            response = requests.get(self.URL)
+            response = requests.get(self.URL, proxies=proxies(('yandex_token', 'yandex')))
         except REQUEST_ERRORS as e:
             raise RuntimeError(str(e))
         line = response.text

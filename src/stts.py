@@ -9,10 +9,10 @@ import time
 import wave
 
 import pyaudio
-import speech_recognition as sr
 
 import lib.STT as STT
 import lib.TTS as TTS
+import lib.sr_proxifier as sr
 import logger
 import utils
 
