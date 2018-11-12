@@ -28,6 +28,7 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
     'no_hello': 0,
     'blocking_listener': 0,
     'energy_threshold': 0,
+    'phrase_time_limit': 15,
     'mpd': {
         'control': 1,
         'ip': '127.0.0.1',

@@ -276,7 +276,7 @@ class SpeechToText:
             self._play.play(file_path, lvl)
 
         # Начинаем фоновое распознавание голосом после того как запустился плей.
-        listener = NonBlockListener(r=r, source=mic, phrase_time_limit=20)
+        listener = NonBlockListener(r=r, source=mic, phrase_time_limit=self._cfg.get('phrase_time_limit', 15))
         if file_path:
             while listener.work() and self._play.really_busy() and time.time() - start_wait < max_play_time and self._work:
                 # Ждем пока время не выйдет, голос не распознался и файл играет
@@ -306,7 +306,7 @@ class SpeechToText:
 
             record_time = time.time()
             try:
-                audio = r.listen(source, timeout=10, phrase_time_limit=15)
+                audio = r.listen(source, timeout=10, phrase_time_limit=self._cfg.get('phrase_time_limit', 15))
             except sr.WaitTimeoutError:
                 audio = None
             record_time = time.time() - record_time
