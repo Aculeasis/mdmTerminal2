@@ -62,11 +62,12 @@ def monkey_patching_disable():
             socket.socket = _back_up
 
 
-def proxies(key):
+def proxies(key, quiet=False):
     (data, to_log) = _proxies(key)
     if not data:
         return
-    _logger('{}'.format(to_log))
+    if not quiet:
+        _logger('{}'.format(to_log))
     return data
 
 
