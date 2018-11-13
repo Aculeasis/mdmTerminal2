@@ -199,14 +199,14 @@ class ConfigHandler(dict):
         self._print('Загружено {} модел{}'.format(count, et), logger.INFO, 3)
 
     @staticmethod
-    def _cfg_convert(config: configparser.ConfigParser, sec, key, oldval):
-        if oldval is None:
+    def _cfg_convert(config: configparser.ConfigParser, sec, key, old_val):
+        if old_val is None:
             return config[sec][key]
-        if type(oldval) == int:
+        if type(old_val) == int:
             return config.getint(sec, key)
-        elif type(oldval) == float:
+        elif type(old_val) == float:
             return config.getfloat(sec, key)
-        elif type(oldval) == bool:
+        elif type(old_val) == bool:
             return config.getboolean(sec, key)
         return config[sec][key]
 
@@ -224,11 +224,17 @@ class ConfigHandler(dict):
             if sec != self.SETTINGS:
                 self._cfg_dict_checker(sec)
             for key in config[sec]:
-                count += 1
-                if sec == self.SETTINGS:
-                    self[key] = self._cfg_convert(config, sec, key, self.get(key, None))
+                old_val = self.get(key, None) if sec == self.SETTINGS else self[sec].get(key, None)
+                try:
+                    if sec == self.SETTINGS:
+                        self[key] = self._cfg_convert(config, sec, key, old_val)
+                    else:
+                        self[sec][key] = self._cfg_convert(config, sec, key, old_val)
+                except (ValueError, TypeError) as e:
+                    msg = 'Ошибка в settings.ini: Ключ \'{}\' не может иметь такое значение, используется {}: {}'
+                    self._print(msg.format(key, old_val, e), logger.ERROR)
                 else:
-                    self[sec][key] = self._cfg_convert(config, sec, key, self[sec].get(key, None))
+                    count += 1
 
         self._print('Загружено {} опций за {}'.format(count, utils.pretty_time(time.time() - wtime)), logger.INFO)
         self._print('Конфигурация загружена!', logger.INFO, mode=2)
@@ -238,12 +244,20 @@ class ConfigHandler(dict):
         if isinstance(dict_.get(key), dict) and isinstance(val, dict):
             for key_, val_ in val.items():
                 is_change |= self._key_parse(key_, val_, dict_[key])
-        elif isinstance(val, (dict, list)):
-            raise ValueError('This is {}: {}'.format(str(type(val)), key))
+        elif isinstance(val, (dict, list)) or isinstance(key, (dict, list)):
+            self._print('Получена некорректная настройка - \'{}\':{}'.format(key, val), logger.ERROR)
+        elif not key:
+            self._print('Получен пустой ключ, WTF? \'{}\':{}'.format(key, val), logger.ERROR)
         else:
-            tmp = type(dict_.get(key, ''))(val)
-            is_change |= tmp != dict_.get(key)
-            dict_[key] = tmp
+            key = key.lower()
+            try:
+                tmp = type(dict_.get(key, ''))(val)
+            except (ValueError, TypeError) as e:
+                msg = 'Не верный, ожидаемый {}, тип настройки {}:{}. {}'.format(type(dict_.get(key, '')), key, val, e)
+                self._print(msg, logger.ERROR)
+            else:
+                is_change |= tmp != dict_.get(key)
+                dict_[key] = tmp
         return is_change
 
     def json_to_cfg(self, data: str or dict) -> bool:
