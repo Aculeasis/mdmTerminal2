@@ -43,8 +43,8 @@ def monkey_patching_enable(key):
     if not kwargs:
         return
     with _locker:
+        _patched += 1
         if _back_up == socket.socket:
-            _patched += 1
             _logger('enable {} ...'.format(to_log))
             socks.set_default_proxy(**kwargs)
             socket.socket = socks.socksocket
@@ -55,12 +55,11 @@ def monkey_patching_disable():
         return
     global _patched, _locker
     with _locker:
-        if _back_up != socket.socket:
-            _patched -= 1
-            if not _patched:
-                _logger('disable.')
-                socks.set_default_proxy()
-                socket.socket = _back_up
+        _patched -= 1
+        if _back_up != socket.socket and not _patched:
+            _logger('disable.')
+            socks.set_default_proxy()
+            socket.socket = _back_up
 
 
 def proxies(key):
