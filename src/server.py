@@ -102,7 +102,7 @@ class MDTServer(threading.Thread):
             self.log('Неизвестная комманда: {}'.format(cmd[0]), logger.WARN)
 
     def _api_voice(self, cmd: str):
-        self._terminal.external_detect('voice', cmd)
+        self._terminal.external_cmd('voice', cmd)
 
     def _api_home(self, cmd: str):
         self.log('Not implemented yet - home:{}'.format(cmd), logger.WARN)
@@ -117,10 +117,10 @@ class MDTServer(threading.Thread):
         self._play.mpd.pause()
 
     def _api_tts(self, cmd: str):
-        self._play.say(cmd, lvl=0)
+        self._terminal.external_cmd('tts', cmd, 0)
 
     def _api_ask(self, cmd: str):
-        self._terminal.external_detect('ask', cmd)
+        self._terminal.external_cmd('ask', cmd)
 
     def _api_rtsp(self, cmd: str):
         self.log('Not implemented yet - rtsp:{}'.format(cmd), logger.WARN)

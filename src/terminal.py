@@ -4,6 +4,7 @@ import os
 import random
 import threading
 import time
+import queue
 
 import logger
 import player
@@ -12,6 +13,8 @@ from lib import snowboydecoder
 
 
 class MDTerminal(threading.Thread):
+    MAX_LATE = 10
+
     def __init__(self, cfg, play_: player.Player, stt: stts.SpeechToText, log, handler):
         super().__init__(name='MDTerminal')
         self.log = log
@@ -25,9 +28,7 @@ class MDTerminal(threading.Thread):
         self._snowboy = None
         self._callbacks = []
         self.reload()
-        self._api = ''
-        self._api_cmd = ''
-        self._api_time = 0
+        self._queue = queue.Queue()
 
     def reload(self):
         self.paused(True)
@@ -59,7 +60,7 @@ class MDTerminal(threading.Thread):
             time.sleep(0.1)
 
     def _interrupt_callback(self):
-        return not self.work or self._paused or self._api
+        return not self.work  or self._paused or self._queue.qsize()
 
     def run(self):
         while self.work:
@@ -80,27 +81,32 @@ class MDTerminal(threading.Thread):
             self._snowboy.terminate()
 
     def _external_check(self):
-        if self._api:
-            cmd = self._api
-            self._api = ''
-            txt = self._api_cmd
-            time_ = int(time.time()) - self._api_time
-            if time_ > 10:
-                self.log('Получена {}:{} опоздание {} секунд. Игнорирую.'.format(cmd, txt, time_), logger.WARN)
-                return
+        while self._queue.qsize() and self.work:
+            try:
+                (cmd, txt, lvl, late) = self._queue.get_nowait()
+            except queue.Empty:
+                self.log('Пустая очередь? Impossible!', logger.ERROR)
+                continue
+            late = time.time() - late
+            msg = 'Получено {}:{}, lvl={} опоздание {} секунд.'.format(cmd, txt, lvl, int(late))
+            if late > self.MAX_LATE:
+                self.log('{} Игнорирую.'.format(msg), logger.WARN)
+                continue
             else:
-                self.log('Получена {}:{} опоздание {} секунд'.format(cmd, txt, time_), logger.DEBUG)
+                self.log(msg, logger.DEBUG)
             if cmd == 'ask' and txt:
                 self.detected(txt)
-            elif cmd == 'voice':
+            elif cmd == 'voice' and not txt:
                 self.detected(voice=True)
             else:
-                self.log('Не верный вызов \'{}:{}\''.format(cmd, txt), logger.ERROR)
+                self.log('Не верный вызов, WTF? {}:{}, lvl={}'.format(cmd, txt, lvl), logger.ERROR)
 
-    def external_detect(self, cmd, txt: str =''):
-        self._api = cmd
-        self._api_cmd = txt
-        self._api_time = int(time.time())
+    def external_cmd(self, cmd: str, txt: str = '', lvl: int = 0):
+        if cmd == 'tts':
+            if not lvl:
+                self._play.say(txt, lvl=0)
+                return
+        self._queue.put_nowait((cmd, txt, lvl, time.time()))
 
     def _detected(self, model: int=0):
         phrase = ''
