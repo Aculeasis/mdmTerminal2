@@ -60,7 +60,7 @@ class MDTerminal(threading.Thread):
             time.sleep(0.1)
 
     def _interrupt_callback(self):
-        return not self.work  or self._paused or self._queue.qsize()
+        return not self.work or self._paused or self._queue.qsize()
 
     def run(self):
         while self.work:
