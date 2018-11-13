@@ -7,12 +7,20 @@ import socks
 
 from logger import ERROR
 
-PARAMS = (
-    'yandex', 'yandex_tts', 'yandex_stt', 'yandex_token',
-    'google', 'google_tts', 'google_stt', 'google_token',
-    'rhvoice-rest', 'pocketsphinx-rest',
-    'wit.ai', 'microsoft', 'snowboy', 'enable'
-)
+PROXIES = {
+    'tts_google': ('google_tts', 'google'),
+    'tts_yandex': ('yandex_tts', 'yandex'),
+    'tts_rhvoice-rest': ('rhvoice-rest',),
+    'stt_google': ('google_stt', 'google'),
+    'stt_yandex': ('yandex_stt', 'yandex'),
+    'stt_pocketsphinx-rest': ('pocketsphinx-rest',),
+    'stt_wit.ai': ('wit.ai',),
+    'stt_microsoft': ('microsoft',),
+    'token_google': ('google_token', 'google_tts', 'google'),
+    'key_yandex': ('yandex_token', 'yandex'),
+    'snowboy_training': ('snowboy',),
+}
+PARAMS = frozenset(['enable'] + [_val_ for _key_ in PROXIES for _val_ in PROXIES[_key_]])
 PROXY_SET = ('proxy_type', 'addr', 'port', 'username', 'password')
 PROXY_TYPE = ('socks5', 'socks5h', 'http')
 
@@ -27,11 +35,11 @@ _monkey_patching = False
 _logger = print
 
 
-def monkey_patching_enable(args):
+def monkey_patching_enable(key):
     if not _monkey_patching:
         return
     global _patched, _locker
-    kwargs, to_log = _get_proxy_monkey(args)
+    kwargs, to_log = _get_proxy_monkey(key)
     if not kwargs:
         return
     with _locker:
@@ -55,8 +63,8 @@ def monkey_patching_disable():
                 socket.socket = _back_up
 
 
-def proxies(args):
-    (data, to_log) = _proxies(args)
+def proxies(key):
+    (data, to_log) = _proxies(key)
     if not data:
         return
     _logger('{}'.format(to_log))
@@ -87,8 +95,8 @@ def add_logger(log):
 
 
 @lru_cache()
-def _get_proxy_monkey(args):
-    data = _get_proxy_by_args(args)
+def _get_proxy_monkey(key):
+    data = _get_proxy_by_args(PROXIES[key])
     if not data:
         return None, None
     (data, to_log) = data
@@ -99,8 +107,8 @@ def _get_proxy_monkey(args):
 
 
 @lru_cache()
-def _proxies(args):
-    data = _get_proxy_by_args(args)
+def _proxies(key):
+    data = _get_proxy_by_args(PROXIES[key])
     if not data:
         return None, None
     (data, to_log) = data

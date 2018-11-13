@@ -17,21 +17,21 @@ class Recognizer(speech_recognition.Recognizer):
         pass
 
     def recognize_google(self, audio_data, key=None, language="en-US", show_all=False):
-        monkey_patching_enable(('google_stt', 'google'))
+        monkey_patching_enable('stt_google')
         try:
             return super().recognize_google(audio_data, key, language, show_all)
         finally:
             monkey_patching_disable()
 
     def recognize_wit(self, audio_data, key, show_all=False):
-        monkey_patching_enable(('wit.ai',))
+        monkey_patching_enable('stt_wit.ai')
         try:
             return super().recognize_wit(audio_data, key, show_all)
         finally:
             monkey_patching_disable()
 
     def recognize_bing(self, audio_data, key, language="en-US", show_all=False):
-        monkey_patching_enable(('microsoft',))
+        monkey_patching_enable('stt_microsoft')
         try:
             return super().recognize_bing(audio_data, key, language, show_all)
         finally:

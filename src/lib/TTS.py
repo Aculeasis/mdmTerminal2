@@ -15,28 +15,28 @@ __all__ = ['support', 'GetTTS', 'Google', 'Yandex', 'RHVoiceREST', 'RHVoice']
 class BaseTTS:
     BUFF_SIZE = 1024
 
-    def __init__(self, url, proxy_args=None, **kwargs):
+    def __init__(self, url, proxy_key=None, **kwargs):
         self._url = url
         self._params = kwargs.copy()
         self._data = None
         self._rq = None
 
         self._request_check()
-        self._request(proxy_args)
+        self._request(proxy_key)
         self._reply_check()
 
     def _request_check(self):
         if not self._params.get('text'):
             raise RuntimeError('No text to speak')
 
-    def _request(self, proxy_args):
+    def _request(self, proxy_key):
         try:
             self._rq = requests.get(
                 self._url,
                 params=self._params,
                 stream=True,
                 timeout=30,
-                proxies=proxies(proxy_args)
+                proxies=proxies(proxy_key)
             )
         except REQUEST_ERRORS as e:
             raise RuntimeError(str(e))
@@ -74,8 +74,7 @@ class Yandex(BaseTTS):
     MAX_CHARS = 2000
 
     def __init__(self, text, speaker, audio_format, key, emotion, lang, *_, **__):
-        proxy_args = ('yandex_tts', 'yandex')
-        super().__init__(self.URL, proxy_args, text=text, speaker=speaker or 'alyss',
+        super().__init__(self.URL, 'tts_yandex', text=text, speaker=speaker or 'alyss',
                          format=audio_format, key=key, lang=lang or 'ru-RU', emotion=emotion or 'good')
 
     def _request_check(self):
@@ -86,8 +85,7 @@ class Yandex(BaseTTS):
 
 class RHVoiceREST(BaseTTS):
     def __init__(self, text, speaker, audio_format, url, sets, *_, **__):
-        proxy_args = ('rhvoice-rest',)
-        super().__init__('{}/say'.format(url or 'http://127.0.0.1:8080'), proxy_args,
+        super().__init__('{}/say'.format(url or 'http://127.0.0.1:8080'), 'tts_rhvoice-rest',
                          text=text, format=audio_format, voice=speaker or 'anna', **sets)
 
 

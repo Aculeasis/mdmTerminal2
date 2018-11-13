@@ -37,7 +37,7 @@ class Training:
 
     def _request(self):
         try:
-            response = requests.post(self.URL, json=self.__params, proxies=proxies(('snowboy',)))
+            response = requests.post(self.URL, json=self.__params, proxies=proxies('snowboy_training'))
         except REQUEST_ERRORS as e:
             raise RuntimeError('Request error: {}'.format(e))
         if not response.ok:

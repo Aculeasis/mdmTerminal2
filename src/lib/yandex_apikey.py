@@ -28,7 +28,7 @@ class APIKey:
 
     def _extract(self):
         try:
-            response = requests.get(self.URL, proxies=proxies(('yandex_token', 'yandex')))
+            response = requests.get(self.URL, proxies=proxies('key_yandex'))
         except REQUEST_ERRORS as e:
             raise RuntimeError(str(e))
         line = response.text

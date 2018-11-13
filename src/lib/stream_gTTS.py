@@ -19,7 +19,7 @@ class _Token(gtts_token.Token):
 
         response = requests.get(
             "https://translate.google.com/",
-            proxies=proxies(('google_token', 'google_tts', 'google'))
+            proxies=proxies('token_google')
         )
         line = response.text.split('\n')[-1]
         tkk_expr = re.search(".*?(TKK=.*?;)W.*?", line).group(1)
@@ -123,7 +123,7 @@ class gTTS(gtts.gTTS):
                 r = requests.get(self.GOOGLE_TTS_URL,
                                  params=payload,
                                  headers=self.GOOGLE_TTS_HEADERS,
-                                 proxies=proxies(('google_tts', 'google')),
+                                 proxies=proxies('tts_google'),
                                  verify=False,
                                  stream=True)
 
