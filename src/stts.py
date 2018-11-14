@@ -414,12 +414,14 @@ class SpeechToText:
         # Фраза с 50% + 1 побеждает
         consensus = count // 2 + 1
         phrase = ''
+        match_count = 0
         for say in result:
-            if result.count(say) >= consensus:
+            match_count = result.count(say)
+            if match_count >= consensus:
                 phrase = say
                 break
         self.log('Распознано: {}. Консенсус: {}'.format(', '.join([str(x) for x in result]), phrase), logger.DEBUG)
-        return phrase
+        return phrase, match_count
 
     def _recognition_worker(self, file, result, i):
         r = sr.Recognizer()

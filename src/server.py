@@ -209,19 +209,22 @@ class MDTServer(threading.Thread):
         except RuntimeError as e:
             self.log('Ошибка компиляции модели {}: {}'.format(pmdl_path, e), logger.ERROR)
             self._play.say('Ошибка компиляции модели номер {}'.format(param[1]))
-        else:
-            work_time = utils.pretty_time(time.time() - work_time)
-            snowboy.save(pmdl_path)
-            phrase = self._stt.phrase_from_files(models)
-            msg = ', "{}",'.format(phrase) if phrase else ''
-            self.log('Модель{} скомпилирована успешно за {}: {}'.format(msg, work_time, pmdl_path), logger.INFO)
-            self._play.say('Модель{} номер {} скомпилирована успешно за {}'.format(msg, param[1], work_time))
-            self._cfg.models_load()
-            if not self._api_settings({'models': {pmdl_name: phrase}}):
-                self._terminal.reload()
-            # Удаляем временные файлы
-            for x in models:
-                os.remove(x)
+            return
+        work_time = utils.pretty_time(time.time() - work_time)
+        snowboy.save(pmdl_path)
+        phrase, match_count = self._stt.phrase_from_files(models)
+        msg = ', "{}",'.format(phrase) if phrase else ''
+        if match_count != len(models):
+            warn = 'Полный консенсус по модели {} не достигнут [{}/{}]. Советую пересоздать модель.'
+            self.log(warn.format(pmdl_name, match_count, len(models)), logger.WARN)
+        self.log('Модель{} скомпилирована успешно за {}: {}'.format(msg, work_time, pmdl_path), logger.INFO)
+        self._play.say('Модель{} номер {} скомпилирована успешно за {}'.format(msg, param[1], work_time))
+        self._cfg.models_load()
+        if not self._api_settings({'models': {pmdl_name: phrase}}):
+            self._terminal.reload()
+        # Удаляем временные файлы
+        for x in models:
+            os.remove(x)
 
     @staticmethod
     def _socket_reader(conn) -> str:
