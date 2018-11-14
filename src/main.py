@@ -101,9 +101,7 @@ def main():
     sig = SignalHandler((signal.SIGINT, signal.SIGTERM))
     loader = Loader(init_cfg=deepcopy(CFG), path=get_path(HOME), die_in=sig.die_in)
     loader.start()
-    while not sig.interrupted():
-        sig.sleep(100)
-    sig.stop()
+    sig.sleep(None)
     loader.stop()
     print('MAIN: bye.')
     return loader.reload

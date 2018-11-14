@@ -42,58 +42,26 @@ RHVOICE_SPEAKER = {
 }
 
 
-class SlowDead(threading.Thread):
-    def __init__(self, callback):
-        super().__init__(name='SlowDead')
-        self._cb = callback
-        self._death_time = 0
-        self._work = True
-        self.start()
-
-    def die_in(self, sec: int):
-        self._death_time = int(time.time()) + sec
-
-    def stop(self):
-        self._work = False
-        self.join()
-
-    def run(self):
-        while self._work:
-            time.sleep(1)
-            if self._death_time and time.time() > self._death_time and self._work:
-                self._death_time = 0
-                self._cb()
-
-
 class SignalHandler:
-    SUPPRESS_SIGNAL = 0.2
-
-    def __init__(self, signals=(signal.SIGTERM,), self_healing: bool =False):
-        self._healing = self_healing
+    def __init__(self, signals=(signal.SIGTERM,)):
         self._sleep = threading.Event()
-        self._reg_signals(signals)
-        self._sd = SlowDead(self._signal_handler)
-        self.stop = self._sd.stop
-        self.die_in = self._sd.die_in
-
-    def _reg_signals(self, signals):
-        for x in signals:
-            signal.signal(x, self._signal_handler)
+        self._death_time = 0
+        [signal.signal(signal_, self._signal_handler)for signal_ in signals]
 
     def _signal_handler(self, *_):
         self._sleep.set()
 
+    def die_in(self, sec: int):
+        self._death_time = sec
+        self._sleep.set()
+
     def interrupted(self) -> bool:
-        if self._healing and self._sleep.is_set():
-            self._sleep.clear()
-            return True
         return self._sleep.is_set()
 
     def sleep(self, sleep_time):
-        if not self._sleep.is_set():
-            self._sleep.wait(sleep_time)
-        elif self._healing:
-            time.sleep(self.SUPPRESS_SIGNAL)
+        self._sleep.wait(sleep_time)
+        if self._death_time:
+            time.sleep(self._death_time)
 
 
 class FakeFP(queue.Queue):
