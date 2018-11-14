@@ -7,7 +7,7 @@ from bs4 import BeautifulSoup
 
 from utils import REQUEST_ERRORS
 from .proxy import proxies
-from .gtts_proxifier import Google
+from .gtts_proxifier import Google, gTTSError
 
 __all__ = ['support', 'GetTTS', 'Google', 'Yandex', 'RHVoiceREST', 'RHVoice']
 

@@ -133,7 +133,7 @@ class _TTSWrapper(threading.Thread):
                     url=self.cfg.get(prov, {}).get('server'),
                     sets=sets
                 )
-            except RuntimeError as e:
+            except(RuntimeError, TTS.gTTSError) as e:
                 self._synthesis_error(prov, key, e)
                 self.file_path = self.cfg.path['tts_error']
                 return
@@ -149,7 +149,7 @@ class _TTSWrapper(threading.Thread):
         self._unlock()
         try:
             tts.stream_to_fps(write_to)
-        except RuntimeError as e:
+        except (RuntimeError, TTS.gTTSError) as e:
             self._synthesis_error(prov, key, e)
         for fp in write_to:
             fp.close()
