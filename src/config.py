@@ -3,12 +3,13 @@
 import configparser
 import json
 import os
+import threading
 import time
 
 import logger
 import utils
-from lib import yandex_apikey
 from lib import proxy
+from lib import yandex_apikey
 
 
 class ConfigHandler(dict):
@@ -77,16 +78,13 @@ class ConfigHandler(dict):
         return True
 
     def _config_init(self):
-        self.config_load()
-        self._cfg_check()
+        self._cfg_check(self.config_load())
         proxy.setting(self.get('proxy', {}))
 
-    def _cfg_check(self):
-        to_save = False
-        if 'providerstt' in self:
-            to_save |= self._cfg_dict_checker(self['providerstt'])
-        if 'providerstt' in self:
-            to_save |= self._cfg_dict_checker(self['providerstt'])
+    def _cfg_check(self, to_save=False):
+        for key in ['providerstt', 'providerstt']:
+            if key in self:
+                to_save |= self._cfg_dict_checker(self[key])
         to_save |= self._cfg_checker('yandex', 'emotion', utils.YANDEX_EMOTION, 'good')
         to_save |= self._cfg_checker('yandex', 'speaker', utils.YANDEX_SPEAKER, 'alyss')
         to_save |= self._log_file_init()
@@ -198,91 +196,22 @@ class ConfigHandler(dict):
         count = pretty[count] if count < 7 else count
         self._print('Загружено {} модел{}'.format(count, et), logger.INFO, 3)
 
-    @staticmethod
-    def _cfg_convert(config: configparser.ConfigParser, sec, key, old_val):
-        if old_val is None:
-            return config[sec][key]
-        if type(old_val) == int:
-            return config.getint(sec, key)
-        elif type(old_val) == float:
-            return config.getfloat(sec, key)
-        elif type(old_val) == bool:
-            return config.getboolean(sec, key)
-        return config[sec][key]
-
     def config_load(self):
         wtime = time.time()
         if not os.path.isfile(self.path['settings']):
             self._print(
                 'Файл настроек не найден по пути {}. Для первого запуска это нормально'.format(self.path['settings']),
                 logger.INFO)
-            return
-        config = configparser.ConfigParser()
-        config.read(self.path['settings'])
-        count = 0
-        for sec in config.sections():
-            if sec != self.SETTINGS:
-                self._cfg_dict_checker(sec)
-            for key in config[sec]:
-                old_val = self.get(key, None) if sec == self.SETTINGS else self[sec].get(key, None)
-                try:
-                    if sec == self.SETTINGS:
-                        self[key] = self._cfg_convert(config, sec, key, old_val)
-                    else:
-                        self[sec][key] = self._cfg_convert(config, sec, key, old_val)
-                except (ValueError, TypeError) as e:
-                    msg = 'Ошибка в settings.ini: Ключ \'{}\' не может иметь такое значение, используется {}: {}'
-                    self._print(msg.format(key, old_val, e), logger.ERROR)
-                else:
-                    count += 1
-
+            return False
+        updater = ConfigUpdater(self, self._print)
+        count = updater.from_ini(self.path['settings'])
         self._print('Загружено {} опций за {}'.format(count, utils.pretty_time(time.time() - wtime)), logger.INFO)
         self._print('Конфигурация загружена!', logger.INFO, mode=2)
-
-    def _key_parse(self, key, val, dict_):
-        is_change = False
-        if isinstance(dict_.get(key), dict) and isinstance(val, dict):
-            for key_, val_ in val.items():
-                is_change |= self._key_parse(key_, val_, dict_[key])
-        elif isinstance(val, (dict, list)) or isinstance(key, (dict, list)):
-            self._print('Получена некорректная настройка - \'{}\':{}'.format(key, val), logger.ERROR)
-        elif not key:
-            self._print('Получен пустой ключ, WTF? \'{}\':{}'.format(key, val), logger.ERROR)
-        else:
-            key = key.lower()
-            try:
-                tmp = type(dict_.get(key, ''))(val)
-            except (ValueError, TypeError) as e:
-                msg = 'Не верный, ожидаемый {}, тип настройки {}:{}. {}'.format(type(dict_.get(key, '')), key, val, e)
-                self._print(msg, logger.ERROR)
-            else:
-                is_change |= tmp != dict_.get(key)
-                dict_[key] = tmp
-        return is_change
+        return updater.save_me
 
     def json_to_cfg(self, data: str or dict) -> bool:
-        if isinstance(data, str):
-            try:
-                data = {key.lower(): val for key, val in json.loads(data).items()}
-            except (json.decoder.JSONDecodeError, TypeError) as err:
-                self._print('Кривой json \'{}\': {}'.format(data, err.msg), logger.ERROR)
-                return False
-        return self.dict_to_cfg(data)
-
-    def dict_to_cfg(self, data: dict) -> bool:
-        self._print('JSON: {}'.format(data))
-        is_change = False
-        for key, val in data.items():
-            if key in ['providertts', 'providerstt']:
-                apikey = 'apikey{}'.format(key[-3:])  # apikeytts or apikeystt
-                val = str(val).lower()  # Google -> google etc.
-                if apikey in data and val:
-                    is_change |= self._cfg_dict_checker(val)
-                    is_change |= apikey not in self[val] or self[val][apikey] != data[apikey]
-                    self[val][apikey] = data[apikey]
-            if key not in ['apikeytts', 'apikeystt']:
-                is_change |= self._key_parse(key, val, self)
-        return is_change
+        updater = ConfigUpdater(self, self._print)
+        return updater.from_json(data) > 0 if isinstance(data, str) else updater.from_dict(data) > 0
 
     def tts_cache_check(self):
         if not os.path.isdir(self.path['tts_cache']):
@@ -347,3 +276,137 @@ class ConfigHandler(dict):
         if 'ip_server' not in self or not self['ip_server']:
             self._print('Терминал еще не настроен, мой IP адрес: {}'.format(self['ip']), logger.WARN, 3)
         return to_save
+
+
+class ConfigUpdater:
+    SETTINGS = 'settings'
+
+    def __init__(self, cfg, log):
+        self._cfg = cfg
+        self._log = log
+        self._new_cfg = {}
+        self._change_count = 0
+        self._updated_count = 0
+        self._lock = threading.Lock()
+        self._save_me = False
+
+    def _ini_to_cfg(self, path: str):
+        cfg = configparser.ConfigParser()
+        cfg.read(path)
+        data = {}
+        for sec in cfg.sections():
+            d_sec = sec if sec.lower() != self.SETTINGS else self.SETTINGS
+            data[d_sec] = {key: cfg.get(sec, key) for key in cfg[sec]}
+        self._parser(self._dict_normalization(data))
+
+    def _json_to_cfg(self, data: str):
+        try:
+            data = {key.lower(): val for key, val in json.loads(data).items()}
+        except (json.decoder.JSONDecodeError, TypeError) as err:
+            self._log('Кривой json \'{}\': {}'.format(data, err.msg), logger.ERROR)
+            return
+        self._parser(self._dict_normalization(data), True)
+
+    def _recursive_parser(self, cfg: dict, cfg2: dict, key, val, external, first=False):
+        if not isinstance(key, str):
+            msg = 'Ключи настроек могут быть только строками, не {}. Игнорирую ключ \'{}\''
+            self._log(msg.format(type(key), key), logger.ERROR)
+            return
+        key = key if not external else key.lower()
+        if isinstance(val, dict) and isinstance(cfg.get(key, {}), dict):  # секция
+            if external and key not in cfg:  # Не принимаем новые секции от сервера
+                msg = 'Игнорируем неизвестную секцию от сервера \'{}:{}\''
+                self._log(msg.format(key, val), logger.ERROR)
+                return
+            cfg2[key] = cfg2.get(key, {})
+            for key_, val_ in val.items():
+                self._recursive_parser(cfg.get(key, {}), cfg2[key], key_, val_, external)
+            if not cfg2[key]:  # Удаляем пустые секции
+                del cfg2[key]
+        elif isinstance(val, (dict, list, set, tuple)):
+            msg = 'Недопустимое значение \'{}:{}\'. Игнорирую'
+            self._log(msg.format(key, val), logger.ERROR)
+        else:
+            if external and isinstance(val, str):
+                val = val.lower()
+            if not (first and key in ['apikeytts', 'apikeystt']):
+                try:
+                    tmp = type(cfg.get(key, ''))(val)
+                except (ValueError, TypeError) as e:
+                    msg = 'Не верный тип настройки \'{}:{}\' {}. Сохраняем старое значение: \'{}\'. {}'
+                    self._log(msg.format(key, val, type(val), cfg.get(key, ''), e), logger.ERROR)
+                else:
+                    if key not in cfg or tmp != cfg[key]:
+                        self._change_count += 1
+                        cfg2[key] = tmp
+
+    def _api_key_cast(self, data, key, val):
+        if not isinstance(key, str):
+            return
+        key = key.lower()
+        if key in ['providertts', 'providerstt'] and isinstance(val, str):
+            val = val.lower()
+            api_key = 'apikey{}'.format(key[-3:])  # apikeytts or apikeystt
+            if api_key in data and self._cfg.get(val, {}).get(api_key) != data[api_key]:
+                self._new_cfg[val] = self._new_cfg.get(val, {})
+                self._new_cfg[val][api_key] = data[api_key]
+                self._change_count += 1
+                self._save_me = True
+
+    def _parser(self, data: dict, external=False):
+        for key, val in data.items():
+            if external:
+                self._api_key_cast(data, key, val)
+            self._recursive_parser(self._cfg, self._new_cfg, key, val, external, True)
+
+    def _dict_normalization(self, data: dict) -> dict:
+        if isinstance(data.get(self.SETTINGS, {}), dict):
+            data.update(data.pop(self.SETTINGS, {}))
+        else:
+            data.pop(self.SETTINGS, None)
+        return data
+
+    def _print_result(self, from_, lvl=logger.DEBUG):
+        self._log('{}: \'{}\', count: {}'.format(from_, self._new_cfg, self._change_count), lvl)
+
+    def _update(self):
+        if len(self._new_cfg) > self._change_count:
+            self._print_result('FIXME!', logger.CRIT)
+            return 0
+        self._update_recursive(self._cfg, self._new_cfg)
+        if self._change_count != self._updated_count:
+            self._print_result('update_count={}!=count. FIXME!'.format(self._updated_count), logger.CRIT)
+            return 0
+        return self._updated_count
+
+    def _update_recursive(self, to_, from_):
+        for k, v in from_.items():
+            if isinstance(v, dict):
+                if k not in to_:
+                    to_[k] = {}
+                self._update_recursive(to_[k], v)
+            else:
+                to_[k] = v
+                self._updated_count += 1
+
+    def from_ini(self, path: str):
+        with self._lock:
+            self._ini_to_cfg(path)
+            self._print_result('INI')
+            return self._update()
+
+    def from_json(self, json_: str):
+        with self._lock:
+            self._json_to_cfg(json_)
+            self._print_result('JSON')
+            return self._update()
+
+    def from_dict(self, dict_: dict):
+        with self._lock:
+            self._parser(dict_)
+            self._print_result('DICT')
+            return self._update()
+
+    @property
+    def save_me(self):
+        return self._save_me

@@ -133,10 +133,9 @@ class MDTServer(threading.Thread):
             self._cfg.config_save()
             self._terminal.reload()
             self.log('Конфиг обновлен: {}'.format(self._cfg), logger.DEBUG)
-            self.log('Конфиг обновлен', logger.INFO)
             return True
         else:
-            self.log('Конфиг не изменился', logger.DEBUG)
+            self.log('Конфигурация не изменилась', logger.DEBUG)
             return False
 
     def _api_rec(self, cmd: str):
