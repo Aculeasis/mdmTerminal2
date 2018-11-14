@@ -280,6 +280,8 @@ class ConfigHandler(dict):
 
 class ConfigUpdater:
     SETTINGS = 'settings'
+    PROVIDERS_KEYS = ('providertts', 'providerstt')
+    API_KEYS = ('apikeytts', 'apikeystt')
 
     def __init__(self, cfg, log):
         self._cfg = cfg
@@ -307,44 +309,49 @@ class ConfigUpdater:
             return
         self._parser(self._dict_normalization(data), True)
 
-    def _recursive_parser(self, cfg: dict, cfg2: dict, key, val, external, first=False):
+    def _recursive_parser(self, cfg: dict, cfg_diff: dict, key, val, external, first=False):
         if not isinstance(key, str):
             msg = 'Ключи настроек могут быть только строками, не {}. Игнорирую ключ \'{}\''
             self._log(msg.format(type(key), key), logger.ERROR)
             return
         key = key if not external else key.lower()
         if isinstance(val, dict) and isinstance(cfg.get(key, {}), dict):  # секция
-            if external and key not in cfg:  # Не принимаем новые секции от сервера
-                msg = 'Игнорируем неизвестную секцию от сервера \'{}:{}\''
-                self._log(msg.format(key, val), logger.ERROR)
-                return
-            cfg2[key] = cfg2.get(key, {})
-            for key_, val_ in val.items():
-                self._recursive_parser(cfg.get(key, {}), cfg2[key], key_, val_, external)
-            if not cfg2[key]:  # Удаляем пустые секции
-                del cfg2[key]
+            self._parse_section_element(cfg, cfg_diff, key, val, external)
         elif isinstance(val, (dict, list, set, tuple)):
             msg = 'Недопустимое значение \'{}:{}\'. Игнорирую'
             self._log(msg.format(key, val), logger.ERROR)
-        else:
+        elif not (first and key in self.API_KEYS):
             if external and isinstance(val, str):
                 val = val.lower()
-            if not (first and key in ['apikeytts', 'apikeystt']):
-                try:
-                    tmp = type(cfg.get(key, ''))(val)
-                except (ValueError, TypeError) as e:
-                    msg = 'Не верный тип настройки \'{}:{}\' {}. Сохраняем старое значение: \'{}\'. {}'
-                    self._log(msg.format(key, val, type(val), cfg.get(key, ''), e), logger.ERROR)
-                else:
-                    if key not in cfg or tmp != cfg[key]:
-                        self._change_count += 1
-                        cfg2[key] = tmp
+            self._parse_param_element(cfg, cfg_diff, key, val)
+
+    def _parse_section_element(self, cfg: dict, cfg_diff: dict, key, val, external):
+        if external and key not in cfg:  # Не принимаем новые секции от сервера
+            msg = 'Игнорируем неизвестную секцию от сервера \'{}:{}\''
+            self._log(msg.format(key, val), logger.ERROR)
+            return
+        cfg_diff[key] = cfg_diff.get(key, {})
+        for key_, val_ in val.items():
+            self._recursive_parser(cfg.get(key, {}), cfg_diff[key], key_, val_, external)
+        if not cfg_diff[key]:  # Удаляем пустые секции
+            del cfg_diff[key]
+
+    def _parse_param_element(self, cfg: dict, cfg_diff: dict, key, val):
+        try:
+            tmp = type(cfg.get(key, ''))(val)
+        except (ValueError, TypeError) as e:
+            msg = 'Не верный тип настройки \'{}:{}\' {}. Сохраняем старое значение: \'{}\'. {}'
+            self._log(msg.format(key, val, type(val), cfg.get(key, 'None'), e), logger.ERROR)
+        else:
+            if key not in cfg or tmp != cfg[key]:
+                self._change_count += 1
+                cfg_diff[key] = tmp
 
     def _api_key_cast(self, data, key, val):
         if not isinstance(key, str):
             return
         key = key.lower()
-        if key in ['providertts', 'providerstt'] and isinstance(val, str):
+        if key in self.PROVIDERS_KEYS and isinstance(val, str):
             val = val.lower()
             api_key = 'apikey{}'.format(key[-3:])  # apikeytts or apikeystt
             if api_key in data and self._cfg.get(val, {}).get(api_key) != data[api_key]:
