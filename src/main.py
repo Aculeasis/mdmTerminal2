@@ -4,6 +4,7 @@ import os
 import signal
 import sys
 import tempfile
+from copy import deepcopy
 
 from loader import Loader
 from utils import SignalHandler
@@ -98,7 +99,7 @@ def get_path(home) -> dict:
 def main():
     print('MAIN: Start...')
     sig = SignalHandler((signal.SIGINT, signal.SIGTERM))
-    loader = Loader(init_cfg=CFG.copy(), path=get_path(HOME), die_in=sig.die_in)
+    loader = Loader(init_cfg=deepcopy(CFG), path=get_path(HOME), die_in=sig.die_in)
     loader.start()
     while not sig.interrupted():
         sig.sleep(100)
