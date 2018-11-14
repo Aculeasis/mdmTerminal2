@@ -45,7 +45,7 @@ def monkey_patching_enable(key):
     with _locker:
         _patched += 1
         if _back_up == socket.socket:
-            _logger('enable {} ...'.format(to_log))
+            _logger('enable {} for \'{}\' ...'.format(to_log, key))
             socks.set_default_proxy(**kwargs)
             socket.socket = socks.socksocket
 
@@ -67,7 +67,7 @@ def proxies(key, quiet=False):
     if not data:
         return
     if not quiet:
-        _logger('{}'.format(to_log))
+        _logger('\'{}\' use {}'.format(key, to_log))
     return data
 
 
