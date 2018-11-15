@@ -13,10 +13,9 @@ __all__ = ['support', 'GetTTS', 'Google', 'Yandex', 'RHVoiceREST', 'RHVoice']
 
 
 class BaseTTS:
-    BUFF_SIZE = 1024
-
-    def __init__(self, url, proxy_key=None, **kwargs):
+    def __init__(self, url, proxy_key=None, buff_size=1024, **kwargs):
         self._url = url
+        self._buff_size = buff_size
         self._params = kwargs.copy()
         self._data = None
         self._rq = None
@@ -51,7 +50,7 @@ class BaseTTS:
         if self._data is None:
             raise RuntimeError('No data')
         try:
-            for chunk in self._data(chunk_size=self.BUFF_SIZE):
+            for chunk in self._data(chunk_size=self._buff_size):
                 yield chunk
         except REQUEST_ERRORS as e:
             raise RuntimeError(e)
@@ -73,8 +72,8 @@ class Yandex(BaseTTS):
     URL = 'https://tts.voicetech.yandex.net/generate'
     MAX_CHARS = 2000
 
-    def __init__(self, text, speaker, audio_format, key, emotion, lang, *_, **__):
-        super().__init__(self.URL, 'tts_yandex', text=text, speaker=speaker or 'alyss',
+    def __init__(self, text, buff_size, speaker, audio_format, key, emotion, lang, *_, **__):
+        super().__init__(self.URL, 'tts_yandex', buff_size=buff_size, text=text, speaker=speaker or 'alyss',
                          format=audio_format, key=key, lang=lang or 'ru-RU', emotion=emotion or 'good')
 
     def _request_check(self):
@@ -84,8 +83,8 @@ class Yandex(BaseTTS):
 
 
 class RHVoiceREST(BaseTTS):
-    def __init__(self, text, speaker, audio_format, url, sets, *_, **__):
-        super().__init__('{}/say'.format(url or 'http://127.0.0.1:8080'), 'tts_rhvoice-rest',
+    def __init__(self, text, buff_size, speaker, audio_format, url, sets, *_, **__):
+        super().__init__('{}/say'.format(url or 'http://127.0.0.1:8080'), 'tts_rhvoice-rest', buff_size=buff_size,
                          text=text, format=audio_format, voice=speaker or 'anna', **sets)
 
 
@@ -103,7 +102,7 @@ class RHVoice(RHVoiceREST):
             shell=True
         )
         self._data = self._rq.stdout
-        self.__test = self._data.read(self.BUFF_SIZE)  # Ждем запуска, иначе poll() не вернет ошибку
+        self.__test = self._data.read(self._buff_size)  # Ждем запуска, иначе poll() не вернет ошибку
 
     def _reply_check(self):
         if self._rq.poll():
@@ -115,7 +114,7 @@ class RHVoice(RHVoiceREST):
         if self.__test:
             yield self.__test
         while True:
-            chunk = self._data.read(self.BUFF_SIZE)
+            chunk = self._data.read(self._buff_size)
             if not chunk:
                 break
             yield chunk

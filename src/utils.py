@@ -87,11 +87,13 @@ class StreamPlayer(threading.Thread):
         try:
             self._popen.wait(timeout)
         finally:
-            self._fp.write(b'')
+            self.kill()
 
     def kill(self):
         self._fp.write(b'')
         self._popen.kill()
+        if self.is_alive():
+            super().join()
 
     def run(self):
         data = self._fp.read()
@@ -99,6 +101,10 @@ class StreamPlayer(threading.Thread):
             try:
                 self._popen.stdin.write(data)
             except BrokenPipeError:
+                # FIXME: Иногда aplay падает без видимой причины
+                # aplay: xrun:1624: read/write error, state = RUNNING
+                # Скорее всего это аппаратная проблема или проблема паузы между чанками
+                # На всякий случай я увеличу размер чанка при стриминге wav до 4 KiB, но это не сильно помогает
                 break
             data = self._fp.read()
         try:

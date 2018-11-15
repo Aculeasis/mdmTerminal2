@@ -48,6 +48,7 @@ class _TTSWrapper(threading.Thread):
         self._ext = None
         self.event = threading.Event()
         self.work_time = None
+        self._buff_size = 1024
         self.start_time = time.time()
         self.start()
 
@@ -75,7 +76,11 @@ class _TTSWrapper(threading.Thread):
             action = '{}найдено в кэше'.format(msg_gen)
             time_diff = ''
         else:
-            format_ = 'mp3' if use_cache or provider in ['google', 'yandex'] else 'wav'
+            if use_cache or provider in ['google', 'yandex']:
+                format_ = 'mp3'
+            else:
+                format_ = 'wav'
+                self._buff_size = 1024 * 4
             self.file_path = os.path.join(self.cfg.path['tts_cache'], provider + rname) if use_cache else \
                 '<{}><{}>'.format(sha1, format_)
             self._tts_gen(self.file_path if use_cache else None, format_, self.msg)
@@ -120,11 +125,12 @@ class _TTSWrapper(threading.Thread):
         prov = self.cfg.get('providertts', 'unset')
         key = self.cfg.key(prov, 'apikeytts')
         if TTS.support(prov):
-            sets = utils.rhvoice_rest_sets(self.cfg[prov]) if prov == 'rhvoice-rest' else None
+            sets = utils.rhvoice_rest_sets(self.cfg[prov]) if prov == 'rhvoice-rest' else {}
             try:
                 tts = TTS.GetTTS(
                     prov,
                     text=msg,
+                    buff_size=self._buff_size,
                     speaker=self.cfg.get(prov, {}).get('speaker'),
                     audio_format=format_,
                     key=key,
@@ -347,18 +353,13 @@ class SpeechToText:
 
         file_path = self._tts(hello)()
         r = sr.Recognizer()
-
         self._play.say(file_path, lvl, True, is_file=True)
-        self._play.play(self._cfg.path['ding'], lvl)
-
-        start_time = time.time()
-        while self._play.really_busy() and time.time() - start_time < 30 and self._work:
-            time.sleep(0.01)
+        self._play.play(self._cfg.path['ding'], lvl, blocking=3)
 
         # Пишем
         with sr.Microphone(device_index=self.get_mic_index()) as mic:
             try:
-                adata = r.listen(source=mic, timeout=5, phrase_time_limit=3)
+                adata = r.listen(source=mic, timeout=5, phrase_time_limit=5)
             except sr.WaitTimeoutError as e:
                 return str(e)
         try:
