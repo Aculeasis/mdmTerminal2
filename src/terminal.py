@@ -1,19 +1,21 @@
 #!/usr/bin/env python3
 
 import os
+import queue
 import random
 import threading
 import time
-import queue
 
+import lib.snowboy_training as training_service
 import logger
 import player
 import stts
+import utils
 from lib import snowboydecoder
 
 
 class MDTerminal(threading.Thread):
-    MAX_LATE = 10
+    MAX_LATE = 60
 
     def __init__(self, cfg, play_: player.Player, stt: stts.SpeechToText, log, handler):
         super().__init__(name='MDTerminal')
@@ -32,6 +34,12 @@ class MDTerminal(threading.Thread):
 
     def reload(self):
         self.paused(True)
+        try:
+            self._reload()
+        finally:
+            self.paused(False)
+
+    def _reload(self):
         if len(self._cfg.path['models_list']) and self._stt.max_mic_index != -2:
             self._snowboy = snowboydecoder.HotwordDetector(
                 decoder_model=self._cfg.path['models_list'], sensitivity=[self._cfg['sensitivity']]
@@ -39,7 +47,6 @@ class MDTerminal(threading.Thread):
             self._callbacks = [self._detected for _ in self._cfg.path['models_list']]
         else:
             self._snowboy = None
-        self.paused(False)
 
     def join(self, timeout=None):
         self.work = False
@@ -83,30 +90,106 @@ class MDTerminal(threading.Thread):
     def _external_check(self):
         while self._queue.qsize() and self.work:
             try:
-                (cmd, txt, lvl, late) = self._queue.get_nowait()
+                (cmd, data, lvl, late) = self._queue.get_nowait()
             except queue.Empty:
                 self.log('Пустая очередь? Impossible!', logger.ERROR)
                 continue
             late = time.time() - late
-            msg = 'Получено {}:{}, lvl={} опоздание {} секунд.'.format(cmd, txt, lvl, int(late))
+            msg = 'Получено {}:{}, lvl={} опоздание {} секунд.'.format(cmd, data, lvl, int(late))
             if late > self.MAX_LATE:
                 self.log('{} Игнорирую.'.format(msg), logger.WARN)
                 continue
             else:
                 self.log(msg, logger.DEBUG)
-            if cmd == 'ask' and txt:
-                self.detected(txt)
-            elif cmd == 'voice' and not txt:
+            if cmd == 'ask' and data:
+                self.detected(data)
+            elif cmd == 'voice' and not data:
                 self.detected(voice=True)
+            elif cmd == 'rec':
+                self._rec_rec(*data)
+            elif cmd == 'play':
+                self._rec_play(*data)
+            elif cmd == 'compile':
+                self._rec_compile(*data)
             else:
-                self.log('Не верный вызов, WTF? {}:{}, lvl={}'.format(cmd, txt, lvl), logger.ERROR)
+                self.log('Не верный вызов, WTF? {}:{}, lvl={}'.format(cmd, data, lvl), logger.ERROR)
 
-    def external_cmd(self, cmd: str, txt: str = '', lvl: int = 0):
+    def _rec_rec(self, model, sample):
+        # Записываем образец sample для модели model
+        nums = {'1': 'первого', '2': 'второго', '3': 'третьего'}
+        if sample not in nums:
+            err = 'Ошибка записи - недопустимый параметр{}'
+            self.log('{}: {}'.format(err, sample), logger.ERROR)
+            self._play.say(err)
+            return
+
+        hello = 'Запись {} образца на 5 секунд начнется после звукового сигнала'.format(nums[sample])
+        save_to = os.path.join(self._cfg.path['tmp'], model + sample + '.wav')
+        self.log(hello, logger.INFO)
+
+        err = self._stt.voice_record(hello=hello, save_to=save_to, convert_rate=16000, convert_width=2)
+        if err is None:
+            bye = 'Запись {} образца завершена. Вы можете прослушать свою запись.'.format(nums[sample])
+            self._play.say(bye)
+            self.log(bye, logger.INFO)
+        else:
+            err = 'Ошибка сохранения образца {}: {}'.format(nums[sample], err)
+            self.log(err, logger.ERROR)
+            self._play.say(err)
+
+    def _rec_play(self, model, sample):
+        file_name = ''.join([model, sample, '.wav'])
+        file = os.path.join(self._cfg.path['tmp'], file_name)
+        if os.path.isfile(file):
+            self._play.say(file, is_file=True)
+        else:
+            self._play.say('Ошибка воспроизведения - файл {} не найден'.format(file_name))
+            self.log('Файл {} не найден'.format(file), logger.WARN)
+
+    def _rec_compile(self, model, _):
+        models = [os.path.join(self._cfg.path['tmp'], ''.join([model, x, '.wav'])) for x in ['1', '2', '3']]
+        miss = False
+        for x in models:
+            if not os.path.isfile(x):
+                miss = True
+                err = 'Ошибка компиляции - файл {} не найден.'
+                self.log(err.format(x), logger.ERROR)
+                self._play.say(err.format(os.path.basename(x)))
+        if miss:
+            return
+        pmdl_name = ''.join(['model', model, self._cfg.path['model_ext']])
+        pmdl_path = os.path.join(self._cfg.path['models'], pmdl_name)
+        self.log('Компилирую {}'.format(pmdl_path), logger.INFO)
+        work_time = time.time()
+        try:
+            snowboy = training_service.Training(*models)
+        except RuntimeError as e:
+            self.log('Ошибка компиляции модели {}: {}'.format(pmdl_path, e), logger.ERROR)
+            self._play.say('Ошибка компиляции модели номер {}'.format(model))
+            return
+        work_time = utils.pretty_time(time.time() - work_time)
+        snowboy.save(pmdl_path)
+        phrase, match_count = self._stt.phrase_from_files(models)
+        msg = ', "{}",'.format(phrase) if phrase else ''
+        if match_count != len(models):
+            warn = 'Полный консенсус по модели {} не достигнут [{}/{}]. Советую пересоздать модель.'
+            self.log(warn.format(pmdl_name, match_count, len(models)), logger.WARN)
+        self.log('Модель{} скомпилирована успешно за {}: {}'.format(msg, work_time, pmdl_path), logger.INFO)
+        self._play.say('Модель{} номер {} скомпилирована успешно за {}'.format(msg, model, work_time))
+        self._cfg.models_load()
+        if self._cfg.json_to_cfg({'models': {pmdl_name: phrase}}):
+            self._cfg.config_save()
+        self._reload()
+        # Удаляем временные файлы
+        for x in models:
+            os.remove(x)
+
+    def external_cmd(self, cmd: str, data='', lvl: int = 0):
         if cmd == 'tts':
             if not lvl:
-                self._play.say(txt, lvl=0)
+                self._play.say(data, lvl=0)
                 return
-        self._queue.put_nowait((cmd, txt, lvl, time.time()))
+        self._queue.put_nowait((cmd, data, lvl, time.time()))
 
     def _detected(self, model: int=0):
         phrase = ''

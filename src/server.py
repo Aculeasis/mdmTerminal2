@@ -1,17 +1,13 @@
 #!/usr/bin/env python3
 
-import os
 import socket
 import threading
-import time
 
-import lib.snowboy_training as training_service
 import logger
-import utils
 
 
 class MDTServer(threading.Thread):
-    def __init__(self, cfg, log, play, terminal, die_in, stt):
+    def __init__(self, cfg, log, play, terminal, die_in):
         super().__init__(name='MDTServer')
         self.MDAPI = {
             'hi': self._api_voice,
@@ -35,7 +31,6 @@ class MDTServer(threading.Thread):
         self._play = play
         self._terminal = terminal
         self._die_in = die_in
-        self._stt = stt
 
         self.work = False
         self._socket = socket.socket()
@@ -147,89 +142,21 @@ class MDTServer(threading.Thread):
         # b = param[1]  # 1-6
         # c = param[2]  # 1-3
         if param[0] == 'play':
-            self._rec_play(param)
+            self._terminal.external_cmd('play', param[1:])
         elif param[0] == 'save':
             self._die_in(3, True)
         elif param[0] == 'rec':
-            self._rec_rec(param)
+            self._terminal.external_cmd('rec', param[1:])
         elif param[0] == 'compile':
-            self._rec_compile(param)
+            self._terminal.external_cmd('compile', param[1:])
         else:
             self.log('Неизвестная комманда для rec: '.format(param[0]), logger.ERROR)
 
-    def _rec_play(self, param: list):
-        file = os.path.join(self._cfg.path['tmp'], param[1] + param[2] + '.wav')
-        if os.path.isfile(file):
-            self._play.say(file, is_file=True)
-        else:
-            self._play.say('Ошибка воспроизведения - файл {} не найден'.format(param[1] + param[2] + '.wav'))
-            self.log('Файл {} не найден'.format(file), logger.WARN)
-
-    def _rec_rec(self, param: list):
-        nums = {'1': 'первого', '2': 'второго', '3': 'третьего'}
-        if param[2] not in nums:
-            self.log('SERVER: Ошибка записи - недопустимый параметр: {}'.format(param[2]), logger.ERROR)
-            self._play.say('Ошибка записи - недопустимый параметр')
-            return
-
-        self._terminal.paused(True)
-
-        hello = 'Запись {} образца на 5 секунд начнется после звукового сигнала'.format(nums[param[2]])
-        save_to = os.path.join(self._cfg.path['tmp'], param[1] + param[2] + '.wav')
-        self.log(hello, logger.INFO)
-
-        err = self._stt.voice_record(hello=hello, save_to=save_to, convert_rate=16000, convert_width=2)
-        self._terminal.paused(False)
-        if err is None:
-            bye = 'Запись {} образца завершена. Вы можете прослушать свою запись.'.format(nums[param[2]])
-            self._play.say(bye)
-            self.log(bye, logger.INFO)
-        else:
-            err = 'Ошибка сохранения образца {}: {}'.format(nums[param[2]], err)
-            self.log(err, logger.ERROR)
-            self._play.say(err)
-
-    def _rec_compile(self, param: list):
-        models = [os.path.join(self._cfg.path['tmp'], param[1] + x + '.wav') for x in ['1', '2', '3']]
-        miss = False
-        for x in models:
-            if not os.path.isfile(x):
-                miss = True
-                err = 'Ошибка компиляции - файл {} не найден.'
-                self.log(err.format(x), logger.ERROR)
-                self._play.say(err.format(os.path.basename(x)))
-        if miss:
-            return
-        pmdl_name = 'model' + param[1] + self._cfg.path['model_ext']
-        pmdl_path = os.path.join(self._cfg.path['models'], pmdl_name)
-        self.log('Компилирую {}'.format(pmdl_path), logger.INFO)
-        work_time = time.time()
-        try:
-            snowboy = training_service.Training(*models)
-        except RuntimeError as e:
-            self.log('Ошибка компиляции модели {}: {}'.format(pmdl_path, e), logger.ERROR)
-            self._play.say('Ошибка компиляции модели номер {}'.format(param[1]))
-            return
-        work_time = utils.pretty_time(time.time() - work_time)
-        snowboy.save(pmdl_path)
-        phrase, match_count = self._stt.phrase_from_files(models)
-        msg = ', "{}",'.format(phrase) if phrase else ''
-        if match_count != len(models):
-            warn = 'Полный консенсус по модели {} не достигнут [{}/{}]. Советую пересоздать модель.'
-            self.log(warn.format(pmdl_name, match_count, len(models)), logger.WARN)
-        self.log('Модель{} скомпилирована успешно за {}: {}'.format(msg, work_time, pmdl_path), logger.INFO)
-        self._play.say('Модель{} номер {} скомпилирована успешно за {}'.format(msg, param[1], work_time))
-        self._cfg.models_load()
-        if not self._api_settings({'models': {pmdl_name: phrase}}):
-            self._terminal.reload()
-        # Удаляем временные файлы
-        for x in models:
-            os.remove(x)
-
     @staticmethod
     def _socket_reader(conn) -> str:
+        crlf = b'\r\n'
         data = b''
-        while b'\r\n' not in data:  # ждём первую строку
+        while crlf not in data:  # ждём первую строку
             try:
                 tmp = conn.recv(1024)
             except (BrokenPipeError, socket.timeout):
@@ -237,4 +164,4 @@ class MDTServer(threading.Thread):
             if not tmp:  # сокет закрыли, пустой объект
                 break
             data += tmp
-        return data.decode().split('\r\n', 1)[0]
+        return data.split(crlf, 1)[0].decode()
