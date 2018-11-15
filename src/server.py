@@ -94,7 +94,7 @@ class MDTServer(threading.Thread):
         elif cmd[0] in self.MTAPI:
             self.MTAPI[cmd[0]](cmd[1])
         else:
-            self.log('Неизвестная комманда: {}'.format(cmd[0]), logger.WARN)
+            self.log('Неизвестная команда: {}'.format(cmd[0]), logger.WARN)
 
     def _api_voice(self, cmd: str):
         self._terminal.external_cmd('voice', cmd)
@@ -150,7 +150,7 @@ class MDTServer(threading.Thread):
         elif param[0] == 'compile':
             self._terminal.external_cmd('compile', param[1:])
         else:
-            self.log('Неизвестная комманда для rec: '.format(param[0]), logger.ERROR)
+            self.log('Неизвестная команда для rec: '.format(param[0]), logger.ERROR)
 
     @staticmethod
     def _socket_reader(conn) -> str:
