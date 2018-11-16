@@ -12,13 +12,18 @@ from gtts.tts import log, gTTSError, _len
 
 from .proxy import proxies
 
+# TODO: Следить за актуальностью копипаст
 
+
+# part of https://github.com/Boudewijn26/gTTS-token/blob/master/gtts_token/gtts_token.py#L51
 def _get_token_key(self):
     if self.token_key is not None:
         return self.token_key
 
+    # response = requests.get("https://translate.google.com/")
     response = requests.get("https://translate.google.com/", proxies=proxies('token_google'))
     line = response.text.split('\n')[-1]
+    # tkk_expr = re.search(".*?(TKK=.*?;)W.*?", line).group(1)
     try:
         tkk_expr = re.search(".*?(TKK=.*?;)W.*?", line).group(1)
     except AttributeError as e:
@@ -43,6 +48,7 @@ def _get_token_key(self):
 gtts.tts.gtts_token.Token._get_token_key = _get_token_key
 
 
+# part of https://github.com/pndurette/gTTS/blob/master/gtts/lang.py#L44
 def _fetch_langs():
     """Fetch (scrape) languages from Google Translate.
 
@@ -55,6 +61,7 @@ def _fetch_langs():
 
     """
     # Load HTML
+    # page = requests.get(URL_BASE)
     page = requests.get(URL_BASE, proxies=proxies('tts_google', True))
     soup = BeautifulSoup(page.content, 'html.parser')
 
@@ -65,6 +72,7 @@ def _fetch_langs():
     js_url = "{}/{}".format(URL_BASE, js_path)
 
     # Load JavaScript
+    # js_contents = str(requests.get(js_url).content)
     js_contents = str(requests.get(js_url, proxies=proxies('tts_google', True)).content)
 
     # Approximately extract TTS-enabled language codes
@@ -86,6 +94,7 @@ def _fetch_langs():
 gtts.lang._fetch_langs = _fetch_langs
 
 
+# part of https://github.com/pndurette/gTTS/blob/master/gtts/tts.py#L165
 def write_to_fp(self, fp):
     """Do the TTS API request and write bytes to a file-like object.
 
@@ -132,6 +141,7 @@ def write_to_fp(self, fp):
             r = requests.get(self.GOOGLE_TTS_URL,
                              params=payload,
                              headers=self.GOOGLE_TTS_HEADERS,
+                             # proxies=urllib.request.getproxies(),
                              proxies=proxies('tts_google'),
                              verify=False)
 
@@ -149,7 +159,8 @@ def write_to_fp(self, fp):
 
         try:
             # Write
-            for chunk in r.iter_content(chunk_size=1024):
+            # for chunk in r.iter_content(chunk_size=1024):
+            for chunk in r.iter_content(chunk_size=self._buff_size):
                 fp.write(chunk)
             log.debug("part-%i written to %s", idx, fp)
         except (AttributeError, TypeError) as e:
@@ -171,8 +182,9 @@ class FPBranching:
 
 
 class Google(gtts.gTTS):
-    def __init__(self, text, lang='en', slow=False, lang_check=True, *_, **__):
+    def __init__(self, text, buff_size, lang='en', slow=False, lang_check=True, *_, **__):
         super().__init__(text, lang, slow, lang_check)
+        self._buff_size = buff_size
 
     def stream_to_fps(self, fps):
         self.write_to_fp(FPBranching(fps))
