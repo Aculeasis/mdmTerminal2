@@ -98,27 +98,7 @@ class Yandex(BaseSTT):
         return audio_data.get_raw_data(self._convert_rate, self._convert_width)
 
     def _parse_response(self):
-        # https://tech.yandex.ru/speechkit/cloud/doc/guide/common/speechkit-common-asr-http-response-docpage/
-        text = ''
-        for test in self._rq.text.split('\n'):
-            if test.startswith('\t'):
-                text = test[1:]
-        if not text:
-            raise UnknownValueError('No variants')
-        end_point = 10  # '</variant>'
-        if len(text) > end_point + 2:
-            text = text[:-end_point]
-            try:
-                start_point = text.index('>') + 1  # .....>
-            except ValueError:
-                text = ''
-            else:
-                text = text[start_point:]
-        else:
-            text = ''
-        if not text:
-            raise RuntimeError('Parse error')
-        self._text = text
+        self._text = xml_yandex(self._rq.text)
 
 
 class PocketSphinxREST(BaseSTT):
@@ -137,3 +117,39 @@ class PocketSphinxREST(BaseSTT):
         self._text = result['text']
         if not self._text:
             raise UnknownValueError('No variants')
+
+
+def xml_yandex(data):
+    # https://tech.yandex.ru/speechkit/cloud/doc/guide/common/speechkit-common-asr-http-response-docpage/
+    success_shift = 9
+    variant_len = 10
+    text = ''
+    end_point = 0
+    success_found = False
+    for test in data.split('\n'):
+        if success_found:
+            end_point = test.rfind('</variant>')
+            if end_point > 0:
+                text = test
+                break
+        else:
+            start_success = test.find('success="') + success_shift
+            if start_success > success_shift:
+                success_str = test[start_success:start_success+1]
+                if success_str == '1':
+                    success_found = True
+                elif success_str == '0':
+                    raise UnknownValueError('No variants')
+                else:
+                    raise RuntimeError('xml: root attribute broken - \'{}\''.format(success_str))
+
+    if not success_found:
+        raise RuntimeError('xml: root attribute not found, not XML?')
+
+    start_variant = text.find('>') + 1
+    if start_variant < variant_len or start_variant > end_point:
+        raise RuntimeError('xml: broken XML')
+    text = text[start_variant:end_point]
+    if not text:
+        raise RuntimeError('xml: get empty text, WTF?')
+    return text
