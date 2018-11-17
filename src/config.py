@@ -305,7 +305,7 @@ class ConfigUpdater:
         for sec in cfg.sections():
             d_sec = sec if sec.lower() != self.SETTINGS else self.SETTINGS
             data[d_sec] = {key: cfg.get(sec, key) for key in cfg[sec]}
-        self._parser(self._dict_normalization(data))
+        self._parser(self._dict_normalization(data), key_cast=True)
 
     def _json_to_cfg(self, data: str):
         try:
@@ -366,9 +366,10 @@ class ConfigUpdater:
                 self._change_count += 1
                 self._save_me = True
 
-    def _parser(self, data: dict, external=False):
+    def _parser(self, data: dict, external=False, key_cast=False):
+        key_cast = key_cast or external
         for key, val in data.items():
-            if external:
+            if key_cast:
                 self._api_key_cast(data, key, val)
             self._recursive_parser(self._cfg, self._new_cfg, key, val, external, True)
 
