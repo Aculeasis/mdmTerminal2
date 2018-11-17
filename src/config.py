@@ -292,6 +292,12 @@ class ConfigUpdater:
         self._lock = threading.Lock()
         self._save_me = False
 
+    def _clear(self):
+        self._new_cfg = {}
+        self._change_count = 0
+        self._updated_count = 0
+        self._save_me = False
+
     def _ini_to_cfg(self, path: str):
         cfg = configparser.ConfigParser()
         cfg.read(path)
@@ -398,22 +404,26 @@ class ConfigUpdater:
 
     def from_ini(self, path: str):
         with self._lock:
+            self._clear()
             self._ini_to_cfg(path)
             self._print_result('INI')
             return self._update()
 
     def from_json(self, json_: str):
         with self._lock:
+            self._clear()
             self._json_to_cfg(json_)
             self._print_result('JSON')
             return self._update()
 
     def from_dict(self, dict_: dict):
         with self._lock:
+            self._clear()
             self._parser(dict_)
             self._print_result('DICT')
             return self._update()
 
     @property
     def save_me(self):
-        return self._save_me
+        with self._lock:
+            return self._save_me
