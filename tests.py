@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 
 import os
+import sys
 import time
 import unittest
 from copy import deepcopy
+
+sys.path.insert(0, os.path.join(os.path.abspath(sys.path[0]), 'src'))
 
 import main
 from loader import Loader
