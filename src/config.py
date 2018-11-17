@@ -123,11 +123,11 @@ class ConfigHandler(dict):
             to_save = True
         return to_save
 
-    def save_dict(self, name: str, data: dict) -> bool:
+    def save_dict(self, name: str, data: dict, pretty=False) -> bool:
         file_path = os.path.join(self.path['home'], name + '.json')
         try:
             with open(file_path, 'w') as fp:
-                json.dump(data, fp, ensure_ascii=False)
+                json.dump(data, fp, ensure_ascii=False, indent=4 if pretty else None)
         except TypeError as e:
             self._print('Ошибка сохранения {}: {}'.format(file_path, str(e)), logger.ERROR)
             return False

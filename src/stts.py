@@ -166,13 +166,10 @@ class _TTSWrapper(threading.Thread):
 
 
 class SpeechToText:
-    HELLO = ['Привет', 'Слушаю', 'На связи', 'Привет-Привет']
-    DEAF = ['Я ничего не услышала', 'Вы ничего не сказали', 'Ничего не слышно', 'Не поняла']
-    ASK_AGAIN = 'Ничего не слышно, повторите ваш запрос'
-
     def __init__(self, cfg, play_, log, tts):
         self.log = log
         self._cfg = cfg
+        self.sys_say = Phrases(log, cfg)
         self._lock = threading.Lock()
         self._work = True
         self._play = play_
@@ -215,13 +212,12 @@ class SpeechToText:
 
         while msg is None and ask_me_again:  # Переспрашиваем
             ask_me_again -= 1
-            msg = self._listen(self.ASK_AGAIN, False)
+            msg = self._listen(self.sys_say.ask, False)
         if msg is None and deaf:
-            self._say_deaf()
+            say = self.sys_say.deaf
+            if say:
+                self._play.say(say)
         return msg or ''
-
-    def _say_deaf(self):
-        self._play.say(random.SystemRandom().choice(self.DEAF))
 
     def get_mic_index(self):
         device_index = self._cfg.get('mic_index', -1)
@@ -245,7 +241,8 @@ class SpeechToText:
             self._play.kill_popen()
         self.log('audio devices: {}'.format(pyaudio.PyAudio().get_device_count() - 1), logger.DEBUG)
 
-        file_path = self._tts(random.SystemRandom().choice(self.HELLO) if not hello else hello) if not voice else None
+        hello = hello or self.sys_say.hello
+        file_path = self._tts(hello) if not voice and hello else None
 
         if self._cfg.get('blocking_listener'):
             audio, recognizer, record_time, energy_threshold = self._block_listen(hello, lvl, file_path)
@@ -447,5 +444,58 @@ class NonBlockListener:
             self.recognizer = rec
 
 
+class Phrases:
+    NAME = 'phrases'
 
+    def __init__(self, log, cfg):
+        self._phrases = cfg.load_dict(self.NAME)
+        try:
+            check_phrases(self._phrases)
+        except ValueError as e:
+            log('Error phrases loading, restore default phrases: {}'.format(e), logger.ERROR)
+            self._phrases = None
+        if not self._phrases:
+            self._phrases = self._default()
+            cfg.save_dict(self.NAME, self._phrases, True)
+
+    def _default(self):
+        return {
+            'hello': ['Привет', 'Слушаю', 'На связи', 'Привет-Привет'],
+            'deaf': ['Я ничего не услышала', 'Вы ничего не сказали', 'Ничего не слышно', 'Не поняла'],
+            'ask': ['Ничего не слышно, повторите ваш запрос'],
+            'chance': 25,
+        }
+
+    @property
+    def hello(self) -> str:
+        return random.SystemRandom().choice(self._phrases['hello'])
+
+    @property
+    def deaf(self) -> str:
+        return random.SystemRandom().choice(self._phrases['deaf'])
+
+    @property
+    def ask(self) -> str:
+        return random.SystemRandom().choice(self._phrases['ask'])
+
+    @property
+    def chance(self) -> bool:
+        return random.SystemRandom().randint(1, 100) <= self._phrases['chance']
+
+
+def check_phrases(phrases):
+    if phrases is None:
+        return
+    if not isinstance(phrases, dict):
+        raise ValueError('Not a dict - {}'.format(type(phrases)))
+    keys = ['hello', 'deaf', 'ask']
+    for key in keys:
+        if not isinstance(phrases.get(key), list):
+            raise ValueError('{} must be list, not a {}'.format(key, type(phrases.get(key))))
+        if not phrases[key]:
+            raise ValueError('{} empty'.format(key))
+    if not isinstance(phrases.get('chance'), int):
+        raise ValueError('chance must be int type, not a {}'.format(type(phrases.get('chance'))))
+    if phrases['chance'] < 0:
+        raise ValueError('chance must be 0 or greater, not a {}'.format(phrases['chance']))
 

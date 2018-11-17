@@ -2,7 +2,6 @@
 
 import os
 import queue
-import random
 import threading
 import time
 
@@ -207,7 +206,7 @@ class MDTerminal(threading.Thread):
             self.log('Голосовая активация по {}{}'.format(model_name, msg), logger.INFO)
         no_hello = self._cfg.get('no_hello', 0)
         hello = ''
-        if phrase and not random.SystemRandom().randrange(0, 4) and not no_hello:
+        if phrase and self._stt.sys_say.chance and not no_hello:
             hello = '{} слушает'.format(phrase)
         self.detected(hello=hello, voice=no_hello)
 

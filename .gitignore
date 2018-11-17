@@ -7,5 +7,6 @@ src/settings.ini
 src/test.py
 src/test.mp3
 src/modules.json
+src/phrases.json
 src/resources/models/
 src/mdmterminal.log
