@@ -2,9 +2,13 @@
 
 import os
 import time
+import unittest
+from copy import deepcopy
 
 import main
 from loader import Loader
+# noinspection PyUnresolvedReferences
+from utests import *
 
 
 def test_line(include: list, line: str):
@@ -33,7 +37,7 @@ def tests_mono():
 
     home = main.HOME
     path = main.get_path(home)
-    cfg = main.CFG.copy()
+    cfg = deepcopy(main.CFG)
     # Меняем настройки
     test_settings = '{}.test'.format(path['settings'])
     path['settings'] = test_settings
@@ -55,3 +59,5 @@ def tests_mono():
 
 if __name__ == '__main__':
     tests_mono()
+    print()
+    unittest.main(verbosity=2)
