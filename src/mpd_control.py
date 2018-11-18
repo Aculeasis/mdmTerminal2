@@ -22,13 +22,16 @@ def _auto_reconnect(func):
 
 
 class MPDControl(threading.Thread):
-    def __init__(self, cfg: dict, log, last_play):
+    START_DELAY = 6
+
+    def __init__(self, cfg: dict, log, play):
         super().__init__(name='MPDControl')
         self.IP = cfg.get('ip', '127.0.0.1')
         self.PORT = cfg.get('port', 6600)
         self.RESUME_TIME = cfg.get('wait', 13)
 
-        self._last_play = last_play
+        self._last_play = play.last_activity
+        self._say = play.say
         self.log = log
         self._work = False
         self._mpd = mpd.MPDClient(use_unicode=True)
@@ -78,11 +81,16 @@ class MPDControl(threading.Thread):
             self.log('stop.', logger.INFO)
 
     def start(self):
-        if not self.connect():
-            raise RuntimeError('{} not started'.format(self.name))
         self._work = True
         super().start()
+
+    def _init(self):
+        time.sleep(self.START_DELAY)
+        if not self.connect():
+            self._say('Ошибка подключения к MPD-серверу', 0)
+            return False
         self.log('start', logger.INFO)
+        return True
 
     def play(self, uri):
         if not self.allow():
@@ -106,6 +114,8 @@ class MPDControl(threading.Thread):
 
     def run(self):
         ping = 0
+        if not self._init():
+            self._work = False
         while self._work:
             ping += 1
             time.sleep(0.5)

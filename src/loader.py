@@ -29,7 +29,7 @@ class Loader:
 
         self._play = Player(cfg=self._cfg, log=self._logger.add('Player'), tts=self._tts)
 
-        self._mpd = MPDControl(cfg=self._cfg['mpd'], log=self._logger.add('MPD'), last_play=self._play.last_activity)
+        self._mpd = MPDControl(cfg=self._cfg['mpd'], log=self._logger.add('MPD'), play=self._play)
 
         self._stt = stts.SpeechToText(cfg=self._cfg, play_=self._play, log=self._logger.add('STT'), tts=self._tts)
 
@@ -48,15 +48,9 @@ class Loader:
         )
 
     def start(self):
-        mpd_err = False
-        try:
-            if self._cfg['mpd'].get('control', 0):
-                self._mpd.start()
-        except RuntimeError:
-            mpd_err = True
+        if self._cfg['mpd'].get('control', 0):
+            self._mpd.start()
         self._play.start(self._mpd)
-        if mpd_err:
-            self._play.say('Ошибка подключения к MPD-серверу')
         self._play.say_info(self.HELLO, 0, wait=0.5)
         self._stt.start()
         self._cfg.add_play(self._play)
