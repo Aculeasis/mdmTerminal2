@@ -140,10 +140,8 @@ class ModuleManager:
 
     def _get_options(self):
         data = {}
-        for _, val in self.all.items():
-            data[val['name']] = {}
-            for key in self._cfg_options:
-                data[val['name']][key] = val[key]
+        for func, val in self.all.items():
+            data[func.__name__] = {key: val[key] for key in self._cfg_options}
         return data
 
     def __option_check(self, name, option: str, val) -> bool:
@@ -164,8 +162,10 @@ class ModuleManager:
     def _set_options(self, data: dict or None):
         if data is None:
             return
+        # магическое имя функции: ссылка
+        by_f_name = {key.__name__: key for key in self.all}
         for key, val in data.items():
-            f_name = self.by_name.get(key)
+            f_name = by_f_name.get(key)
             if not f_name:
                 continue
             for option in self._cfg_options:
@@ -356,6 +356,7 @@ class ModuleWrapper:
             return self.__prepare_all_
         self.__prepare_all_ = OrderedDict()
         must_be = ['name', 'desc', 'mode']
+        unique_magic_names = {}
         for key, val in self.__is_all.items():
             for item in must_be:
                 if item not in val:
@@ -363,6 +364,13 @@ class ModuleWrapper:
             if not [x for x in [NM, DM, ANY] if x in val]:
                 raise RuntimeError('Module {} not have words'.format(val.get('name', key)))
             val['hardcoded'] = val.get('hardcoded', False)
+            f_name = key.__name__
+            if f_name in unique_magic_names:
+                msg = 'Magic function name must be unique, \'{}\' conflicts with \'{}\'. Name - {}'
+                old_name = self.__is_all[unique_magic_names[f_name]]['name']
+                new_name = self.__is_all[key]['name']
+                raise RuntimeError(msg.format(old_name, new_name, f_name))
+            unique_magic_names[f_name] = key
             self.__prepare_all_[key] = val
         del self.__is_all
         return self.__prepare_all_
