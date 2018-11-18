@@ -68,7 +68,9 @@ class ModuleManager:
         self.one_way = None
         self._check_words = [NM, ANY]
         self.all = None
-        # Для поиска по имени
+        # Для поиска по магическому имени (.__name__)
+        self._by_f_name = None
+        # Для поиска по имени (['name'])
         self.by_name = None
         self._code = 0
         # Имя модуля (.__name__) который вызван в данный момент.
@@ -77,12 +79,12 @@ class ModuleManager:
         self._cfg_name = 'modules'
         self._cfg_options = ['enable', 'mode', 'hardcoded']
         # Не проверяем данные модули на конфликты
-        self._no_check = ['мажордом', 'терминатор']
+        self._no_check = ['majordomo', 'terminator']
 
     def start(self):
         import modules
         self.all = modules.mod.get
-        # Для поиска по имени
+        self._by_f_name = {key.__name__: key for key in self.all}
         self.by_name = {val['name']: key for key, val in self.all.items()}
         # Загружаем настройки модулей
         self._set_options(self.cfg.load_dict(self._cfg_name))
@@ -95,12 +97,11 @@ class ModuleManager:
 
     def _conflicts_checker(self):
         # Ищет возможные конфликты в модулях. Разные режимы сравниваются отдельно
-        no_check = [self.by_name[x] for x in self._no_check if x in self.by_name]
         result = {}
         self._set_debug(True)
-        result[DM] = self._conflicts_finder(no_check)
+        result[DM] = self._conflicts_finder()
         self._set_debug(False)
-        result[NM] = self._conflicts_finder(no_check)
+        result[NM] = self._conflicts_finder()
         for key, val in result.items():
             msg = []
             for target, data in val.items():
@@ -108,14 +109,14 @@ class ModuleManager:
             if msg:
                 self._log('Обнаружены конфликты в режиме {}: {}'.format(get_mode_say(key), ', '.join(msg)), logger.WARN)
 
-    def _conflicts_finder(self, no_check) -> dict:
+    def _conflicts_finder(self) -> dict:
         conflicts = {}
         all_ = [x for x in self._words_iter()]  # Метод, слово, режим слова
         count = len(all_)
         for num in range(count):
             sample = all_[num]
             for target in all_[num:]:
-                if sample[0] == target[0] or sample[0] in no_check:
+                if sample[0] == target[0] or sample[0].__name__ in self._no_check:
                     continue
                 if self._words_compare(sample[1:], target[1:]):  # Конфликт
                     if sample[1] not in conflicts:
@@ -163,9 +164,8 @@ class ModuleManager:
         if data is None:
             return
         # магическое имя функции: ссылка
-        by_f_name = {key.__name__: key for key in self.all}
         for key, val in data.items():
-            f_name = by_f_name.get(key)
+            f_name = self._by_f_name.get(key)
             if not f_name:
                 continue
             for option in self._cfg_options:
@@ -319,7 +319,7 @@ class ModuleManager:
                 result = reply.text
             elif reply_type is Ask:
                 result = reply.text
-                asking = f
+                asking = f  # можно заменить на f.__name__ если передача ссылки на объект станет невозможной
             elif reply_type is SayLow:
                 for text in reply.iter():
                     self._say(*text)
@@ -337,8 +337,8 @@ class ModuleManager:
         if callable(obj):
             # noinspection PyTypeChecker
             return self._call_func(obj, *args)
-        elif isinstance(obj, str) and obj in self.by_name:
-            return self._call_func(self.by_name[obj], *args)
+        elif isinstance(obj, str) and obj in self._by_f_name:
+            return self._call_func(self._by_f_name[obj], *args)
         self._log('Unknown object called: {}, type: {}'.format(obj, type(obj)), logger.ERROR)
         return Next
 
