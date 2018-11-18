@@ -11,6 +11,7 @@ echo 'After=network.target'
 
 
 echo '[Service]'
+echo 'ExecStartPre=/bin/sleep 5'
 echo 'Environment=VIRTUAL_ENV='${repo_path}'/env'
 echo 'Environment=PATH='${repo_path}'/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
 echo 'ExecStart='${repo_path}'/env/bin/python -u '${repo_path}'/src/main.py'
