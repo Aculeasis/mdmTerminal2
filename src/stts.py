@@ -302,8 +302,8 @@ class SpeechToText:
         listener.stop()
         return listener.audio, listener.recognizer, record_time, energy_threshold
 
-    def _block_listen(self, hello, lvl, file_path):
-        with sr.Microphone() as source:
+    def _block_listen(self, hello, lvl, file_path, self_call=False):
+        with sr.Microphone(device_index=self.get_mic_index()) as source:
             r = sr.Recognizer()
 
             if self._cfg['alarmtts'] and not hello:
@@ -320,7 +320,12 @@ class SpeechToText:
             except sr.WaitTimeoutError:
                 audio = None
             record_time = time.time() - record_time
-
+        if record_time < 0.5 and not self_call:
+            # Если от инициализации микрофона до записи прошло больше 20-35 сек, то запись ломается
+            # Игнорируем полученную запись и запускаем новую, без приветствий
+            self.log('Long ask fix!', logger.DEBUG)
+            return self._block_listen(hello=True, lvl=lvl, file_path=None, self_call=True)
+        else:
             return audio, r, record_time, energy_threshold
 
     def _correct_energy_threshold(self, r: sr.Recognizer, source):
