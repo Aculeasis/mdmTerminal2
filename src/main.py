@@ -27,7 +27,7 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
     'ask_me_again': 0,
     'quiet': 0,
     'no_hello': 0,
-    'blocking_listener': 0,
+    'blocking_listener': 1,
     'energy_threshold': 0,
     'phrase_time_limit': 15,
     'mpd': {
