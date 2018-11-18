@@ -19,28 +19,6 @@ REQUEST_ERRORS = (
     requests.exceptions.ChunkedEncodingError
 ) + _PROXY_ERROR
 
-YANDEX_EMOTION = {
-    'good'    : 'добрая',
-    'neutral' : 'нейтральная',
-    'evil'    : 'злая',
-}
-
-YANDEX_SPEAKER = {
-    'jane'  : 'Джейн',
-    'oksana': 'Оксана',
-    'alyss' : 'Алиса',
-    'omazh' : 'Дура',  # я это не выговорю
-    'zahar' : 'Захар',
-    'ermil' : 'Саня'  # и это
-}
-
-RHVOICE_SPEAKER = {
-    'anna'     : 'Аня',
-    'aleksandr': 'Александр',
-    'elena'    : 'Елена',
-    'irina'    : 'Ирина'
-}
-
 
 class SignalHandler:
     def __init__(self, signals=(signal.SIGTERM,)):

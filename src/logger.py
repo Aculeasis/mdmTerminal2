@@ -8,6 +8,7 @@ import time
 import zlib
 from logging.handlers import RotatingFileHandler
 
+from languages import LOGGER as LNG
 from utils import write_permission_check
 
 DEBUG = logging.DEBUG
@@ -99,8 +100,7 @@ class Logger(threading.Thread):
 
     def permission_check(self):
         if not write_permission_check(self.file):
-            msg = 'Логгирование в {} невозможно - отсутствуют права на запись. Исправьте это'.format(self.file)
-            self._print('Logger', msg, CRIT)
+            self._print('Logger', LNG['err_permission'].format(self.file), CRIT)
             return False
         return True
 

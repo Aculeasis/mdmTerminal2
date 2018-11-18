@@ -9,6 +9,7 @@ import time
 
 import logger
 import utils
+from languages import PLAYER as LNG
 
 
 class Player:
@@ -176,17 +177,17 @@ class Player:
         self.kill_popen()
         ext = ext or os.path.splitext(path)[1]
         if not stream and not os.path.isfile(path):
-            return self.log('Файл {} не найден'.format(path), logger.ERROR)
+            return self.log(LNG['file_not_found'].format(path), logger.ERROR)
         if ext not in self.PLAY:
-            return self.log('Неизвестный тип файла: {}'.format(ext), logger.CRIT)
+            return self.log(LNG['unknown_type'].format(ext), logger.CRIT)
         cmd = self.PLAY[ext].copy()
         if stream is None:
             cmd.append(path)
-            self.log('Играю {} ...'.format(path, logger.DEBUG))
+            self.log(LNG['play'].format(path, logger.DEBUG))
             self._popen = subprocess.Popen(cmd, stderr=subprocess.PIPE)
         else:
             cmd.append('-')
-            self.log('Стримлю {} ...'.format(path, logger.DEBUG))
+            self.log(LNG['stream'].format(path, logger.DEBUG))
             self._popen = utils.StreamPlayer(cmd, stream)
 
 

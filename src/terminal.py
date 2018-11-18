@@ -10,6 +10,7 @@ import logger
 import player
 import stts
 import utils
+from languages import TERMINAL as LNG
 from lib import snowboydecoder
 
 
@@ -91,12 +92,12 @@ class MDTerminal(threading.Thread):
             try:
                 (cmd, data, lvl, late) = self._queue.get_nowait()
             except queue.Empty:
-                self.log('Пустая очередь? Impossible!', logger.ERROR)
+                self.log(LNG['err_queue_empty'], logger.ERROR)
                 continue
             late = time.time() - late
-            msg = 'Получено {}:{}, lvl={} опоздание {} секунд.'.format(cmd, data, lvl, int(late))
+            msg = LNG['get_call'].format(cmd, data, lvl, int(late))
             if late > self.MAX_LATE:
-                self.log('{} Игнорирую.'.format(msg), logger.WARN)
+                self.log(LNG['ignore_call'].format(msg), logger.WARN)
                 continue
             else:
                 self.log(msg, logger.DEBUG)
@@ -111,28 +112,26 @@ class MDTerminal(threading.Thread):
             elif cmd == 'compile':
                 self._rec_compile(*data)
             else:
-                self.log('Не верный вызов, WTF? {}:{}, lvl={}'.format(cmd, data, lvl), logger.ERROR)
+                self.log(LNG['err_call'].format(cmd, data, lvl), logger.ERROR)
 
     def _rec_rec(self, model, sample):
         # Записываем образец sample для модели model
-        nums = {'1': 'первого', '2': 'второго', '3': 'третьего'}
-        if sample not in nums:
-            err = 'Ошибка записи - недопустимый параметр{}'
-            self.log('{}: {}'.format(err, sample), logger.ERROR)
-            self._play.say(err)
+        if sample not in LNG['rec_nums']:
+            self.log('{}: {}'.format(LNG['err_rec_param'], sample), logger.ERROR)
+            self._play.say(LNG['err_rec_param'])
             return
 
-        hello = 'Запись {} образца на 5 секунд начнется после звукового сигнала'.format(nums[sample])
+        hello = LNG['rec_hello'].format(LNG['rec_nums'][sample])
         save_to = os.path.join(self._cfg.path['tmp'], model + sample + '.wav')
         self.log(hello, logger.INFO)
 
         err = self._stt.voice_record(hello=hello, save_to=save_to, convert_rate=16000, convert_width=2)
         if err is None:
-            bye = 'Запись {} образца завершена. Вы можете прослушать свою запись.'.format(nums[sample])
+            bye = LNG['rec_bye'].format(LNG['rec_nums'][sample])
             self._play.say(bye)
             self.log(bye, logger.INFO)
         else:
-            err = 'Ошибка сохранения образца {}: {}'.format(nums[sample], err)
+            err = LNG['err_rec_save'].format(LNG['rec_nums'][sample], err)
             self.log(err, logger.ERROR)
             self._play.say(err)
 
@@ -142,8 +141,8 @@ class MDTerminal(threading.Thread):
         if os.path.isfile(file):
             self._play.say(file, is_file=True)
         else:
-            self._play.say('Ошибка воспроизведения - файл {} не найден'.format(file_name))
-            self.log('Файл {} не найден'.format(file), logger.WARN)
+            self._play.say(LNG['err_play_say'].format(file_name))
+            self.log(LNG['err_play_log'].format(file), logger.WARN)
 
     def _rec_compile(self, model, _):
         models = [os.path.join(self._cfg.path['tmp'], ''.join([model, x, '.wav'])) for x in ['1', '2', '3']]
@@ -151,30 +150,28 @@ class MDTerminal(threading.Thread):
         for x in models:
             if not os.path.isfile(x):
                 miss = True
-                err = 'Ошибка компиляции - файл {} не найден.'
-                self.log(err.format(x), logger.ERROR)
-                self._play.say(err.format(os.path.basename(x)))
+                self.log(LNG['compile_no_file'].format(x), logger.ERROR)
+                self._play.say(LNG['compile_no_file'].format(os.path.basename(x)))
         if miss:
             return
         pmdl_name = ''.join(['model', model, self._cfg.path['model_ext']])
         pmdl_path = os.path.join(self._cfg.path['models'], pmdl_name)
-        self.log('Компилирую {}'.format(pmdl_path), logger.INFO)
+        self.log(LNG['compiling'].format(pmdl_path), logger.INFO)
         work_time = time.time()
         try:
             snowboy = training_service.Training(*models)
         except RuntimeError as e:
-            self.log('Ошибка компиляции модели {}: {}'.format(pmdl_path, e), logger.ERROR)
-            self._play.say('Ошибка компиляции модели номер {}'.format(model))
+            self.log(LNG['err_compile_log'].format(pmdl_path, e), logger.ERROR)
+            self._play.say(LNG['err_compile_say'].format(model))
             return
         work_time = utils.pretty_time(time.time() - work_time)
         snowboy.save(pmdl_path)
         phrase, match_count = self._stt.phrase_from_files(models)
         msg = ', "{}",'.format(phrase) if phrase else ''
         if match_count != len(models):
-            warn = 'Полный консенсус по модели {} не достигнут [{}/{}]. Советую пересоздать модель.'
-            self.log(warn.format(pmdl_name, match_count, len(models)), logger.WARN)
-        self.log('Модель{} скомпилирована успешно за {}: {}'.format(msg, work_time, pmdl_path), logger.INFO)
-        self._play.say('Модель{} номер {} скомпилирована успешно за {}'.format(msg, model, work_time))
+            self.log(LNG['no_consensus'].format(pmdl_name, match_count, len(models)), logger.WARN)
+        self.log(LNG['compile_ok_log'].format(msg, work_time, pmdl_path), logger.INFO)
+        self._play.say(LNG['compile_ok_say'].format(msg, model, work_time))
         self._cfg.models_load()
         if self._cfg.json_to_cfg({'models': {pmdl_name: phrase}}):
             self._cfg.config_save()
@@ -193,7 +190,7 @@ class MDTerminal(threading.Thread):
     def _detected(self, model: int=0):
         phrase = ''
         if not model:
-            self.log('Очень странный вызов от сновбоя. Это нужно исправить', logger.CRIT)
+            self.log(LNG['err_call2'], logger.CRIT)
         else:
             model -= 1
             if model < len(self._cfg.path['models_list']):
@@ -203,11 +200,11 @@ class MDTerminal(threading.Thread):
             else:
                 model_name = str(model)
                 msg = ''
-            self.log('Голосовая активация по {}{}'.format(model_name, msg), logger.INFO)
+            self.log(LNG['activate_by'].format(model_name, msg), logger.INFO)
         no_hello = self._cfg.get('no_hello', 0)
         hello = ''
         if phrase and self._stt.sys_say.chance and not no_hello:
-            hello = '{} слушает'.format(phrase)
+            hello = LNG['model_listened'].format(phrase)
         self.detected(hello=hello, voice=no_hello)
 
     def detected(self, hello: str = '', voice=False):

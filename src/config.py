@@ -10,6 +10,8 @@ import logger
 import utils
 from lib import proxy
 from lib import yandex_apikey
+import languages
+from languages import CONFIG as LNG, YANDEX_EMOTION, YANDEX_SPEAKER
 
 
 class ConfigHandler(dict):
@@ -38,7 +40,7 @@ class ConfigHandler(dict):
             try:
                 key_ = self._yandex.key
             except RuntimeError as e:
-                self._log('Ошибка получения ключа для Yandex: {}'.format(e), logger.ERROR)
+                self._log(LNG['err_ya_key'].format(e), logger.ERROR)
         return key_
 
     def get_uint(self, key: str, default=0) -> int:
@@ -85,8 +87,8 @@ class ConfigHandler(dict):
         for key in ['providerstt', 'providerstt']:
             if key in self:
                 to_save |= self._cfg_dict_checker(self[key])
-        to_save |= self._cfg_checker('yandex', 'emotion', utils.YANDEX_EMOTION, 'good')
-        to_save |= self._cfg_checker('yandex', 'speaker', utils.YANDEX_SPEAKER, 'alyss')
+        to_save |= self._cfg_checker('yandex', 'emotion', YANDEX_EMOTION, 'good')
+        to_save |= self._cfg_checker('yandex', 'speaker', YANDEX_SPEAKER, 'alyss')
         to_save |= self._log_file_init()
         to_save |= self._first()
         if to_save:
@@ -116,9 +118,7 @@ class ConfigHandler(dict):
             self[subcfg][key] = def_
             to_save = True
         elif self[subcfg][key] not in to:
-            self._print('Ошибка в конфиге, {} не может быть {}. Установлено: {}'.format(key, self[subcfg][key], def_),
-                        logger.ERROR
-                        )
+            self._print(LNG['err_cfg_check'].format(key, self[subcfg][key], def_), logger.ERROR)
             self[subcfg][key] = def_
             to_save = True
         return to_save
@@ -129,20 +129,20 @@ class ConfigHandler(dict):
             with open(file_path, 'w') as fp:
                 json.dump(data, fp, ensure_ascii=False, indent=4 if pretty else None)
         except TypeError as e:
-            self._print('Ошибка сохранения {}: {}'.format(file_path, str(e)), logger.ERROR)
+            self._print(LNG['err_save'].format(file_path, str(e)), logger.ERROR)
             return False
         return True
 
     def load_dict(self, name: str) -> dict or None:
         file_path = os.path.join(self.path['home'], name + '.json')
         if not os.path.isfile(file_path):
-            self._print('Файл не найден: {}'.format(file_path))
+            self._print(LNG['miss_file'].format(file_path))
             return None
         try:
             with open(file_path) as fp:
                 return json.load(fp)
         except (json.decoder.JSONDecodeError, TypeError) as e:
-            self._print('Ошибка загрузки {}: {}'.format(file_path, str(e)), logger.ERROR)
+            self._print(LNG['err_load'].format(file_path, str(e)), logger.ERROR)
             return None
 
     def add_play(self, play):
@@ -170,13 +170,13 @@ class ConfigHandler(dict):
 
         with open(self.path['settings'], 'w') as configfile:
             config.write(configfile)
-        self._print('Конфигурация сохранена за {}'.format(utils.pretty_time(time.time() - wtime)), logger.INFO)
-        self._print('Конфигурация сохранена!', mode=2)
+        self._print(LNG['save_for'].format(utils.pretty_time(time.time() - wtime)), logger.INFO)
+        self._print(LNG['save'], mode=2)
 
     def models_load(self):
         self.path['models_list'] = []
         if not os.path.isdir(self.path['models']):
-            self._print('Директория с моделями не найдена {}'.format(self.path['models']), logger.INFO, 3)
+            self._print(LNG['miss_models'].format(self.path['models']), logger.INFO, 3)
             return
 
         count = 0
@@ -186,28 +186,28 @@ class ConfigHandler(dict):
                 self.path['models_list'].append(full_path)
                 count += 1
 
-        if count == 1:
-            et = 'ь'
-        elif count in [2, 3, 4]:
-            et = 'и'
-        else:
-            et = 'ей'
-        pretty = ['ноль', 'одна', 'две', 'три', 'четыре', 'пять', 'шесть']
-        count = pretty[count] if count < 7 else count
-        self._print('Загружено {} модел{}'.format(count, et), logger.INFO, 3)
+        self._print(LNG['models_count_call'].format(count), logger.INFO, 3)
 
     def config_load(self):
         wtime = time.time()
         if not os.path.isfile(self.path['settings']):
-            self._print(
-                'Файл настроек не найден по пути {}. Для первого запуска это нормально'.format(self.path['settings']),
-                logger.INFO)
+            self._print(LNG['miss_settings'].format(self.path['settings']), logger.INFO)
             return False
         updater = ConfigUpdater(self, self._print)
         count = updater.from_ini(self.path['settings'])
-        self._print('Загружено {} опций за {}'.format(count, utils.pretty_time(time.time() - wtime)), logger.INFO)
-        self._print('Конфигурация загружена!', logger.INFO, mode=2)
+        wtime = time.time() - wtime
+        self._lang_init()
+        self._print(LNG['load_for'].format(count, utils.pretty_time(wtime)), logger.INFO)
+        self._print(LNG['load'], logger.INFO, mode=2)
         return updater.save_me
+
+    def _lang_init(self):
+        lang = self.get('lang')
+        deep_check = self.get('lang_check', 0)
+        err = languages.set_lang(lang, None if not deep_check else self._print)
+        if err:
+            self._print(LNG['err_lng'].format(lang, err), logger.ERROR)
+        self._print(LNG['lng_load_for'].format(lang, utils.pretty_time(languages.load_time())), logger.INFO)
 
     def json_to_cfg(self, data: str or dict) -> bool:
         updater = ConfigUpdater(self, self._print)
@@ -215,7 +215,7 @@ class ConfigHandler(dict):
 
     def tts_cache_check(self):
         if not os.path.isdir(self.path['tts_cache']):
-            self._print(msg='Директория c tts кэшем не найдена {}'.format(self.path['tts_cache']), mode=3)
+            self._print(msg=LNG['miss_tts_cache'].format(self.path['tts_cache']), mode=3)
             return
         max_size = self['cache'].get('tts_size', 50) * 1024 * 1024
         current_size = 0
@@ -228,7 +228,10 @@ class ConfigHandler(dict):
                 current_size += fsize
                 files.append([pfile, fsize])
         normal_size = not files or current_size < max_size or max_size < 0
-        say = 'Размер tts кэша {}: {}'.format(utils.pretty_size(current_size), 'Ок.' if normal_size else 'Удаляем...')
+        say = LNG['tts_cache_size'].format(
+            utils.pretty_size(current_size),
+            LNG['tts_cache_act_list'][0] if normal_size else LNG['tts_cache_act_list'][1]
+        )
         self._print(say, logger.INFO, 1 if normal_size else 3)
         if normal_size:
             return
@@ -241,22 +244,20 @@ class ConfigHandler(dict):
             if current_size <= new_size:
                 break
             current_size -= file[1]
-            self._print('Удаляю {}'.format(file[0]))
+            self._print(LNG['delete_file'].format(file[0]))
             os.remove(file[0])
             deleted_files += 1
 
-        self._print('Удалено {} файлов. Новый размер TTS кэша {}.'.format(
-            deleted_files, utils.pretty_size(current_size)), logger.INFO, 3
-        )
+        self._print(LNG['deleted_files'].format(deleted_files, utils.pretty_size(current_size)), logger.INFO, 3)
 
     def _make_dir(self, path: str):
         if not os.path.isdir(path):
-            self._print('Директория {} не найдена. Создаю...'.format(path), logger.INFO)
+            self._print(LNG['create_dir'].format(path), logger.INFO)
             os.makedirs(path)
 
     def _lost_file(self, path: str):
         if not os.path.isfile(path):
-            self._print('Файл {} не найден. Это надо исправить!'.format(path), logger.CRIT, 3)
+            self._print(LNG['miss_file_fixme'].format(path), logger.CRIT, 3)
 
     def _print(self, msg: str, lvl=logger.DEBUG, mode=1):  # mode 1 - print, 2 - say, 3 - both
         if mode in [1, 3]:
@@ -274,7 +275,7 @@ class ConfigHandler(dict):
             self['ip'] = utils.get_ip_address()
             to_save = True
         if 'ip_server' not in self or not self['ip_server']:
-            self._print('Терминал еще не настроен, мой IP адрес: {}'.format(self['ip']), logger.WARN, 3)
+            self._print(LNG['say_ip'].format(self['ip']), logger.WARN, 3)
         return to_save
 
 
@@ -311,21 +312,19 @@ class ConfigUpdater:
         try:
             data = {key.lower(): val for key, val in json.loads(data).items()}
         except (json.decoder.JSONDecodeError, TypeError) as err:
-            self._log('Кривой json \'{}\': {}'.format(data, err.msg), logger.ERROR)
+            self._log(LNG['wrong_json'].format(data, err.msg), logger.ERROR)
             return
         self._parser(self._dict_normalization(data), True)
 
     def _recursive_parser(self, cfg: dict, cfg_diff: dict, key, val, external, first=False):
         if not isinstance(key, str):
-            msg = 'Ключи настроек могут быть только строками, не {}. Игнорирую ключ \'{}\''
-            self._log(msg.format(type(key), key), logger.ERROR)
+            self._log(LNG['wrong_key'].format(type(key), key), logger.ERROR)
             return
         key = key if not external else key.lower()
         if isinstance(val, dict) and isinstance(cfg.get(key, {}), dict):  # секция
             self._parse_section_element(cfg, cfg_diff, key, val, external)
         elif isinstance(val, (dict, list, set, tuple)):
-            msg = 'Недопустимое значение \'{}:{}\'. Игнорирую'
-            self._log(msg.format(key, val), logger.ERROR)
+            self._log(LNG['wrong_val'].format(key, val), logger.ERROR)
         elif not (first and key in self.API_KEYS):
             if external and isinstance(val, str):
                 val = val.lower()
@@ -333,8 +332,7 @@ class ConfigUpdater:
 
     def _parse_section_element(self, cfg: dict, cfg_diff: dict, key, val, external):
         if external and key not in cfg:  # Не принимаем новые секции от сервера
-            msg = 'Игнорируем неизвестную секцию от сервера \'{}:{}\''
-            self._log(msg.format(key, val), logger.ERROR)
+            self._log(LNG['ignore_section'].format(key, val), logger.ERROR)
             return
         cfg_diff[key] = cfg_diff.get(key, {})
         for key_, val_ in val.items():
@@ -346,8 +344,7 @@ class ConfigUpdater:
         try:
             tmp = type(cfg.get(key, ''))(val)
         except (ValueError, TypeError) as e:
-            msg = 'Не верный тип настройки \'{}:{}\' {}. Сохраняем старое значение: \'{}\'. {}'
-            self._log(msg.format(key, val, type(val), cfg.get(key, 'None'), e), logger.ERROR)
+            self._log(LNG['wrong_type_val'].format(key, val, type(val), cfg.get(key, 'None'), e), logger.ERROR)
         else:
             if key not in cfg or tmp != cfg[key]:
                 self._change_count += 1

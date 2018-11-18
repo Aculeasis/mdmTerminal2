@@ -6,6 +6,7 @@ import time
 import mpd
 
 import logger
+from languages import MPD_CONTROL as LNG
 
 
 def _auto_reconnect(func):
@@ -45,7 +46,7 @@ class MPDControl(threading.Thread):
         try:
             self._mpd.connect(self.IP, self.PORT)
         except (mpd.MPDError, IOError) as e:
-            self.log('Ошибка подключения к MPD-серверу: {}'.format(e), logger.ERROR)
+            self.log('{}: {}'.format(LNG['err_mpd'], e), logger.ERROR)
             self.is_conn = False
             self._errors += 1
             if self._errors > 5:
@@ -87,7 +88,7 @@ class MPDControl(threading.Thread):
     def _init(self):
         time.sleep(self.START_DELAY)
         if not self.connect():
-            self._say('Ошибка подключения к MPD-серверу', 0)
+            self._say(LNG['err_mpd'], 0)
             return False
         self.log('start', logger.INFO)
         return True

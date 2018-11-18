@@ -4,6 +4,7 @@ import socket
 import threading
 
 import logger
+from languages import SERVER as LNG
 
 
 class MDTServer(threading.Thread):
@@ -54,8 +55,8 @@ class MDTServer(threading.Thread):
         try:
             self._socket.bind((ip, port))
         except OSError as e:
-            say = 'Ошибка запуска сервера{}.'.format(' - адрес уже используется' if e.errno == 98 else '')
-            self.log('Ошибка запуска сервера на {}:{}: {}'.format(ip, port, e), logger.CRIT)
+            say = LNG['err_start_say'].format(LNG['err_already_use'] if e.errno == 98 else '')
+            self.log(LNG['err_start'].format(ip, port, e), logger.CRIT)
             self._play.say(say)
             return False
         self._socket.listen(1)
@@ -82,9 +83,9 @@ class MDTServer(threading.Thread):
 
     def _parse(self, data: str):
         if not data:
-            return self.log('Нет данных')
+            return self.log(LNG['no_data'])
         else:
-            self.log('Получены данные: {}'.format(data))
+            self.log(LNG['get_data'].format(data))
 
         cmd = data.split(':', maxsplit=1)
         if len(cmd) != 2:
@@ -94,16 +95,16 @@ class MDTServer(threading.Thread):
         elif cmd[0] in self.MTAPI:
             self.MTAPI[cmd[0]](cmd[1])
         else:
-            self.log('Неизвестная команда: {}'.format(cmd[0]), logger.WARN)
+            self.log(LNG['unknown_cmd'].format(cmd[0]), logger.WARN)
 
     def _api_voice(self, cmd: str):
         self._terminal.external_cmd('voice', cmd)
 
     def _api_home(self, cmd: str):
-        self.log('Not implemented yet - home:{}'.format(cmd), logger.WARN)
+        self.log(LNG['no_implement'].format('home', cmd), logger.WARN)
 
     def _api_url(self, cmd: str):
-        self.log('Not implemented yet - url:{}'.format(cmd), logger.WARN)
+        self.log(LNG['no_implement'].format('url', cmd), logger.WARN)
 
     def _api_play(self, cmd: str):
         self._play.mpd.play(cmd)
@@ -118,25 +119,25 @@ class MDTServer(threading.Thread):
         self._terminal.external_cmd('ask', cmd)
 
     def _api_rtsp(self, cmd: str):
-        self.log('Not implemented yet - rtsp:{}'.format(cmd), logger.WARN)
+        self.log(LNG['no_implement'].format('rtsp', cmd), logger.WARN)
 
     def _api_run(self, cmd: str):
-        self.log('Not implemented yet - run:{}'.format(cmd), logger.WARN)
+        self.log(LNG['no_implement'].format('run', cmd), logger.WARN)
 
     def _api_settings(self, cmd: str or dict) -> bool:
         if self._cfg.json_to_cfg(cmd):
             self._cfg.config_save()
             self._terminal.reload()
-            self.log('Конфиг обновлен: {}'.format(self._cfg), logger.DEBUG)
+            self.log(LNG['cfg_up'].format(self._cfg), logger.DEBUG)
             return True
         else:
-            self.log('Конфигурация не изменилась', logger.DEBUG)
+            self.log(LNG['cfg_no_change'], logger.DEBUG)
             return False
 
     def _api_rec(self, cmd: str):
         param = cmd.split('_')  # должно быть вида rec_1_1, play_2_1, compile_5_1
         if len(param) != 3 or sum([1 if len(x) else 0 for x in param]) != 3:
-            self.log('Ошибка разбора параметров для \'rec\': {}'.format(param), logger.ERROR)
+            self.log(LNG['err_rec_param'].format(param), logger.ERROR)
             return
         # a = param[0]  # rec, play или compile
         # b = param[1]  # 1-6
@@ -150,7 +151,7 @@ class MDTServer(threading.Thread):
         elif param[0] == 'compile':
             self._terminal.external_cmd('compile', param[1:])
         else:
-            self.log('Неизвестная команда для rec: '.format(param[0]), logger.ERROR)
+            self.log(LNG['unknown_rec_cmd'].format(param[0]), logger.ERROR)
 
     @staticmethod
     def _socket_reader(conn) -> str:

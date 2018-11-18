@@ -3,6 +3,7 @@
 from collections import OrderedDict
 
 import logger
+from languages import MODULES_MANAGER as LNG
 
 EQ = 1  # phrase equivalent
 SW = 2  # phrase startswith - by default
@@ -14,12 +15,12 @@ ANY = 'words'  # Оба режима. by default for words
 
 
 def get_mode_say(mode_):
-    pretty = {NM: 'Обычный', DM: 'Отладка', ANY: 'Любой'}
+    pretty = {NM: LNG['say_nm'], DM: LNG['say_dm'], ANY: LNG['say_any']}
     return pretty.get(mode_)
 
 
 def get_enable_say(enable):
-    pretty = {True: 'восстановлен', False: 'удален'}
+    pretty = {True: LNG['say_enable'], False: LNG['say_disable']}
     return pretty.get(enable)
 
 
@@ -88,7 +89,7 @@ class ModuleManager:
         self.by_name = {val['name']: key for key, val in self.all.items()}
         # Загружаем настройки модулей
         self._set_options(self.cfg.load_dict(self._cfg_name))
-        self._log('Загружены модули: {}'.format(', '.join([key for key in self.by_name])))
+        self._log(LNG['modules_load'].format(', '.join([key for key in self.by_name])))
         self._conflicts_checker()
 
     def save(self):
@@ -107,7 +108,7 @@ class ModuleManager:
             for target, data in val.items():
                 msg.append('{}: [{}]'.format(target, ', '.join([self.all[x]['name'] for x in data])))
             if msg:
-                self._log('Обнаружены конфликты в режиме {}: {}'.format(get_mode_say(key), ', '.join(msg)), logger.WARN)
+                self._log(LNG['conflict_found'].format(get_mode_say(key), ', '.join(msg)), logger.WARN)
 
     def _conflicts_finder(self) -> dict:
         conflicts = {}
@@ -258,7 +259,7 @@ class ModuleManager:
             return self._return_wrapper(f, reply)
 
         if not phrase:
-            self._log('Вы ничего не сказали?', logger.DEBUG)
+            self._log(LNG['not_say'], logger.DEBUG)
             return self._return_wrapper(None, None)
 
         return self._phrases_testing(phrase, phrase_check)
@@ -330,7 +331,7 @@ class ModuleManager:
             self._module_name = f.__name__
         except AttributeError:
             self._module_name = str(f)
-        self._log('Захвачено {}'.format(f), logger.DEBUG)
+        self._log(LNG['catch'].format(f), logger.DEBUG)
         return f(self, *args)
 
     def _call_this(self, obj, *args):

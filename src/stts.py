@@ -15,6 +15,7 @@ import lib.TTS as TTS
 import lib.sr_proxifier as sr
 import logger
 import utils
+from languages import STTS as LNG
 
 
 class TextToSpeech:
@@ -30,12 +31,7 @@ class TextToSpeech:
 
 
 class _TTSWrapper(threading.Thread):
-    PROVIDERS = {
-        'google': 'ru',
-        'yandex': 'ru-RU',
-        'rhvoice-rest': '',
-        'rhvoice': '',
-    }
+    PROVIDERS = frozenset({'google', 'yandex', 'rhvoice-rest', 'rhvoice'})
 
     def __init__(self, cfg, log, msg, realtime):
         super().__init__()
@@ -73,7 +69,7 @@ class _TTSWrapper(threading.Thread):
         if self.file_path:
             self._unlock()
             work_time = time.time() - wtime
-            action = '{}найдено в кэше'.format(msg_gen)
+            action = LNG['action_cache'].format(msg_gen)
             time_diff = ''
         else:
             if use_cache or provider in ['google', 'yandex']:
@@ -86,12 +82,12 @@ class _TTSWrapper(threading.Thread):
             self._tts_gen(self.file_path if use_cache else None, format_, self.msg)
             self._unlock()
             work_time = time.time() - wtime
-            action = '{}сгенерированно {}'.format(msg_gen, provider)
+            action = LNG['action_gen'].format(msg_gen, provider)
             reply = utils.pretty_time(self.work_time) if self.work_time is not None else 'NaN'
             diff = utils.pretty_time(work_time - self.work_time) if self.work_time is not None else 'NaN'
             time_diff = ' [reply:{}, diff:{}]'.format(reply, diff)
         self.log(
-            '{} за {}{}: {}'.format(action, utils.pretty_time(work_time), time_diff, self.file_path),
+            LNG['for_time'].format(action, utils.pretty_time(work_time), time_diff, self.file_path),
             logger.DEBUG if self.realtime else logger.INFO
         )
 
@@ -134,7 +130,7 @@ class _TTSWrapper(threading.Thread):
                     speaker=self.cfg.get(prov, {}).get('speaker'),
                     audio_format=format_,
                     key=key,
-                    lang=self.PROVIDERS[prov],
+                    lang=LNG['tts_lng_dict'].get(prov, LNG['tts_lng_def']),
                     emotion=self.cfg.get(prov, {}).get('emotion'),
                     url=self.cfg.get(prov, {}).get('server'),
                     sets=sets
@@ -144,7 +140,7 @@ class _TTSWrapper(threading.Thread):
                 self.file_path = self.cfg.path['tts_error']
                 return
         else:
-            self.log('Неизвестный провайдер: {}'.format(prov), logger.CRIT)
+            self.log(LNG['unknown_prov'].format(prov), logger.CRIT)
             self.file_path = self.cfg.path['tts_error']
             return
         self._stream = utils.FakeFP()
@@ -162,7 +158,7 @@ class _TTSWrapper(threading.Thread):
         return
 
     def _synthesis_error(self, prov, key, e):
-        self.log('Ошибка синтеза речи от {}, ключ \'{}\'. ({})'.format(prov, key, e), logger.CRIT)
+        self.log(LNG['err_synthesis'].format(prov, key, e), logger.CRIT)
 
 
 class SpeechToText:
@@ -202,8 +198,8 @@ class SpeechToText:
             finally:
                 self._lock.release()
         else:
-            self.log('Микрофоны не найдены', logger.ERROR)
-            msg = 'Микрофоны не найдены'
+            self.log(LNG['no_mics'], logger.ERROR)
+            msg = LNG['no_mics']
         return msg
 
     def _listen_and_take(self, hello, deaf, voice) -> str:
@@ -223,10 +219,10 @@ class SpeechToText:
         device_index = self._cfg.get('mic_index', -1)
         if device_index > self.max_mic_index:
             if self.max_mic_index >= 0:
-                mics = 'Доступны {}, от 0 до {}.'.format(self.max_mic_index + 1, self.max_mic_index)
+                mics = LNG['mics_to'].format(self.max_mic_index + 1, self.max_mic_index)
             else:
-                mics = 'Микрофоны не найдены.'
-            self.log('Не верный индекс микрофона {}. {}'.format(device_index, mics), logger.WARN)
+                mics = LNG['no_mics']
+            self.log(LNG['wrong_mic_index'].format(device_index, mics), logger.WARN)
             return None
         return None if device_index < 0 else device_index
 
@@ -249,7 +245,7 @@ class SpeechToText:
         else:
             audio, recognizer, record_time, energy_threshold = self._non_block_listen(hello, lvl, file_path)
 
-        self.log('Голос записан за {}'.format(utils.pretty_time(record_time)), logger.INFO)
+        self.log(LNG['record_for'].format(utils.pretty_time(record_time)), logger.INFO)
         # Выключаем монопольный режим
         self._play.clear_lvl()
 
@@ -263,7 +259,7 @@ class SpeechToText:
             if energy_threshold:
                 self._energy_threshold = energy_threshold
                 msg = ', energy_threshold={}'.format(int(energy_threshold))
-            self.log('Распознано: {}{}'.format(commands, msg), logger.INFO)
+            self.log(LNG['recognized'].format(commands, msg), logger.INFO)
         else:
             self._energy_threshold = None
         return commands
@@ -341,8 +337,8 @@ class SpeechToText:
 
     def voice_record(self, hello: str, save_to: str, convert_rate=None, convert_width=None):
         if self.max_mic_index == -2:
-            self.log('Микрофоны не найдены', logger.ERROR)
-            return 'Микрофоны не найдены'
+            self.log(LNG['no_mics'], logger.ERROR)
+            return LNG['no_mics']
         self._lock.acquire()
         try:
             return self._voice_record(hello, save_to, convert_rate, convert_width)
@@ -375,15 +371,15 @@ class SpeechToText:
     def _voice_recognition(self, audio, recognizer, quiet=False) -> str or None:
         prov = self._cfg.get('providerstt', 'google')
         key = self._cfg.key(prov, 'apikeystt')
-        self.log('Для распознования используем {}'.format(prov), logger.DEBUG)
+        self.log(LNG['recognized_from'].format(prov), logger.DEBUG)
         wtime = time.time()
         try:
             if prov == 'google':
-                command = recognizer.recognize_google(audio, language='ru-RU')
+                command = recognizer.recognize_google(audio, language=LNG['stt_lng'])
             elif prov == 'wit.ai':
                 command = recognizer.recognize_wit(audio, key=key)
             elif prov == 'microsoft':
-                command = recognizer.recognize_bing(audio, key=key)
+                command = recognizer.recognize_bing(audio, key=key, language=LNG['stt_lng'])
             elif prov == 'pocketsphinx-rest':
                 command = STT.PocketSphinxREST(
                     audio_data=audio,
@@ -392,17 +388,17 @@ class SpeechToText:
             elif prov == 'yandex':
                 command = STT.Yandex(audio_data=audio, key=key).text()
             else:
-                self.log('Ошибка распознавания - неизвестный провайдер {}'.format(prov), logger.CRIT)
+                self.log(LNG['err_unknown_prov'].format(prov), logger.CRIT)
                 return ''
         except (sr.UnknownValueError, STT.UnknownValueError):
             return None
         except (sr.RequestError, RuntimeError) as e:
             if not quiet:
-                self._play.say('Произошла ошибка распознавания')
-            self.log('Произошла ошибка  {}'.format(e), logger.ERROR)
+                self._play.say(LNG['err_stt_say'])
+            self.log(LNG['err_stt_log'].format(e), logger.ERROR)
             return ''
         else:
-            self.log('Распознано за {}'.format(utils.pretty_time(time.time() - wtime)), logger.DEBUG)
+            self.log(LNG['recognized_for'].format(utils.pretty_time(time.time() - wtime)), logger.DEBUG)
             return command or ''
 
     def phrase_from_files(self, files: list):
@@ -423,7 +419,7 @@ class SpeechToText:
             if match_count >= consensus:
                 phrase = say
                 break
-        self.log('Распознано: {}. Консенсус: {}'.format(', '.join([str(x) for x in result]), phrase), logger.DEBUG)
+        self.log(LNG['consensus'].format(', '.join([str(x) for x in result]), phrase), logger.DEBUG)
         return phrase, match_count
 
     def _recognition_worker(self, file, result, i):
@@ -460,16 +456,8 @@ class Phrases:
             log('Error phrases loading, restore default phrases: {}'.format(e), logger.ERROR)
             self._phrases = None
         if not self._phrases:
-            self._phrases = self._default()
+            self._phrases = {'hello': LNG['p_hello'], 'deaf': LNG['p_deaf'], 'ask': LNG['p_ask'], 'chance': 25}
             cfg.save_dict(self.NAME, self._phrases, True)
-
-    def _default(self):
-        return {
-            'hello': ['Привет', 'Слушаю', 'На связи', 'Привет-Привет'],
-            'deaf': ['Я ничего не услышала', 'Вы ничего не сказали', 'Ничего не слышно', 'Не поняла'],
-            'ask': ['Ничего не слышно, повторите ваш запрос'],
-            'chance': 25,
-        }
 
     @property
     def hello(self) -> str:

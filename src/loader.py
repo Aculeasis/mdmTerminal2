@@ -2,6 +2,7 @@
 
 import stts
 from config import ConfigHandler
+from languages import LOADER as LNG
 from lib import proxy
 from logger import Logger
 from modules_manager import ModuleManager
@@ -12,9 +13,6 @@ from terminal import MDTerminal
 
 
 class Loader:
-    HELLO = 'Приветствую. Голосовой терминал Мажордомо настраивается, три... два... один...'
-    BYE = 'Голосовой терминал мажордомо завершает свою работу.'
-
     def __init__(self, init_cfg: dict, path: dict, die_in):
         self._die_in = die_in
         self.reload = False
@@ -51,7 +49,7 @@ class Loader:
         if self._cfg['mpd'].get('control', 0):
             self._mpd.start()
         self._play.start(self._mpd)
-        self._play.say_info(self.HELLO, 0, wait=0.5)
+        self._play.say_info(LNG['hello'], 0, wait=0.5)
         self._stt.start()
         self._cfg.add_play(self._play)
         self._mm.start()
@@ -65,7 +63,7 @@ class Loader:
 
         self._play.quiet()
         self._play.kill_popen()
-        self._play.say_info(self.BYE)
+        self._play.say_info(LNG['bye'])
 
         self._stt.stop()
         self._play.stop()

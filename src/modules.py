@@ -7,6 +7,8 @@ import wikipedia
 
 import logger
 import utils
+from languages import MODULES as LNG
+from languages import YANDEX_SPEAKER, YANDEX_EMOTION, RHVOICE_SPEAKER
 from modules_manager import EQ
 from modules_manager import ModuleWrapper, get_mode_say, get_enable_say
 from modules_manager import NM, DM, ANY
@@ -16,89 +18,88 @@ wikipedia.set_lang('ru')
 mod = ModuleWrapper()
 
 
-@mod.name(ANY, 'Блокировка', 'Включение/выключение блокировки терминала')
-@mod.phrase(['Блокировка', EQ])
+@mod.name(ANY, LNG['lock_name'], LNG['lock_dsc'])
+@mod.phrase([LNG['lock_phrase_lock'], EQ])
 def lock(self, phrase, *_):
     if self.get_one_way is lock:
-        if phrase == 'блокировка':
-            return Set(one_way=None), Say('Блокировка снята')
+        if phrase == LNG['lock_phrase_lock']:
+            return Set(one_way=None), Say(LNG['lock_say_unlock'])
         else:
-            return Say('Блокировка')
+            return Say(LNG['lock_phrase_lock'])
     else:
-        return Set(one_way=lock), Say('Блокировка включена')
+        return Set(one_way=lock), Say(LNG['lock_say_lock'])
 
 
-@mod.name(ANY, 'Отладка', 'Режим настройки и отладки')
-@mod.phrase(['Режим разработчика', EQ], NM)
-@mod.phrase(['Выход', EQ], DM)
+@mod.name(ANY, LNG['debug_name'], LNG['debug_dsc'])
+@mod.phrase([LNG['debug_phrase_enter'], EQ], NM)
+@mod.phrase([LNG['debug_phrase_exit'], EQ], DM)
 @mod.hardcoded()
 def debug(_, phrase, *__):
-    if phrase == 'выход':
-        return Set(debug=False), Say('Внимание! Выход из режима разработчика')
-    elif phrase == 'режим разработчика':
-        return Set(debug=True),\
-               Say('Внимание! Включён режим разработчика. Для возврата в обычный режим скажите \'выход\'')
+    if phrase == LNG['debug_phrase_exit']:
+        return Set(debug=False), Say(LNG['debug_say_exit'])
+    elif phrase == LNG['debug_phrase_enter']:
+        return Set(debug=True), Say(LNG['debug_say_enter'])
     return Next
 
 
-@mod.name(DM, 'Менеджер', 'Управление модулями')
-@mod.phrase(['Активировать везде', 'Активировать', 'Деактивировать', 'удалить', 'восстановить'], DM)
+@mod.name(DM, LNG['mm_name'], LNG['mm_desc'])
+@mod.phrase([LNG['mm_act_all'], LNG['mm_act'], LNG['mm_uact'], LNG['mm_del'], LNG['mm_rec']], DM)
 @mod.hardcoded()
 def manager(self, phrase, mod_name):
     mod_name = mod_name.lower()
     if mod_name not in self.by_name:
-        self.log('Модуль {} не найден'.format(mod_name), logger.INFO)
+        self.log(LNG['mm_no_mod'].format(mod_name), logger.INFO)
         return Next
     mod_ = self.by_name[mod_name]
     if self.all[mod_]['hardcoded']:
-        return Say('Модуль {} системный, его нельзя настраивать'.format(mod_name))
+        return Say(LNG['mm_sys_mod'].format(mod_name))
 
-    modes = {'активировать': NM, 'деактивировать': DM, 'активировать везде': ANY}
-    enables = {'удалить': False, 'восстановить': True}
+    modes = {LNG['mm_act']: NM, LNG['mm_uact']: DM, LNG['mm_act_all']: ANY}
+    enables = {LNG['mm_del']: False, LNG['mm_rec']: True}
     if phrase in modes:
         if not self.all[mod_]['enable']:
-            return Say('Модуль {} удален. Вначале его нужно восстановить'.format(mod_name))
+            return Say(LNG['mm_must_rec'].format(mod_name))
         new_mode = modes[phrase]
         if self.all[mod_]['mode'] == new_mode:
-            return Say('Модуль {} уже в режиме {}'.format(mod_name, get_mode_say(new_mode)))
-        say = 'Теперь модуль {} доступен в режиме {}'.format(mod_name, get_mode_say(new_mode))
+            return Say(LNG['mm_already'].format(mod_name, get_mode_say(new_mode)))
+        say = LNG['mm_now'].format(mod_name, get_mode_say(new_mode))
         return Say(say), Set(mod_mode=[mod_, new_mode])
     elif phrase in enables:
         enable = enables[phrase]
         if self.all[mod_]['enable'] == enable:
-            return Say('Модуль {} и так {}'.format(mod_name, get_enable_say(enable)))
-        say = 'Модуль {} {}'.format(mod_name, get_enable_say(enable))
+            return Say(LNG['mm_already2'].format(mod_name, get_enable_say(enable)))
+        say = LNG['mm_mod'].format(mod_name, get_enable_say(enable))
         return Say(say), Set(mod_enable=[mod_, enable])
     else:
-        self.log('Это невозможно, откуда тут {}'.format(phrase), logger.CRIT)
+        self.log(LNG['err_mm'].format(phrase), logger.CRIT)
         return Next
 
 
-@mod.name(DM, 'Скажи', 'Произнесение фразы')
-@mod.phrase('Скажи')
+@mod.name(DM, LNG['say_name'], LNG['say_desc'])
+@mod.phrase(LNG['say_name'])
 def this_say(_, __, phrase):
     return Say(phrase) if phrase else None
 
 
-@mod.name(ANY, 'Ничего', 'Ничего')
-@mod.phrase(['Ничего', EQ])
+@mod.name(ANY, LNG['nothing_all'], LNG['nothing_all'])
+@mod.phrase([LNG['nothing_all'], EQ])
 def this_nothing(*_):
     pass
 
 
-@mod.name(DM, 'считалка', 'Считалка до числа. Или от числа до числа. Считалка произносит не больше 20 чисел за раз')
-@mod.phrase(['сосчитай', 'считай', 'посчитай'])
+@mod.name(DM, LNG['count_name'], LNG['count_desc'])
+@mod.phrase(LNG['count_phrase_list'])
 def counter(_, __, cmd):
     max_count = 20
     data = cmd.lower().split()
 
-    if len(data) == 2 and data[0] == 'до' and utils.is_int(data[1]) and int(data[1]) > 1:
+    if len(data) == 2 and data[0] == LNG['count_to'] and utils.is_int(data[1]) and int(data[1]) > 1:
         all_num = int(data[1])
         from_ = 1
         to_ = int(data[1])
         inc_ = 1
     elif len(data) == 4 and utils.is_int(data[1]) and utils.is_int(data[3]) \
-            and data[0] == 'от' and data[2] == 'до' and abs(int(data[3]) - int(data[1])) > 0:
+            and data[0] == LNG['count_from'] and data[2] == LNG['count_to'] and abs(int(data[3]) - int(data[1])) > 0:
         all_num = abs(int(data[3]) - int(data[1]))
         from_ = int(data[1])
         to_ = int(data[3])
@@ -107,7 +108,7 @@ def counter(_, __, cmd):
         return Next
 
     if all_num > 500:
-        return Say('Это слишком много для меня - считать {} чисел.'.format(all_num))
+        return Say(LNG['count_to_long'].format(all_num))
 
     numbers = []
     count = 0
@@ -125,36 +126,36 @@ def counter(_, __, cmd):
 
     if len(numbers):
         say.append(', '.join(numbers))
-    say.append('Я всё сосчитала')
+    say.append(LNG['count_complete'])
     return SayLow(phrases=say)
 
 
-@mod.name(DM, 'Кто я', 'Получение информации о настройках голосового генератора (только для Яндекса и RHVoice)')
-@mod.phrase([['кто ты', EQ], ['какая ты', EQ]])
+@mod.name(DM, LNG['who_name'], LNG['who_desc'])
+@mod.phrase([[LNG['who_ph_1'], EQ], [LNG['who_ph_2'], EQ]])
 def who_am_i(self, *_):
     def get_yandex_emo():
-        return utils.YANDEX_EMOTION.get(self.cfg['yandex'].get('emotion', 'unset'), 'ошибка')
+        return YANDEX_EMOTION.get(self.cfg['yandex'].get('emotion', 'unset'), LNG['error'])
 
     speakers = __tts_selector(self)
     if speakers is None:
-        return Say('Не поддерживается для {}'.format(self.cfg['providertts']))
+        return Say(LNG['who_now_no_support'].format(self.cfg['providertts']))
 
     speaker = self.cfg[self.cfg['providertts']].get('speaker', 'unset')
-    emotion = ' Я очень {}.'.format(get_yandex_emo()) if self.cfg['providertts'] == 'yandex' else ''
-    return Say('Меня зовут {}.{}'.format(speakers.get(speaker, 'Ошибка'), emotion))
+    emotion = LNG['who_my_emo'].format(get_yandex_emo()) if self.cfg['providertts'] == 'yandex' else ''
+    return Say(LNG['who_my_name'].format(speakers.get(speaker, LNG['error']), emotion))
 
 
-@mod.name(DM, 'Теперь я', 'Изменение характера или голоса голосового генератора (только для Яндекса и RHVoice)')
-@mod.phrase(['теперь ты', 'стань'])
+@mod.name(DM, LNG['now_name'], LNG['now_desc'])
+@mod.phrase(LNG['now_phrases_list'])
 def now_i(self, _, cmd):
     speakers = __tts_selector(self)
     prov = self.cfg['providertts']
     if speakers is None:
-        return Say('Не поддерживается для {}'.format(prov))
+        return Say(LNG['who_now_no_support'].format(prov))
 
     if cmd:
         if prov == 'yandex':
-            for key, val in utils.YANDEX_EMOTION.items():
+            for key, val in YANDEX_EMOTION.items():
                 if cmd == val:
                     return __now_i_set_emo(self, key)
         cmd = cmd[0].upper() + cmd[1:]
@@ -166,9 +167,9 @@ def now_i(self, _, cmd):
 
 def __tts_selector(self):
     if self.cfg['providertts'] == 'rhvoice-rest':
-        speakers = utils.RHVOICE_SPEAKER
+        speakers = RHVOICE_SPEAKER
     elif self.cfg['providertts'] == 'yandex':
-        speakers = utils.YANDEX_SPEAKER
+        speakers = YANDEX_SPEAKER
     else:
         return None
 
@@ -179,121 +180,119 @@ def __tts_selector(self):
 
 def __now_i_set_speaker(self, key, prov: dict, speakers: dict, yandex=False):
     if key == prov.get('speaker', 'unset'):
-        return Say('Я уже {}.'.format(speakers[key]))
+        return Say(LNG['now_already'].format(speakers[key]))
 
     prov['speaker'] = key
     self.cfg.config_save()
-    return Say('Теперь меня зовут {}, а еще я {}.'.format(
+    return Say(LNG['now_i_now'].format(
         speakers[key],
-        utils.YANDEX_EMOTION.get(self.cfg['yandex'].get('emotion', 'unset'), 'Ошибка')
-        if yandex else 'без характера'
+        YANDEX_EMOTION.get(self.cfg['yandex'].get('emotion', 'unset'), LNG['error'])
+        if yandex else LNG['now_no_character']
     ))
 
 
 def __now_i_set_emo(self, key):
     if key == self.cfg.get('emotion', 'unset'):
-        return Say('Я и так {}.'.format(utils.YANDEX_EMOTION[key]))
+        return Say(LNG['now_already'].format(YANDEX_EMOTION[key]))
 
     self.cfg['yandex']['emotion'] = key
     self.cfg.config_save()
-    return Say('Теперь я очень {} {}.'.format(
-        utils.YANDEX_EMOTION[key],
-        utils.YANDEX_SPEAKER.get(self.cfg['yandex'].get('speaker', 'unset'), 'Ошибка')
+    return Say(LNG['now_i_very'].format(
+        YANDEX_EMOTION[key],
+        YANDEX_SPEAKER.get(self.cfg['yandex'].get('speaker', 'unset'), LNG['error'])
     ))
 
 
-@mod.name(DM, 'Вики', 'Поиск в Википедии')
-@mod.phrase(['расскажи', 'что ты знаешь', 'кто такой', 'что такое', 'зачем нужен', 'для чего'])
+@mod.name(DM, LNG['wiki_name'], LNG['wiki_desc'])
+@mod.phrase(LNG['wiki_phrases_list'])
 def wiki(self, _, phrase):
     if not self.code:  # активация фразой
-        del_ = ['о ', 'про ', 'в ']
-        for k in del_:
+        for k in LNG['wiki_rm_pretext_list']:
             if phrase.startswith(k):
                 phrase = phrase[len(k):]
                 break
         phrase.strip()
     if not phrase:
         return Next
-    self.log('Ищу в вики о \'{}\''.format(phrase), logger.INFO)
+    self.log(LNG['wiki_find_of'].format(phrase), logger.INFO)
 
     try:
         return Say(wikipedia.summary(phrase, sentences=2, chars=1000))
     except wikipedia.exceptions.DisambiguationError as e:
-        return Ask('Уточните свой вопрос: {}'.format('. '.join(e.options)))
+        return Ask(LNG['wiki_ask'].format('. '.join(e.options)))
     except wikipedia.exceptions.PageError:
-        return Say('Я ничего не знаю о {}.'.format(phrase))
+        return Say(LNG['wiki_not_know'].format(phrase))
 
 
-@mod.name(DM, 'Помощь', 'Справку по модулям (вот эту)')
-@mod.phrase(['помощь', 'справка', 'help', 'хелп'])
+@mod.name(DM, LNG['help_name'], LNG['help_desc'])
+@mod.phrase(LNG['help_phrases_list'])
 def help_(self, _, phrase):
     def words():
-        return ', '.join(data[0] or 'любую фразу' for data in self.words_by_f(f))
+        return ', '.join(data[0] for data in self.words_by_f(f)) or LNG['help_any_phrase']
     if phrase:
         if phrase in self.by_name:
             f = self.by_name[phrase]
-            is_del = '' if self.all[f]['enable'] else '. Модуль удален'
-            say = 'Модуль {} доступен в режиме {}. Для активации скажите {}. Модуль предоставляет {} {}'.format(
+            is_del = '' if self.all[f]['enable'] else LNG['help_mod_deleted']
+            say = LNG['help_mod_full'].format(
                 phrase, get_mode_say(self.all[f]['mode']), words(), self.all[f]['desc'], is_del
             )
             return Say(say)
         else:
             return Next
-    say = ['Всего доступно {} модулей. Вот они:']
+    say = [LNG['help_mod_header']]
 
     deleted = []
     for f in self.all:
         if self.all[f]['enable']:
-            say.append('Скажите {}. Это активирует {}. Модуль предоставляет {}'.format(
-                words(), self.all[f]['name'], self.all[f]['desc']))
+            say.append(LNG['help_mod_line'].format(words(), self.all[f]['name'], self.all[f]['desc']))
         else:
             deleted.append(self.all[f]['name'])
     say[0] = say[0].format(len(self.all) - len(deleted))
     if len(deleted):
-        say.append('Всего {} модулей удалены, это: {}'.format(len(deleted), ', '.join(deleted)))
-    say.append('Работа модуля помощь завершена.')
+        say.append(LNG['help_mod_del_header'].format(len(deleted), ', '.join(deleted)))
+    say.append(LNG['help_bye'])
     return SayLow(say)
 
 
-@mod.name(DM, 'Выход', 'Завершение работы голосового терминала')
-@mod.phrase([['Завершение работы', EQ], ['умри', EQ], ['сдохни', EQ]])
+@mod.name(DM, LNG['term_name'], LNG['term_desc'])
+@mod.phrase([[LNG['term_phs_list_3'][0], EQ], [LNG['term_phs_list_3'][1], EQ], [LNG['term_phs_list_3'][2], EQ]])
 def terminate_(*_):
-    return Say('Come Along With Me.'), Set(die=5)
+    return Say(LNG['term_bye']), Set(die=5)
 
 
-@mod.name(DM, 'Перезагрузка', 'Перезапуск голосового терминала')
-@mod.phrase([['Перезагрузка', EQ], ['Ребут', EQ], ['Рестарт', EQ], ['reboot', EQ]])
+@mod.name(DM, LNG['rbt_name'], LNG['rbt_dsc'])
+@mod.phrase([[LNG['rbt_ph_4'][0], EQ], [LNG['rbt_ph_4'][1], EQ], [LNG['rbt_ph_4'][2], EQ], [LNG['rbt_ph_4'][3], EQ]])
 def reboot_(*_):
-    return Say('Терминал перезагрузится через 5... 4... 3... 2... 1...'), Set(die=[5, True])
+    return Say(LNG['rbt_bye']), Set(die=[5, True])
 
 
-@mod.name(NM, 'Мажордом', 'Отправку команд на сервер Мажордомо')
+@mod.name(NM, LNG['mjd_name'], LNG['mjd_desc'])
 @mod.phrase('')  # Захватит любые фразы
 def majordomo(self, _, phrase):
     if not phrase:
-        self.log('Вы ничего не сказали?', logger.DEBUG)
+        self.log(LNG['mjd_no_say'], logger.DEBUG)
         return
 
     if not self.cfg['ip_server']:
-        self.log('IP сервера majordomo не задан.', logger.CRIT)
-        return Say('IP сервера MajorDoMo не задан, исправте это! Мой IP адрес: {}'.format(self.cfg.get('ip', 'ошибка')))
+        self.log(LNG['mjd_no_ip_log'], logger.CRIT)
+        return Say(LNG['mjd_no_ip_say'].format(self.cfg.get('ip', LNG['error'])))
 
     # FIX: 'Скажи ' -> 'скажи '
-    if phrase.startswith('Скажи ', 0, 6):
-        phrase = 'с' + phrase[1:]
+    if phrase.startswith(LNG['mjd_rep_say'], 0, LNG['mjd_rep_say_len']):
+        phrase = LNG['mjd_rep_say_s'] + phrase[1:]
 
     url = 'http://{}/command.php?qry={}'.format(self.cfg['ip_server'], urllib.parse.quote_plus(phrase))
     try:
         f = urllib.request.urlopen(url)
     except urllib.request.URLError as err:
-        self.log('Ошибка коммуникации с сервером {}: {}'.format(err.errno, err.strerror), logger.ERROR)
-        return Say('Ошибка коммуникации с сервером majordomo: {}'.format(err.strerror))
+        self.log(LNG['err_mjd_log'].format(err.errno, err.strerror), logger.ERROR)
+        return Say(LNG['err_mjd_say'].format(err.strerror))
     else:
         f.close()
-        self.log('Запрос был успешен: {}'.format(url), logger.DEBUG)
+        self.log(LNG['mjd_ok'].format(url), logger.DEBUG)
 
 
-@mod.name(ANY, 'Терминатор', 'Информацию что соответствие фразе не найдено')
+@mod.name(ANY, LNG['terminator_name'], LNG['terminator_desc'])
 @mod.phrase('')
 def terminator(_, __, phrase):
-    return Say('Соответствие фразе не найдено: {}'.format(phrase))
+    return Say(LNG['terminator_say'].format(phrase))
