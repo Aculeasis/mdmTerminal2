@@ -225,6 +225,7 @@ STTS = {
     'record_for': 'Голос записан за {}',
     'recognized': 'Распознано: {}{}',
     'recognized_from': 'Для распознавания используем {}',
+    'err_voice_record': 'Во время записи произошел сбой, это нужно исправить',
     # language для google и bing
     'stt_lng': 'ru-RU',
 

@@ -350,16 +350,19 @@ class SpeechToText:
         lvl = 5  # Включаем монопольный режим
 
         file_path = self._tts(hello)()
-        r = sr.Recognizer()
-        self._play.say(file_path, lvl, True, is_file=True)
-        self._play.play(self._cfg.path['ding'], lvl, blocking=3)
+        self._play.say(file_path, lvl, True, is_file=True, blocking=120)
+        with sr.Microphone(device_index=self.get_mic_index()) as source:
+            r = sr.Recognizer()
+            r.adjust_for_ambient_noise(source)
+            self._play.play(self._cfg.path['ding'], lvl, blocking=3)
 
-        # Пишем
-        with sr.Microphone(device_index=self.get_mic_index()) as mic:
+            record_time = time.time()
             try:
-                adata = r.listen(source=mic, timeout=5, phrase_time_limit=5)
+                adata = r.listen(source=source, timeout=5, phrase_time_limit=10)
             except sr.WaitTimeoutError as e:
                 return str(e)
+            if time.time() - record_time < 0.5:
+                return LNG['err_voice_record']
         try:
             with open(save_to, "wb") as f:
                 f.write(adata.get_wav_data(convert_rate, convert_width))

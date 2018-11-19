@@ -138,7 +138,7 @@ class Player:
             return
         self.say(msg, lvl, alarm, wait, is_file)
 
-    def say(self, msg: str, lvl: int=2, alarm=None, wait=0, is_file: bool = False):
+    def say(self, msg: str, lvl: int=2, alarm=None, wait=0, is_file: bool = False, blocking: int=0):
         if not lvl:
             self.log('low say \'{}\' pause {}'.format(msg, wait), logger.DEBUG)
             return self._lp_play.say(msg, wait, is_file)
@@ -159,6 +159,8 @@ class Player:
             self._play(self._cfg.path['dong'])
             self._wait_popen()
         self._play(file)
+        if blocking:
+            self._wait_popen(blocking)
         self._only_one.release()
 
         self._last_activity = time.time() + wait
