@@ -48,4 +48,9 @@ chmod +x ${install_path}/src/main.py
 chmod +x ${install_path}/scripts/snowboy_build.sh
 chmod +x ${install_path}/scripts/systemd_install.sh
 
+if [ ! -f ${install_path}/src/lib/_snowboydetect.so ]; then
+    echo ""
+    ${install_path}/scripts/snowboy_build.sh
+fi
+
 echo "Установка завершена"
