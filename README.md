@@ -68,6 +68,8 @@
 ### [Описание всех настроек](https://github.com/Aculeasis/mdmTerminal2/wiki/settings.ini)
 **Важно!** Значительная часть настроек не доступна через MDM VoiceAssistant, их можно изменить отредактировав `mdmTerminal2/src/settings.ini`.
 
+[Настройка системных фраз](https://github.com/Aculeasis/mdmTerminal2/wiki/phrases.json)
+
 ## Подключение к MajorDoMo
 **Создание терминала**:
 - После заходим - в Настройки > Терминалы > Добавить новую запись > Добавляем название и IP адрес терминала.
