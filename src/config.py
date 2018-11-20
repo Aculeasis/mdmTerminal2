@@ -340,8 +340,13 @@ class ConfigUpdater:
                 key = self.KEY_MOVE[key][1]
                 if sec not in cfg_diff:
                     cfg_diff[sec] = {}
+
+                old_count = self._change_count
                 self._parse_param_element(cfg.get(sec, {}), cfg_diff[sec], key, val)
-                self._save_me = True
+                self._save_me = self._save_me or self._change_count > old_count
+
+                if not cfg_diff[sec]:
+                    del cfg_diff[sec]
             else:
                 self._parse_param_element(cfg, cfg_diff, key, val)
 
