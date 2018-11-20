@@ -328,9 +328,11 @@ class ConfigUpdater:
 
     def _dict_normalization(self, data: dict) -> dict:
         settings = {key: data.pop(key) for key in [x for x in data.keys()] if not isinstance(data[key], dict)}
-        if self.SETTINGS not in data:
-            data[self.SETTINGS] = {}
-        data[self.SETTINGS].update(settings)
+        if settings:
+            if self.SETTINGS not in data:
+                data[self.SETTINGS] = settings
+            else:
+                data[self.SETTINGS].update(settings)
         return data
 
     def _parser(self, data: dict, external=False):
