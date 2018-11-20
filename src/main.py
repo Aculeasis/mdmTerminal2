@@ -11,10 +11,8 @@ from utils import SignalHandler
 
 HOME = os.path.abspath(sys.path[0])
 CFG = {  # Дефолтные настройки https://github.com/Aculeasis/mdmTerminal2/wiki/settings.ini
-    'linkedroom'      : '',
     'providertts'     : 'google',
     'providerstt'     : 'google',
-    'ip_server'       : '',
     'ip'              : '',
     'sensitivity'     : 0.4,
     'alarmkwactivated': 1,
@@ -32,6 +30,13 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
     'phrase_time_limit': 15,
     'lang': 'ru',
     'lang_check': 0,
+    'majordomo': {
+        'linkedroom': '',
+        'ip': '',
+        'terminal': '',
+        'username': '',
+        'password': '',
+    },
     'mpd': {
         'control': 1,
         'ip': '127.0.0.1',

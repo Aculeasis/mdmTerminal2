@@ -273,7 +273,7 @@ def majordomo(self, _, phrase):
         self.log(LNG['mjd_no_say'], logger.DEBUG)
         return
 
-    if not self.cfg['ip_server']:
+    if not self.mjd.ip_set:
         self.log(LNG['mjd_no_ip_log'], logger.CRIT)
         return Say(LNG['mjd_no_ip_say'].format(self.cfg.get('ip', LNG['error'])))
 
@@ -281,15 +281,11 @@ def majordomo(self, _, phrase):
     if phrase.startswith(LNG['mjd_rep_say'], 0, LNG['mjd_rep_say_len']):
         phrase = LNG['mjd_rep_say_s'] + phrase[1:]
 
-    url = 'http://{}/command.php?qry={}'.format(self.cfg['ip_server'], urllib.parse.quote_plus(phrase))
     try:
-        f = urllib.request.urlopen(url)
-    except urllib.request.URLError as err:
-        self.log(LNG['err_mjd_log'].format(err.errno, err.strerror), logger.ERROR)
-        return Say(LNG['err_mjd_say'].format(err.strerror))
-    else:
-        f.close()
-        self.log(LNG['mjd_ok'].format(url), logger.DEBUG)
+        self.log(LNG['mjd_ok'].format(self.mjd.send(phrase)), logger.DEBUG)
+    except RuntimeError as e:
+        self.log(LNG['err_mjd'].format(e), logger.ERROR)
+        return Say(LNG['err_mjd'].format(''))
 
 
 @mod.name(ANY, LNG['terminator_name'], LNG['terminator_desc'])

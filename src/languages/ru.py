@@ -163,8 +163,7 @@ MODULES = {
     'mjd_rep_say_len': 6,
     'mjd_rep_say_s': 'с',
 
-    'err_mjd_log': 'Ошибка коммуникации с сервером {}: {}',
-    'err_mjd_say': 'Ошибка коммуникации с сервером majordomo: {}',
+    'err_mjd': 'Ошибка коммуникации с сервером majordomo: {}',
     'mjd_ok': 'Запрос был успешен: {}',
     # terminator
     'terminator_name': 'Терминатор',

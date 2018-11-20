@@ -72,10 +72,10 @@ class ConfigHandler(dict):
         self.tts_cache_check()
 
     def allow_connect(self, ip: str) -> bool:
-        if not self['ip_server'] and self['first_love']:
-            self['ip_server'] = ip
+        if not self['majordomo'].get('ip') and self['first_love']:
+            self['majordomo']['ip'] = ip
             self.config_save()
-        if self['last_love'] and ip != self['ip_server']:
+        if self['last_love'] and ip != self['majordomo'].get('ip'):
             return False
         return True
 
@@ -274,7 +274,7 @@ class ConfigHandler(dict):
         if 'ip' not in self or not self['ip']:
             self['ip'] = utils.get_ip_address()
             to_save = True
-        if 'ip_server' not in self or not self['ip_server']:
+        if not self['majordomo'].get('ip'):
             self._print(LNG['say_ip'].format(self['ip']), logger.WARN, 3)
         return to_save
 
@@ -283,6 +283,12 @@ class ConfigUpdater:
     SETTINGS = 'settings'
     PROVIDERS_KEYS = ('providertts', 'providerstt')
     API_KEYS = ('apikeytts', 'apikeystt')
+    # Автоматически переносим ключи в подсекции из settings.
+    # Ключ: (новая секция, новое имя ключа)
+    KEY_MOVE = {
+        'ip_server': ('majordomo', 'ip'),
+        'linkedroom': ('majordomo', 'linkedroom'),
+    }
 
     def __init__(self, cfg, log):
         self._cfg = cfg
@@ -328,7 +334,16 @@ class ConfigUpdater:
         elif not (first and key in self.API_KEYS):
             if external and isinstance(val, str):
                 val = val.lower()
-            self._parse_param_element(cfg, cfg_diff, key, val)
+            if first and key in self.KEY_MOVE:
+                # перемещаем ключ
+                sec = self.KEY_MOVE[key][0]
+                key = self.KEY_MOVE[key][1]
+                if sec not in cfg_diff:
+                    cfg_diff[sec] = {}
+                self._parse_param_element(cfg.get(sec, {}), cfg_diff[sec], key, val)
+                self._save_me = True
+            else:
+                self._parse_param_element(cfg, cfg_diff, key, val)
 
     def _parse_section_element(self, cfg: dict, cfg_diff: dict, key, val, external):
         if external and key not in cfg:  # Не принимаем новые секции от сервера

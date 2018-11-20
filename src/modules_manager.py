@@ -4,6 +4,7 @@ from collections import OrderedDict
 
 import logger
 from languages import MODULES_MANAGER as LNG
+from lib.majordomo_requests import MajordomoRequests
 
 EQ = 1  # phrase equivalent
 SW = 2  # phrase startswith - by default
@@ -61,6 +62,8 @@ class ModuleManager:
     def __init__(self, log, cfg, die_in, say):
         (self._log, self._m_log) = log
         self.cfg = cfg
+        # Для отправки запросов к мжд
+        self.mjd = MajordomoRequests(self.cfg['majordomo'])
         self._set_die_in = die_in
         self._say = say
         # Режим разработчика
