@@ -341,8 +341,7 @@ class ConfigUpdater:
                 self._print_result('Section must be dict. {}: {}'.format(key, val), logger.CRIT)
                 continue
             if key == self.SETTINGS:
-                self._api_key_cast(val)
-                self._key_move(val)
+                self._settings_adapter(val)
             self._recursive_parser(self._cfg, self._new_cfg, key, val, external)
 
     def _recursive_parser(self, cfg: dict, cfg_diff: dict, key, val, external=False):
@@ -379,45 +378,44 @@ class ConfigUpdater:
                 self._change_count += 1
                 cfg_diff[key] = tmp
 
-    def _api_key_cast(self, data: dict):
-        for key in [x for x in data.keys()]:
-            if not isinstance(key, str) or key not in data:
-                continue
-            val = data[key]
-            key = key.lower()
-            if key in self.PROVIDERS_KEYS and isinstance(val, str):
-                val = val.lower()
-                api_key = 'apikey{}'.format(key[-3:])  # apikeytts or apikeystt
-                if api_key in data and self._cfg.get(val, {}).get(api_key) != data[api_key]:
+    def _settings_adapter(self, data: dict):
+        for key in [x for x in data.keys() if isinstance(x, str)]:
+            for mover in (self._api_key_move, self._key_move):
+                if key not in data:  # элемент мог быть удален мовером
+                    break
+                mover(data, key, data[key])
+
+    def _api_key_move(self, data: dict, key: str, val):
+        key = key.lower()
+        if isinstance(val, str) and key in self.PROVIDERS_KEYS:
+            val = val.lower()
+            api_key = 'apikey{}'.format(key[-3:])  # apikeytts or apikeystt
+            if api_key in data:
+                if self._cfg.get(val, {}).get(api_key) != data[api_key]:
                     self._new_cfg[val] = self._new_cfg.get(val, {})
                     self._new_cfg[val][api_key] = data[api_key]
                     self._change_count += 1
                     self._save_me = True
-                    # Удаляем ключи из settings
-                    data.pop(api_key)
+                # Удаляем api-ключ из settings
+                data.pop(api_key)
 
-    def _key_move(self, data: dict):
-        for key in [x for x in data.keys()]:
-            if not isinstance(key, str):
-                continue
-            val = data[key]
-            key = key.lower()
-            if key in self.KEY_MOVE:
-                # перемещаем ключ
-                sec = self.KEY_MOVE[key][0]
-                key_move = self.KEY_MOVE[key][1]
-                if sec not in self._new_cfg:
-                    self._new_cfg[sec] = {}
+    def _key_move(self, data: dict, key: str, val):
+        key_lower = key.lower()
+        if key_lower in self.KEY_MOVE:
+            # перемещаем ключ
+            sec = self.KEY_MOVE[key_lower][0]
+            key_move = self.KEY_MOVE[key_lower][1]
+            if sec not in self._new_cfg:
+                self._new_cfg[sec] = {}
 
-                old_count = self._change_count
-                self._parse_param_element(self._cfg.get(sec, {}), self._new_cfg[sec], key_move, val, True)
-                self._save_me = self._save_me or self._change_count > old_count
+            old_count = self._change_count
+            self._parse_param_element(self._cfg.get(sec, {}), self._new_cfg[sec], key_move, val, False)
+            self._save_me = self._save_me or self._change_count > old_count
 
-                if not self._new_cfg[sec]:
-                    del self._new_cfg[sec]
-
-                # Удаляем перемещенный ключ из settings
-                data.pop(key)
+            if not self._new_cfg[sec]:
+                del self._new_cfg[sec]
+            # Удаляем перемещенный ключ из settings
+            data.pop(key)
 
     def _print_result(self, from_, lvl=logger.DEBUG):
         self._log('{}: \'{}\', count: {}'.format(from_, self._new_cfg, self._change_count), lvl)
