@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
 
-import urllib.parse
-import urllib.request
-
 import wikipedia
 
 import logger
@@ -136,20 +133,20 @@ def who_am_i(self, *_):
     def get_yandex_emo():
         return YANDEX_EMOTION.get(self.cfg['yandex'].get('emotion', 'unset'), LNG['error'])
 
-    speakers = __tts_selector(self)
+    speakers = __tts_selector(self.cfg)
     if speakers is None:
-        return Say(LNG['who_now_no_support'].format(self.cfg['providertts']))
+        return Say(LNG['who_now_no_support'].format(self.cfg.gts('providertts')))
 
-    speaker = self.cfg[self.cfg['providertts']].get('speaker', 'unset')
-    emotion = LNG['who_my_emo'].format(get_yandex_emo()) if self.cfg['providertts'] == 'yandex' else ''
+    speaker = self.cfg[self.cfg.gts('providertts')].get('speaker', 'unset')
+    emotion = LNG['who_my_emo'].format(get_yandex_emo()) if self.cfg.gts('providertts') == 'yandex' else ''
     return Say(LNG['who_my_name'].format(speakers.get(speaker, LNG['error']), emotion))
 
 
 @mod.name(DM, LNG['now_name'], LNG['now_desc'])
 @mod.phrase(LNG['now_phrases_list'])
 def now_i(self, _, cmd):
-    speakers = __tts_selector(self)
-    prov = self.cfg['providertts']
+    speakers = __tts_selector(self.cfg)
+    prov = self.cfg.gts('providertts')
     if speakers is None:
         return Say(LNG['who_now_no_support'].format(prov))
 
@@ -165,16 +162,16 @@ def now_i(self, _, cmd):
     return Next
 
 
-def __tts_selector(self):
-    if self.cfg['providertts'] == 'rhvoice-rest':
+def __tts_selector(cfg):
+    if cfg.gts('providertts') == 'rhvoice-rest':
         speakers = RHVOICE_SPEAKER
-    elif self.cfg['providertts'] == 'yandex':
+    elif cfg.gts('providertts') == 'yandex':
         speakers = YANDEX_SPEAKER
     else:
         return None
 
-    if self.cfg['providertts'] not in self.cfg:
-        self.cfg[self.cfg['providertts']] = {}
+    if cfg.gts('providertts') not in cfg:
+        cfg[cfg.gts('providertts')] = {}
     return speakers
 
 

@@ -42,7 +42,7 @@ class MDTerminal(threading.Thread):
     def _reload(self):
         if len(self._cfg.path['models_list']) and self._stt.max_mic_index != -2:
             self._snowboy = snowboydecoder.HotwordDetector(
-                decoder_model=self._cfg.path['models_list'], sensitivity=[self._cfg['sensitivity']]
+                decoder_model=self._cfg.path['models_list'], sensitivity=[self._cfg.gts('sensitivity')]
             )
             self._callbacks = [self._detected for _ in self._cfg.path['models_list']]
         else:
@@ -201,7 +201,7 @@ class MDTerminal(threading.Thread):
                 model_name = str(model)
                 msg = ''
             self.log(LNG['activate_by'].format(model_name, msg), logger.INFO)
-        no_hello = self._cfg.get('no_hello', 0)
+        no_hello = self._cfg.gts('no_hello', 0)
         hello = ''
         if phrase and self._stt.sys_say.chance and not no_hello:
             hello = LNG['model_listened'].format(phrase)

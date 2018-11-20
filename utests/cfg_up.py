@@ -49,7 +49,7 @@ class ConfigUpdater(unittest.TestCase):
 
     def test_5_4_dict(self):
         updater = new_updater()
-        self.assertEqual(updater.from_dict(self.ADD_5), 4)
+        self.assertEqual(updater.from_dict({'settings': self.ADD_5}), 4)
         self.assertFalse(updater.save_me)
 
     def test_prov(self):

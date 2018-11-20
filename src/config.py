@@ -15,7 +15,7 @@ from languages import CONFIG as LNG, YANDEX_EMOTION, YANDEX_SPEAKER
 
 
 class ConfigHandler(dict):
-    SETTINGS = 'Settings'
+    SETTINGS = 'settings'
 
     def __init__(self, cfg: dict, path: dict):
         super().__init__()
@@ -43,9 +43,17 @@ class ConfigHandler(dict):
                 self._log(LNG['err_ya_key'].format(e), logger.ERROR)
         return key_
 
+    def gt(self, sec, key, default=None):
+        # .get для саб-словаря
+        return self.get(sec, {}).get(key, default)
+
+    def gts(self, key, default=None):
+        # .get из 'settings'
+        return self['settings'].get(key, default)
+
     def get_uint(self, key: str, default=0) -> int:
         try:
-            result = int(self.get(key, default))
+            result = int(self.gts(key, default))
         except ValueError:
             result = 0
         else:
@@ -72,10 +80,10 @@ class ConfigHandler(dict):
         self.tts_cache_check()
 
     def allow_connect(self, ip: str) -> bool:
-        if not self['majordomo'].get('ip') and self['first_love']:
+        if not self['majordomo'].get('ip') and self.gts('first_love'):
             self['majordomo']['ip'] = ip
             self.config_save()
-        if self['last_love'] and ip != self['majordomo'].get('ip'):
+        if self.gts('last_love') and ip != self['majordomo'].get('ip'):
             return False
         return True
 
@@ -85,8 +93,9 @@ class ConfigHandler(dict):
 
     def _cfg_check(self, to_save=False):
         for key in ['providerstt', 'providerstt']:
-            if key in self:
-                to_save |= self._cfg_dict_checker(self[key])
+            val = self.gts(key)
+            if val is not None:
+                to_save |= self._cfg_dict_checker(val)
         to_save |= self._cfg_checker('yandex', 'emotion', YANDEX_EMOTION, 'good')
         to_save |= self._cfg_checker('yandex', 'speaker', YANDEX_SPEAKER, 'alyss')
         to_save |= self._log_file_init()
@@ -165,8 +174,6 @@ class ConfigHandler(dict):
         for key, val in self.items():
             if type(val) == dict:
                 config[key] = val
-            else:
-                config.set(self.SETTINGS, key, str(val))
 
         with open(self.path['settings'], 'w') as configfile:
             config.write(configfile)
@@ -202,8 +209,8 @@ class ConfigHandler(dict):
         return updater.save_me
 
     def _lang_init(self):
-        lang = self.get('lang')
-        deep_check = self.get('lang_check', 0)
+        lang = self.gts('lang')
+        deep_check = self.gts('lang_check', 0)
         err = languages.set_lang(lang, None if not deep_check else self._print)
         if err:
             self._print(LNG['err_lng'].format(lang, err), logger.ERROR)
@@ -271,11 +278,11 @@ class ConfigHandler(dict):
 
     def _first(self):
         to_save = False
-        if 'ip' not in self or not self['ip']:
-            self['ip'] = utils.get_ip_address()
+        if not self.gts('ip'):
+            self['settings']['ip'] = utils.get_ip_address()
             to_save = True
         if not self['majordomo'].get('ip'):
-            self._print(LNG['say_ip'].format(self['ip']), logger.WARN, 3)
+            self._print(LNG['say_ip'].format(self.gts('ip')), logger.WARN, 3)
         return to_save
 
 
@@ -308,11 +315,8 @@ class ConfigUpdater:
     def _ini_to_cfg(self, path: str):
         cfg = configparser.ConfigParser()
         cfg.read(path)
-        data = {}
-        for sec in cfg.sections():
-            d_sec = sec if sec.lower() != self.SETTINGS else self.SETTINGS
-            data[d_sec] = {key: cfg.get(sec, key) for key in cfg[sec]}
-        self._parser(self._dict_normalization(data), key_cast=True)
+        data = {sec.lower(): dict(cfg[sec]) for sec in cfg.sections()}
+        self._parser(data)
 
     def _json_to_cfg(self, data: str):
         try:
@@ -322,33 +326,34 @@ class ConfigUpdater:
             return
         self._parser(self._dict_normalization(data), True)
 
-    def _recursive_parser(self, cfg: dict, cfg_diff: dict, key, val, external, first=False):
+    def _dict_normalization(self, data: dict) -> dict:
+        settings = {key: data.pop(key) for key in [x for x in data.keys()] if not isinstance(data[key], dict)}
+        if self.SETTINGS not in data:
+            data[self.SETTINGS] = {}
+        data[self.SETTINGS].update(settings)
+        return data
+
+    def _parser(self, data: dict, external=False):
+        for key, val in data.items():
+            if not isinstance(val, dict):
+                self._print_result('Section must be dict. {}: {}'.format(key, val), logger.CRIT)
+                continue
+            if key == self.SETTINGS:
+                self._api_key_cast(val)
+                self._key_move(val)
+            self._recursive_parser(self._cfg, self._new_cfg, key, val, external)
+
+    def _recursive_parser(self, cfg: dict, cfg_diff: dict, key, val, external=False):
         if not isinstance(key, str):
             self._log(LNG['wrong_key'].format(type(key), key), logger.ERROR)
             return
         key = key if not external else key.lower()
         if isinstance(val, dict) and isinstance(cfg.get(key, {}), dict):  # секция
             self._parse_section_element(cfg, cfg_diff, key, val, external)
-        elif isinstance(val, (dict, list, set, tuple)):
+        elif external and isinstance(val, (dict, list, set, tuple)):
             self._log(LNG['wrong_val'].format(key, val), logger.ERROR)
-        elif not (first and key in self.API_KEYS):
-            if external and isinstance(val, str):
-                val = val.lower()
-            if first and key in self.KEY_MOVE:
-                # перемещаем ключ
-                sec = self.KEY_MOVE[key][0]
-                key = self.KEY_MOVE[key][1]
-                if sec not in cfg_diff:
-                    cfg_diff[sec] = {}
-
-                old_count = self._change_count
-                self._parse_param_element(cfg.get(sec, {}), cfg_diff[sec], key, val)
-                self._save_me = self._save_me or self._change_count > old_count
-
-                if not cfg_diff[sec]:
-                    del cfg_diff[sec]
-            else:
-                self._parse_param_element(cfg, cfg_diff, key, val)
+        else:
+            self._parse_param_element(cfg, cfg_diff, key, val, external)
 
     def _parse_section_element(self, cfg: dict, cfg_diff: dict, key, val, external):
         if external and key not in cfg:  # Не принимаем новые секции от сервера
@@ -360,7 +365,9 @@ class ConfigUpdater:
         if not cfg_diff[key]:  # Удаляем пустые секции
             del cfg_diff[key]
 
-    def _parse_param_element(self, cfg: dict, cfg_diff: dict, key, val):
+    def _parse_param_element(self, cfg: dict, cfg_diff: dict, key, val, external):
+        if external and isinstance(val, str):
+            val = val.lower()
         try:
             tmp = type(cfg.get(key, ''))(val)
         except (ValueError, TypeError) as e:
@@ -370,38 +377,51 @@ class ConfigUpdater:
                 self._change_count += 1
                 cfg_diff[key] = tmp
 
-    def _api_key_cast(self, data, key, val):
-        if not isinstance(key, str):
-            return
-        key = key.lower()
-        if key in self.PROVIDERS_KEYS and isinstance(val, str):
-            val = val.lower()
-            api_key = 'apikey{}'.format(key[-3:])  # apikeytts or apikeystt
-            if api_key in data and self._cfg.get(val, {}).get(api_key) != data[api_key]:
-                self._new_cfg[val] = self._new_cfg.get(val, {})
-                self._new_cfg[val][api_key] = data[api_key]
-                self._change_count += 1
-                self._save_me = True
+    def _api_key_cast(self, data: dict):
+        for key in [x for x in data.keys()]:
+            if not isinstance(key, str) or key not in data:
+                continue
+            val = data[key]
+            key = key.lower()
+            if key in self.PROVIDERS_KEYS and isinstance(val, str):
+                val = val.lower()
+                api_key = 'apikey{}'.format(key[-3:])  # apikeytts or apikeystt
+                if api_key in data and self._cfg.get(val, {}).get(api_key) != data[api_key]:
+                    self._new_cfg[val] = self._new_cfg.get(val, {})
+                    self._new_cfg[val][api_key] = data[api_key]
+                    self._change_count += 1
+                    self._save_me = True
+                    # Удаляем ключи из settings
+                    data.pop(api_key)
 
-    def _parser(self, data: dict, external=False, key_cast=False):
-        key_cast = key_cast or external
-        for key, val in data.items():
-            if key_cast:
-                self._api_key_cast(data, key, val)
-            self._recursive_parser(self._cfg, self._new_cfg, key, val, external, True)
+    def _key_move(self, data: dict):
+        for key in [x for x in data.keys()]:
+            if not isinstance(key, str):
+                continue
+            val = data[key]
+            key = key.lower()
+            if key in self.KEY_MOVE:
+                # перемещаем ключ
+                sec = self.KEY_MOVE[key][0]
+                key_move = self.KEY_MOVE[key][1]
+                if sec not in self._new_cfg:
+                    self._new_cfg[sec] = {}
 
-    def _dict_normalization(self, data: dict) -> dict:
-        if isinstance(data.get(self.SETTINGS, {}), dict):
-            data.update(data.pop(self.SETTINGS, {}))
-        else:
-            data.pop(self.SETTINGS, None)
-        return data
+                old_count = self._change_count
+                self._parse_param_element(self._cfg.get(sec, {}), self._new_cfg[sec], key_move, val, True)
+                self._save_me = self._save_me or self._change_count > old_count
+
+                if not self._new_cfg[sec]:
+                    del self._new_cfg[sec]
+
+                # Удаляем перемещенный ключ из settings
+                data.pop(key)
 
     def _print_result(self, from_, lvl=logger.DEBUG):
         self._log('{}: \'{}\', count: {}'.format(from_, self._new_cfg, self._change_count), lvl)
 
     def _update(self):
-        if len(self._new_cfg) > self._change_count:
+        if sum([len(val) for val in self._new_cfg.values()]) > self._change_count:
             self._print_result('FIXME!', logger.CRIT)
             return 0
         self._update_recursive(self._cfg, self._new_cfg)

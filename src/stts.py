@@ -56,7 +56,7 @@ class _TTSWrapper(threading.Thread):
     def run(self):
         wtime = time.time()
         sha1 = hashlib.sha1(self.msg.encode()).hexdigest()
-        provider = self.cfg.get('providertts', 'google')
+        provider = self.cfg.gts('providertts', 'google')
         rname = '_'+sha1 + '.mp3'
         if self.realtime:
             self.log('say \'{}\''.format(self.msg), logger.INFO)
@@ -118,7 +118,7 @@ class _TTSWrapper(threading.Thread):
         return file if os.path.isfile(file) else ''
 
     def _tts_gen(self, file, format_, msg: str):
-        prov = self.cfg.get('providertts', 'unset')
+        prov = self.cfg.gts('providertts', 'unset')
         key = self.cfg.key(prov, 'apikeytts')
         if TTS.support(prov):
             sets = utils.rhvoice_rest_sets(self.cfg[prov]) if prov == 'rhvoice-rest' else {}
@@ -127,12 +127,12 @@ class _TTSWrapper(threading.Thread):
                     prov,
                     text=msg,
                     buff_size=self._buff_size,
-                    speaker=self.cfg.get(prov, {}).get('speaker'),
+                    speaker=self.cfg.gt(prov, 'speaker'),
                     audio_format=format_,
                     key=key,
                     lang=LNG['tts_lng_dict'].get(prov, LNG['tts_lng_def']),
-                    emotion=self.cfg.get(prov, {}).get('emotion'),
-                    url=self.cfg.get(prov, {}).get('server'),
+                    emotion=self.cfg.gt(prov, 'emotion'),
+                    url=self.cfg.gt(prov, 'server'),
                     sets=sets
                 )
             except(RuntimeError, TTS.gTTSError) as e:
@@ -216,7 +216,7 @@ class SpeechToText:
         return msg or ''
 
     def get_mic_index(self):
-        device_index = self._cfg.get('mic_index', -1)
+        device_index = self._cfg.gts('mic_index', -1)
         if device_index > self.max_mic_index:
             if self.max_mic_index >= 0:
                 mics = LNG['mics_to'].format(self.max_mic_index + 1, self.max_mic_index)
@@ -230,7 +230,7 @@ class SpeechToText:
         lvl = 5  # Включаем монопольный режим
         commands = None
 
-        if self._cfg['alarmkwactivated']:
+        if self._cfg.gts('alarmkwactivated'):
             self._play.play(self._cfg.path['ding'], lvl, wait=0.01, blocking=2)
         else:
             self._play.set_lvl(lvl)
@@ -240,7 +240,7 @@ class SpeechToText:
         hello = hello or self.sys_say.hello
         file_path = self._tts(hello) if not voice and hello else None
 
-        if self._cfg.get('blocking_listener'):
+        if self._cfg.gts('blocking_listener'):
             audio, recognizer, record_time, energy_threshold = self._block_listen(hello, lvl, file_path)
         else:
             audio, recognizer, record_time, energy_threshold = self._non_block_listen(hello, lvl, file_path)
@@ -249,7 +249,7 @@ class SpeechToText:
         # Выключаем монопольный режим
         self._play.clear_lvl()
 
-        if self._cfg['alarmstt']:
+        if self._cfg.gts('alarmstt'):
             self._play.play(self._cfg.path['dong'])
         if audio is not None:
             commands = self._voice_recognition(audio, recognizer)
@@ -274,7 +274,7 @@ class SpeechToText:
         with mic as source:  # Слушаем шум 1 секунду, потом распознаем, если раздажает задержка можно закомментировать.
             energy_threshold = self._correct_energy_threshold(r, source)
 
-        if self._cfg['alarmtts'] and not hello:
+        if self._cfg.gts('alarmtts') and not hello:
             self._play.play(self._cfg.path['dong'], lvl)
 
         start_wait = time.time()
@@ -282,7 +282,7 @@ class SpeechToText:
             self._play.play(file_path, lvl)
 
         # Начинаем фоновое распознавание голосом после того как запустился плей.
-        listener = NonBlockListener(r=r, source=mic, phrase_time_limit=self._cfg.get('phrase_time_limit', 15))
+        listener = NonBlockListener(r=r, source=mic, phrase_time_limit=self._cfg.gts('phrase_time_limit', 15))
         if file_path:
             while listener.work() and self._play.really_busy() and time.time() - start_wait < max_play_time and self._work:
                 # Ждем пока время не выйдет, голос не распознался и файл играет
@@ -302,7 +302,7 @@ class SpeechToText:
         with sr.Microphone(device_index=self.get_mic_index()) as source:
             r = sr.Recognizer()
 
-            if self._cfg['alarmtts'] and not hello:
+            if self._cfg.gts('alarmtts') and not hello:
                 self._play.play(self._cfg.path['dong'], lvl, wait=0.01, blocking=2)
 
             if file_path:
@@ -312,7 +312,7 @@ class SpeechToText:
 
             record_time = time.time()
             try:
-                audio = r.listen(source, timeout=10, phrase_time_limit=self._cfg.get('phrase_time_limit', 15))
+                audio = r.listen(source, timeout=10, phrase_time_limit=self._cfg.gts('phrase_time_limit', 15))
             except sr.WaitTimeoutError:
                 audio = None
             record_time = time.time() - record_time
@@ -325,7 +325,7 @@ class SpeechToText:
             return audio, r, record_time, energy_threshold
 
     def _correct_energy_threshold(self, r: sr.Recognizer, source):
-        energy_threshold = self._cfg.get('energy_threshold', 0)
+        energy_threshold = self._cfg.gts('energy_threshold', 0)
         if energy_threshold > 0:
             r.energy_threshold = energy_threshold
         elif energy_threshold < 0 and self._energy_threshold:
@@ -372,7 +372,7 @@ class SpeechToText:
             return None
 
     def _voice_recognition(self, audio, recognizer, quiet=False) -> str or None:
-        prov = self._cfg.get('providerstt', 'google')
+        prov = self._cfg.gts('providerstt', 'google')
         key = self._cfg.key(prov, 'apikeystt')
         self.log(LNG['recognized_from'].format(prov), logger.DEBUG)
         wtime = time.time()
@@ -386,7 +386,7 @@ class SpeechToText:
             elif prov == 'pocketsphinx-rest':
                 command = STT.PocketSphinxREST(
                     audio_data=audio,
-                    url=self._cfg.get(prov, {}).get('server', 'http://127.0.0.1:8085')
+                    url=self._cfg.gt(prov, 'server', 'http://127.0.0.1:8085')
                 ).text()
             elif prov == 'yandex':
                 command = STT.Yandex(audio_data=audio, key=key).text()

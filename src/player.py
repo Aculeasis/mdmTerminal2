@@ -134,7 +134,7 @@ class Player:
             time.sleep(wait)
 
     def say_info(self, msg: str, lvl: int=2, alarm=None, wait=0, is_file: bool = False):
-        if self._cfg.get('quiet'):
+        if self._cfg.gts('quiet'):
             return
         self.say(msg, lvl, alarm, wait, is_file)
 
@@ -148,7 +148,7 @@ class Player:
             return
 
         if alarm is None:
-            alarm = self._cfg.get('alarmtts', 0)
+            alarm = self._cfg.gts('alarmtts', 0)
 
         file = self._tts(msg) if not is_file else msg
         self._last_activity = time.time() + 3
