@@ -1,15 +1,17 @@
 class _ConfigPrettyModels:
     @classmethod
     def format(cls, count):
+        ot = 'о'
         if count == 1:
             et = 'ь'
+            ot = 'а'
         elif count in [2, 3, 4]:
             et = 'и'
         else:
             et = 'ей'
         pretty = ['ноль', 'одна', 'две', 'три', 'четыре', 'пять', 'шесть']
         count = pretty[count] if count < 7 else count
-        return 'Загружено {} модел{}'.format(count, et)
+        return 'Загружен{} {} модел{}'.format(ot, count, et)
 
 
 CONFIG = {
@@ -259,6 +261,7 @@ TERMINAL = {
     'err_compile_log': 'Ошибка компиляции модели {}: {}',
     'err_compile_say': 'Ошибка компиляции модели номер {}',
     'no_consensus': 'Полный консенсус по модели {} не достигнут [{}/{}]. Советую пересоздать модель.',
+    'err_no_consensus': 'Полный консенсус по модели {} не достигнут. Компиляция отменена.',
     'compile_ok_log': 'Модель{} скомпилирована успешно за {}: {}',
     'compile_ok_say': 'Модель{} номер {} скомпилирована успешно за {}',
     # _detected

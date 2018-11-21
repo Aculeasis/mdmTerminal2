@@ -77,7 +77,16 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'enable': 0,
         'monkey_patching': 1,
         'proxy': 'socks5h://127.0.0.1:9050'
-    }
+    },
+    'snowboy': {
+        'clear_models': 0,
+        'token': 'd4977cf8ff6ede6efb8d2277c1608c7dbebf18a7',
+        'name': 'unknown',
+        'age_group': '30_39',
+        'gender': 'M',
+        'microphone': 'mic',
+
+    },
 }
 
 

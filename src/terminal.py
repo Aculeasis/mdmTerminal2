@@ -152,26 +152,44 @@ class MDTerminal(threading.Thread):
                 miss = True
                 self.log(LNG['compile_no_file'].format(x), logger.ERROR)
                 self._play.say(LNG['compile_no_file'].format(os.path.basename(x)))
-        if miss:
-            return
+        if not miss:
+            self._compile_model(model, models)
+
+    def _compile_model(self, model, models):
+        phrase, match_count = self._stt.phrase_from_files(models)
         pmdl_name = ''.join(['model', model, self._cfg.path['model_ext']])
         pmdl_path = os.path.join(self._cfg.path['models'], pmdl_name)
+
+        # Начальные параметры для API сноубоя
+        params = {key: self._cfg.gt('snowboy', key) for key in ('token', 'name', 'age_group', 'gender', 'microphone')}
+        params['language'] = self._cfg.gts('lang', 'ru')
+
+        if match_count != len(models):
+            msg = LNG['no_consensus'].format(pmdl_name, match_count, len(models))
+            if self._cfg.gt('snowboy', 'clear_models'):  # Не создаем модель если не все фразы идентичны
+                self.log(msg, logger.ERROR)
+                self._play.say(LNG['err_no_consensus'].format(model))
+                return
+            else:
+                self.log(msg, logger.WARN)
+        else:
+            params['name'] = phrase.lower()
+
         self.log(LNG['compiling'].format(pmdl_path), logger.INFO)
         work_time = time.time()
         try:
-            snowboy = training_service.Training(*models)
+            snowboy = training_service.Training(*models, params=params)
         except RuntimeError as e:
             self.log(LNG['err_compile_log'].format(pmdl_path, e), logger.ERROR)
             self._play.say(LNG['err_compile_say'].format(model))
             return
         work_time = utils.pretty_time(time.time() - work_time)
         snowboy.save(pmdl_path)
-        phrase, match_count = self._stt.phrase_from_files(models)
+
         msg = ', "{}",'.format(phrase) if phrase else ''
-        if match_count != len(models):
-            self.log(LNG['no_consensus'].format(pmdl_name, match_count, len(models)), logger.WARN)
         self.log(LNG['compile_ok_log'].format(msg, work_time, pmdl_path), logger.INFO)
         self._play.say(LNG['compile_ok_say'].format(msg, model, work_time))
+
         self._cfg.models_load()
         if self._cfg.json_to_cfg({'models': {pmdl_name: phrase}}):
             self._cfg.config_save()
