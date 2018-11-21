@@ -308,10 +308,8 @@ class SnowBoySR:
         while not self._interrupted():
             msg = ''
             with sr.Microphone() as source:
-                r = sr.Recognizer()
+                r = sr.Recognizer(interrupt_check=self._interrupted, sensitivity=self._sensitivity)
                 r.adjust_for_ambient_noise(source, 0.7)
-                r.set_sensitivity(self._sensitivity)
-                r.set_interrupt(self._interrupted)
                 try:
                     adata = r.listen(source, 5, 10, (self._sb_path, self._decoder_model))
                 except sr.WaitTimeoutError:

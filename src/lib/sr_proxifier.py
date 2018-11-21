@@ -19,11 +19,11 @@ WaitTimeoutError = speech_recognition.WaitTimeoutError
 
 
 class Recognizer(speech_recognition.Recognizer):
-    def __init__(self):
+    def __init__(self, interrupt_check=None, sensitivity=0.45):
         super().__init__()
         self._snowboy_result = 0
-        self._sensitivity = 0.45
-        self._interrupt_check = None
+        self._interrupt_check = interrupt_check
+        self._sensitivity = sensitivity
 
     @property
     def get_model(self):
@@ -63,6 +63,7 @@ class Recognizer(speech_recognition.Recognizer):
             monkey_patching_disable()
 
     def snowboy_wait_for_hot_word(self, snowboy_location, snowboy_hot_word_files, source, timeout=None):
+        self._snowboy_result = 0
 
         detector = snowboydetect.SnowboyDetect(
             resource_filename=os.path.join(snowboy_location, "resources", "common.res").encode(),
@@ -100,7 +101,7 @@ class Recognizer(speech_recognition.Recognizer):
                 break
 
             if time.time() - start_time > 0.05:
-                if self._interrupt_check():
+                if self._interrupt_check and self._interrupt_check():
                     raise WaitTimeoutError('Interrupted')
                 # Висим 30 скунд на сноубое, потом перезапускаем листинг
                 if elapsed_time > 30:
