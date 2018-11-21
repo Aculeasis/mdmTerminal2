@@ -6,10 +6,12 @@ import threading
 import time
 
 import lib.snowboy_training as training_service
+import lib.sr_proxifier as sr
 import logger
 import player
 import stts
 import utils
+from languages import STTS as LNG2
 from languages import TERMINAL as LNG
 from lib import snowboydecoder
 
@@ -41,10 +43,11 @@ class MDTerminal(threading.Thread):
 
     def _reload(self):
         if len(self._cfg.path['models_list']) and self._stt.max_mic_index != -2:
-            self._snowboy = snowboydecoder.HotwordDetector(
-                decoder_model=self._cfg.path['models_list'], sensitivity=[self._cfg.gts('sensitivity')]
-            )
-            self._callbacks = [self._detected for _ in self._cfg.path['models_list']]
+            if self._cfg.gts('chrome_mode'):
+                self._snowboy = SnowBoySR(self._stt.voice_recognition, self._detected_sr, self._cfg.path['home'])
+            else:
+                self._snowboy = SnowBoy()
+            self._snowboy.init(self._cfg.gts('sensitivity'), self._cfg.path['models_list'], self._detected)
         else:
             self._snowboy = None
 
@@ -82,9 +85,7 @@ class MDTerminal(threading.Thread):
         if self._snowboy is None:
             time.sleep(0.5)
         else:
-            self._snowboy.start(detected_callback=self._callbacks,
-                                interrupt_check=self._interrupt_callback,
-                                sleep_time=0.03)
+            self._snowboy.start(interrupt_check=self._interrupt_callback)
             self._snowboy.terminate()
 
     def _external_check(self):
@@ -166,7 +167,8 @@ class MDTerminal(threading.Thread):
 
         if match_count != len(models):
             msg = LNG['no_consensus'].format(pmdl_name, match_count, len(models))
-            if self._cfg.gt('snowboy', 'clear_models'):  # Не создаем модель если не все фразы идентичны
+            # Не создаем модель если не все фразы идентичны
+            if self._cfg.gt('snowboy', 'clear_models') or self._cfg.gts('chrome_mode'):
                 self.log(msg, logger.ERROR)
                 self._play.say(LNG['err_no_consensus'].format(model))
                 return
@@ -205,19 +207,24 @@ class MDTerminal(threading.Thread):
                 return
         self._queue.put_nowait((cmd, data, lvl, time.time()))
 
+    def _model_data_by_id(self, model: int):
+        model -= 1
+        if model < len(self._cfg.path['models_list']):
+            model_name = os.path.split(self._cfg.path['models_list'][model])[1]
+            phrase = self._cfg['models'].get(model_name)
+            msg = '' if not phrase else ': "{}"'.format(phrase)
+        else:
+            model_name = str(model)
+            phrase = ''
+            msg = ''
+        return model_name, phrase, msg
+
     def _detected(self, model: int=0):
         phrase = ''
         if not model:
             self.log(LNG['err_call2'], logger.CRIT)
         else:
-            model -= 1
-            if model < len(self._cfg.path['models_list']):
-                model_name = os.path.split(self._cfg.path['models_list'][model])[1]
-                phrase = self._cfg['models'].get(model_name)
-                msg = '' if not phrase else ': "{}"'.format(phrase)
-            else:
-                model_name = str(model)
-                msg = ''
+            model_name, phrase, msg = self._model_data_by_id(model)
             self.log(LNG['activate_by'].format(model_name, msg), logger.INFO)
         no_hello = self._cfg.gts('no_hello', 0)
         hello = ''
@@ -228,9 +235,27 @@ class MDTerminal(threading.Thread):
     def detected(self, hello: str = '', voice=False):
         if self._snowboy is not None:
             self._snowboy.terminate()
+        self._detected_parse(voice, self._stt.listen(hello, voice=voice))
 
+    def _detected_sr(self, msg: str, model: int):
+        model_name, phrase, model_msg = self._model_data_by_id(model)
+        phrase2 = phrase.lower()
+        msg2 = msg.lower()
+        if not phrase2 or not msg2.startswith(phrase2):  # Ошибка активации
+            return
+        msg = msg[len(phrase):]
+        for l_del in ('.', ',', ' '):
+            msg = msg.lstrip(l_del)
+        self.log(LNG2['recognized'].format(msg, ''))
+        self.log(LNG['activate_by'].format(model_name, model_msg), logger.INFO)
+        if not msg:  # Пустое сообщение
+            return
+        if self._cfg.gts('alarmstt'):
+            self._play.play(self._cfg.path['dong'])
+        self._detected_parse(False, msg)
+
+    def _detected_parse(self, voice, reply):
         caller = False
-        reply = self._stt.listen(hello, voice=voice)
         if reply or voice:
             while caller is not None:
                 reply, caller = self._handler(reply, caller)
@@ -239,3 +264,63 @@ class MDTerminal(threading.Thread):
         if reply:
             self._play.say(reply, lvl=1)
         self._listen()
+
+
+class SnowBoy:
+    def __init__(self):
+        self._callbacks = None
+        self._snowboy = None
+
+    def init(self, sensitivity, decoder_model, callback):
+        self._callbacks = [callback for _ in decoder_model]
+        self._snowboy = snowboydecoder.HotwordDetector(
+            decoder_model=decoder_model, sensitivity=sensitivity if isinstance(sensitivity, list) else [sensitivity]
+        )
+
+    def start(self, interrupt_check):
+        self._snowboy.start(detected_callback=self._callbacks, interrupt_check=interrupt_check)
+
+    def terminate(self):
+        self._snowboy.terminate()
+
+
+class SnowBoySR:
+    def __init__(self, voice_recognition, real_callback, home):
+        self._voice_recognition = voice_recognition
+        self._callback = real_callback
+        self._sb_path = os.path.join(home, 'lib')
+        self._sensitivity = 0.45
+        self._decoder_model = None
+        self._terminate = False
+        self._interrupt_check = None
+
+    def init(self, sensitivity, decoder_model, *_):
+        self._sensitivity = sensitivity
+        self._decoder_model = decoder_model
+
+    def _interrupted(self):
+        return self._terminate or self._interrupt_check()
+
+    def start(self, interrupt_check):
+        self._interrupt_check = interrupt_check
+        self._terminate = False
+        while not self._interrupted():
+            msg = ''
+            with sr.Microphone() as source:
+                r = sr.Recognizer()
+                r.adjust_for_ambient_noise(source, 0.7)
+                r.set_sensitivity(self._sensitivity)
+                r.set_interrupt(self._interrupted)
+                try:
+                    adata = r.listen(source, 15, 10, (self._sb_path, self._decoder_model))
+                except sr.WaitTimeoutError:
+                    continue
+                model = r.get_model
+                if model:  # Не распознаем если модель не опознана
+                    msg = self._voice_recognition(adata, r, 2)
+            if msg and model:
+                self._callback(msg, model)
+                break
+
+    def terminate(self):
+        self._terminate = True

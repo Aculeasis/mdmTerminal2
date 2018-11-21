@@ -252,7 +252,7 @@ class SpeechToText:
         if self._cfg.gts('alarmstt'):
             self._play.play(self._cfg.path['dong'])
         if audio is not None:
-            commands = self._voice_recognition(audio, recognizer)
+            commands = self.voice_recognition(audio, recognizer)
 
         if commands:
             msg = ''
@@ -371,10 +371,11 @@ class SpeechToText:
         else:
             return None
 
-    def _voice_recognition(self, audio, recognizer, quiet=False) -> str or None:
+    def voice_recognition(self, audio, recognizer, quiet: int =0) -> str or None:
         prov = self._cfg.gts('providerstt', 'google')
         key = self._cfg.key(prov, 'apikeystt')
-        self.log(LNG['recognized_from'].format(prov), logger.DEBUG)
+        if quiet < 2:
+            self.log(LNG['recognized_from'].format(prov), logger.DEBUG)
         wtime = time.time()
         try:
             if prov == 'google':
@@ -401,6 +402,8 @@ class SpeechToText:
             self.log(LNG['err_stt_log'].format(e), logger.ERROR)
             return ''
         else:
+            if quiet >= 2:
+                self.log(LNG['recognized_from'].format(prov), logger.DEBUG)
             self.log(LNG['recognized_for'].format(utils.pretty_time(time.time() - wtime)), logger.DEBUG)
             return command or ''
 
@@ -429,7 +432,7 @@ class SpeechToText:
         r = sr.Recognizer()
         with wave.open(file, 'rb') as fp:
             adata = sr.AudioData(fp.readframes(fp.getnframes()), fp.getframerate(), fp.getsampwidth())
-        say = self._voice_recognition(adata, r, True) or ''
+        say = self.voice_recognition(adata, r, 1) or ''
         result[i] = say.strip()
 
 

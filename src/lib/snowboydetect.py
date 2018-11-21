@@ -3,9 +3,10 @@
 #
 # Do not make changes to this file unless you know what you are doing--modify
 # the SWIG interface file instead.
+import os
+import sys
 
-
-
+RESOURCE_FILE = os.path.join(os.path.join(os.path.abspath(sys.path[0]), "resources"), "common.res").encode()
 
 
 from sys import version_info as _swig_python_version_info
@@ -106,7 +107,7 @@ class SnowboyDetect(_object):
     __repr__ = _swig_repr
 
     def __init__(self, resource_filename, model_str):
-        this = _snowboydetect.new_SnowboyDetect(resource_filename, model_str)
+        this = _snowboydetect.new_SnowboyDetect(RESOURCE_FILE, model_str)
         try:
             self.this.append(this)
         except __builtin__.Exception:
