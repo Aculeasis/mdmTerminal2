@@ -241,9 +241,10 @@ class MDTerminal(threading.Thread):
         model_name, phrase, model_msg = self._model_data_by_id(model)
         phrase2 = phrase.lower()
         msg2 = msg.lower()
-        if not phrase2 or not msg2.startswith(phrase2):  # Ошибка активации
+        offset = msg2.find(phrase2)
+        if not phrase2 or offset < 0:  # Ошибка активации
             return
-        msg = msg[len(phrase):]
+        msg = msg[offset+len(phrase):]
         for l_del in ('.', ',', ' '):
             msg = msg.lstrip(l_del)
         self.log(LNG2['recognized'].format(msg, ''))
@@ -312,7 +313,7 @@ class SnowBoySR:
                 r.set_sensitivity(self._sensitivity)
                 r.set_interrupt(self._interrupted)
                 try:
-                    adata = r.listen(source, 15, 10, (self._sb_path, self._decoder_model))
+                    adata = r.listen(source, 5, 10, (self._sb_path, self._decoder_model))
                 except sr.WaitTimeoutError:
                     continue
                 model = r.get_model
