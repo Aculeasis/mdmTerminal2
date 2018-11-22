@@ -18,7 +18,13 @@ if _swig_python_version_info >= (2, 7, 0):
         try:
             return importlib.import_module(mname)
         except ImportError:
-            return importlib.import_module('_snowboydetect')
+            try:
+                return importlib.import_module('_snowboydetect')
+            except ImportError as e:
+                try:
+                    return importlib.import_module('_snowboydetect_armv7')
+                except ImportError:
+                    raise ImportError(e)
     _snowboydetect = swig_import_helper()
     del swig_import_helper
 elif _swig_python_version_info >= (2, 6, 0):
