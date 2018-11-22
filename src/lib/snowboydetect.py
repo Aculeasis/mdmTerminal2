@@ -13,6 +13,14 @@ from sys import version_info as _swig_python_version_info
 if _swig_python_version_info >= (2, 7, 0):
     def swig_import_helper():
         import importlib
+        def adding_module_import(main_path, err):
+            for path in ('armv7',):
+                module_path = '.'.join((main_path, path, '_snowboydetect')).lstrip('.')
+                try:
+                    return importlib.import_module(module_path)
+                except ImportError:
+                    pass
+            raise ImportError(err)
         pkg = __name__.rpartition('.')[0]
         mname = '.'.join((pkg, '_snowboydetect')).lstrip('.')
         try:
@@ -21,10 +29,7 @@ if _swig_python_version_info >= (2, 7, 0):
             try:
                 return importlib.import_module('_snowboydetect')
             except ImportError as e:
-                try:
-                    return importlib.import_module('_snowboydetect_armv7')
-                except ImportError:
-                    raise ImportError(e)
+                return adding_module_import(pkg, e)
     _snowboydetect = swig_import_helper()
     del swig_import_helper
 elif _swig_python_version_info >= (2, 6, 0):
