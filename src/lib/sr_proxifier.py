@@ -103,10 +103,10 @@ class Recognizer(speech_recognition.Recognizer):
 
             if time.time() - start_time > 0.05:
                 if self._interrupt_check and self._interrupt_check():
-                    raise WaitTimeoutError('Interrupted')
+                    raise RuntimeError('Interrupted')
                 # Висим 30 скунд на сноубое, потом перезапускаем листинг
                 if elapsed_time > 30:
-                    raise WaitTimeoutError("listening timed out while waiting for hotword to be said")
+                    raise RuntimeError("listening timed out while waiting for hotword to be said")
                 start_time = time.time()
 
         self._snowboy_result = snowboy_result

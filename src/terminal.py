@@ -45,10 +45,10 @@ class MDTerminal(threading.Thread):
         if len(self._cfg.path['models_list']) and self._stt.max_mic_index != -2:
             if self._cfg.gts('chrome_mode'):
                 self._snowboy = SnowBoySR(
-                    self._stt.voice_recognition,
+                    self._stt,
                     self._detected_sr,
-                    self._cfg.path['home'],
-                    self._play.full_quiet if self._cfg.gts('chrome_mode_choke') else None
+                    self._cfg,
+                    self._play,
                 )
             else:
                 self._snowboy = SnowBoy()
@@ -242,23 +242,28 @@ class MDTerminal(threading.Thread):
             self._snowboy.terminate()
         self._detected_parse(voice, self._stt.listen(hello, voice=voice))
 
-    def _detected_sr(self, msg: str, model: int):
+    def _detected_sr(self, msg: str, model: int, energy_threshold: int):
         model_name, phrase, model_msg = self._model_data_by_id(model)
         phrase2 = phrase.lower()
         msg2 = msg.lower()
         offset = msg2.find(phrase2)
         if not phrase2 or offset < 0:  # Ошибка активации
-            return
+            return False
         msg = msg[offset+len(phrase):]
         for l_del in ('.', ',', ' '):
             msg = msg.lstrip(l_del)
-        self.log(LNG2['recognized'].format(msg, ''))
+        if self._cfg.gts('energy_threshold', 0) < 1:
+            energy_threshold = ', energy_threshold={}'.format(energy_threshold)
+        else:
+            energy_threshold = ''
+        self.log(LNG2['recognized'].format(msg, energy_threshold))
         self.log(LNG['activate_by'].format(model_name, model_msg), logger.INFO)
         if not msg:  # Пустое сообщение
-            return
-        if self._cfg.gts('alarmstt'):
-            self._play.play(self._cfg.path['dong'])
+            return True
+        if self._cfg.gts('alarmkwactivated'):
+            self._play.play(self._cfg.path['ding'])
         self._detected_parse(False, msg)
+        return True
 
     def _detected_parse(self, voice, reply):
         caller = False
@@ -291,11 +296,13 @@ class SnowBoy:
 
 
 class SnowBoySR:
-    def __init__(self, voice_recognition, real_callback, home, hotword_callback):
-        self._voice_recognition = voice_recognition
+    def __init__(self, stt: stts.SpeechToText, real_callback, cfg, play: player.Player):
+        self._stt = stt
         self._callback = real_callback
-        self._sb_path = os.path.join(home, 'lib')
-        self._hotword_callback = hotword_callback
+        self._cfg = cfg
+        self._sb_path = os.path.join(self._cfg.path['home'], 'lib')
+        self._hotword_callback = play.full_quiet if self._cfg.gts('chrome_choke') else None
+        self._play = play
         self._sensitivity = 0.45
         self._decoder_model = None
         self._terminate = False
@@ -315,16 +322,27 @@ class SnowBoySR:
             msg = ''
             with sr.Microphone() as source:
                 r = sr.Recognizer(self._interrupted, self._sensitivity, self._hotword_callback)
-                r.adjust_for_ambient_noise(source, 0.7)
+                energy_threshold = self._stt.correct_energy_threshold(r, source)
                 try:
                     adata = r.listen(source, 5, 10, (self._sb_path, self._decoder_model))
                 except sr.WaitTimeoutError:
+                    self._stt.set_energy_threshold(None)
+                    continue
+                except RuntimeError:
+                    self._stt.set_energy_threshold(energy_threshold)
                     continue
                 model = r.get_model
                 if model:  # Не распознаем если модель не опознана
-                    msg = self._voice_recognition(adata, r, 2)
+                    if self._cfg.gts('chrome_alarmstt'):
+                        self._play.play(self._cfg.path['dong'], lvl=5)
+                    msg = self._stt.voice_recognition(adata, r, 2)
+                    if self._cfg.gts('chrome_alarmstt'):
+                        self._play.clear_lvl()
             if msg and model:
-                self._callback(msg, model)
+                if self._callback(msg, model, energy_threshold):
+                    self._stt.set_energy_threshold(energy_threshold)
+                else:
+                    self._stt.set_energy_threshold(None)
                 break
 
     def terminate(self):
