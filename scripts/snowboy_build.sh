@@ -30,8 +30,11 @@ then
 fi
 
 echo 'Подготовка к сборке _snowboydetect.so'
-git clone https://github.com/Kitt-AI/snowboy.git ${repo_path}/snow_boy
-cd ${repo_path}/snow_boy
+if [ -d "${repo_path}/snow_boy" ]; then
+    rm -rf "${repo_path}/snow_boy"
+fi
+git clone https://github.com/Kitt-AI/snowboy.git "${repo_path}/snow_boy"
+cd "${repo_path}/snow_boy"
 git checkout 3f5f944
 if [ "$ARCH" == "aarch64" ]
 then
@@ -41,8 +44,8 @@ fi
 cd swig/Python3
 echo 'Собираю....'
 make
-cp -f _snowboydetect.so ${repo_path}/src/lib/
-cd ${repo_path}
-rm -rf ${repo_path}/snow_boy
+cp -f _snowboydetect.so "${repo_path}/src/lib/"
+cd "${repo_path}"
+rm -rf "${repo_path}/snow_boy"
 echo "Установлено успешно $repo_path/src/lib/_snowboydetect.so"
 
