@@ -106,11 +106,28 @@
 Модели хранятся в `mdmTerminal2/src/resources/models/` и имеют расширение `.pmdl`. Они идентичны моделям в **mdmPiTerminal**. Если вы хотите убрать фразу из активации вам нужно удалить соответствующую модель.
 
 # Сборка snowboy (_snowboydetect.so)
-`src/lib/_snowboydetect.so` собирается при установке, но если что-то пошло не так проще всего пересобрать ее скриптом:
+`src/lib/_snowboydetect.so` собирается при установке, но если что-то пошло не так проще всего пересобрать его скриптом:
 ```bash
     ./scripts/snowboy_build.sh
 ```
 **Важно!** Скрипт можно запускать после `./scripts/install.sh`, т.к. он устанавливает все необходимые зависимости.
+
+### Сборка на старых системах
+Для сборки нужен swig 3.10 и выше, если у вас старый swig и вы получаете ошибку `ImportError: No module named '_snowboydetect'` т.к. модуль не собирается нужно обновить swig:
+```bash
+sudo apt update
+sudo apt-get install -y build-essential libpcre3-dev autoconf automake libtool bison git libboost-dev python-dev ruby ruby-dev tcl-dev mono-devel lua5.1 liblua5.1-0-dev octave liboctave-dev php5-cli php5-dev openjdk-7-jdk guile-2.0-dev
+
+git clone https://github.com/swig/swig.git
+cd swig
+./autogen.sh
+./configure
+make
+sudo make install
+cd ..
+rm -rf swif/
+```
+И снова запустить скрипт сборки модуля.
 
 # Дополнительные возможности
 Терминал поддерживает модули, большинство их них активны только в режиме разработчика (можно переключить в нормальный). Модули перехватывают фразы по ключевым словам и что-то делают (или нет)
