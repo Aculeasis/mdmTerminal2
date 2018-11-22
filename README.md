@@ -125,7 +125,7 @@ cd swig
 make
 sudo make install
 cd ..
-rm -rf swif/
+rm -rf swig/
 ```
 И снова запустить скрипт сборки модуля.
 
