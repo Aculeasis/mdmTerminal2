@@ -99,6 +99,11 @@ class MPDControl(threading.Thread):
         self._mpd_add(uri)
         self._resume = False
 
+    @property
+    def plays(self):
+        # MPD что-то играет
+        return self.allow() and self._mpd_is_play()
+
     def pause(self, paused=None):
         if not self.allow():
             return

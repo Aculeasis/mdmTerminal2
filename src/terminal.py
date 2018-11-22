@@ -256,7 +256,7 @@ class MDTerminal(threading.Thread):
             energy_threshold = ', energy_threshold={}'.format(energy_threshold)
         else:
             energy_threshold = ''
-        self.log(LNG2['recognized'].format(msg, energy_threshold))
+        self.log(LNG2['recognized'].format(msg, energy_threshold), logger.INFO)
         self.log(LNG['activate_by'].format(model_name, model_msg), logger.INFO)
         if not msg:  # Пустое сообщение
             return True

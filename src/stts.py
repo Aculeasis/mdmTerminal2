@@ -334,7 +334,13 @@ class SpeechToText:
                 r.energy_threshold = self._energy_threshold
                 return self._energy_threshold
             else:
-                r.adjust_for_ambient_noise(source)
+                if energy_threshold < 0 and self._play.noising:
+                    # Не подстаиваем автоматический уровень шума если терминал шумит сам.
+                    # Пусть будет 700
+                    self._energy_threshold = 700
+                    r.energy_threshold = self._energy_threshold
+                else:
+                    r.adjust_for_ambient_noise(source)
                 return r.energy_threshold
 
     def set_energy_threshold(self, energy_threshold):
