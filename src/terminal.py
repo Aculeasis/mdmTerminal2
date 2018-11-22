@@ -44,7 +44,12 @@ class MDTerminal(threading.Thread):
     def _reload(self):
         if len(self._cfg.path['models_list']) and self._stt.max_mic_index != -2:
             if self._cfg.gts('chrome_mode'):
-                self._snowboy = SnowBoySR(self._stt.voice_recognition, self._detected_sr, self._cfg.path['home'])
+                self._snowboy = SnowBoySR(
+                    self._stt.voice_recognition,
+                    self._detected_sr,
+                    self._cfg.path['home'],
+                    self._play.full_quiet if self._cfg.gts('chrome_mode_choke') else None
+                )
             else:
                 self._snowboy = SnowBoy()
             self._snowboy.init(self._cfg.gts('sensitivity'), self._cfg.path['models_list'], self._detected)
@@ -286,10 +291,11 @@ class SnowBoy:
 
 
 class SnowBoySR:
-    def __init__(self, voice_recognition, real_callback, home):
+    def __init__(self, voice_recognition, real_callback, home, hotword_callback):
         self._voice_recognition = voice_recognition
         self._callback = real_callback
         self._sb_path = os.path.join(home, 'lib')
+        self._hotword_callback = hotword_callback
         self._sensitivity = 0.45
         self._decoder_model = None
         self._terminate = False
@@ -308,7 +314,7 @@ class SnowBoySR:
         while not self._interrupted():
             msg = ''
             with sr.Microphone() as source:
-                r = sr.Recognizer(interrupt_check=self._interrupted, sensitivity=self._sensitivity)
+                r = sr.Recognizer(self._interrupted, self._sensitivity, self._hotword_callback)
                 r.adjust_for_ambient_noise(source, 0.7)
                 try:
                     adata = r.listen(source, 5, 10, (self._sb_path, self._decoder_model))

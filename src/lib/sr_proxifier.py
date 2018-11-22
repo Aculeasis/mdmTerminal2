@@ -6,24 +6,25 @@ import os
 import time
 
 import speech_recognition
-from speech_recognition import AudioSource
 
 from lib import snowboydetect
 from .proxy import monkey_patching_enable, monkey_patching_disable
 
 Microphone = speech_recognition.Microphone
 AudioData = speech_recognition.AudioData
+AudioSource = speech_recognition.AudioSource
 UnknownValueError = speech_recognition.UnknownValueError
 RequestError = speech_recognition.RequestError
 WaitTimeoutError = speech_recognition.WaitTimeoutError
 
 
 class Recognizer(speech_recognition.Recognizer):
-    def __init__(self, interrupt_check=None, sensitivity=0.45):
+    def __init__(self, interrupt_check=None, sensitivity=0.45, hotword_callback=None):
         super().__init__()
         self._snowboy_result = 0
         self._interrupt_check = interrupt_check
         self._sensitivity = sensitivity
+        self._hotword_callback = hotword_callback
 
     @property
     def get_model(self):
@@ -109,6 +110,8 @@ class Recognizer(speech_recognition.Recognizer):
                 start_time = time.time()
 
         self._snowboy_result = snowboy_result
+        if self._hotword_callback:
+            self._hotword_callback()
         return b"".join(frames), elapsed_time
 
     def listen(self, source, timeout=None, phrase_time_limit=None, snowboy_configuration=None):

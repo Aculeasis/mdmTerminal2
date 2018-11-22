@@ -97,6 +97,13 @@ class Player:
         if self.popen_work():
             self._lp_play.clear()
 
+    def full_quiet(self):
+        # Глушим все что можно
+        self._last_activity = time.time()
+        self._lp_play.clear()
+        self.kill_popen()
+        self.mpd.pause(True)
+
     def last_activity(self):
         if self.popen_work():
             self._last_activity = time.time()

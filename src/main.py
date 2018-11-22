@@ -30,6 +30,7 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'energy_threshold': 0,
         'phrase_time_limit': 15,
         'chrome_mode': 0,
+        'chrome_mode_choke': 0,
         'lang': 'ru',
         'lang_check': 0,
     },
