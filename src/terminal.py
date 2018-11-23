@@ -212,7 +212,7 @@ class MDTerminal(threading.Thread):
         model -= 1
         if model < len(self._cfg.path['models_list']):
             model_name = os.path.split(self._cfg.path['models_list'][model])[1]
-            phrase = self._cfg['models'].get(model_name)
+            phrase = self._cfg['models'].get(model_name, '')
             msg = '' if not phrase else ': "{}"'.format(phrase)
         else:
             model_name = str(model)
