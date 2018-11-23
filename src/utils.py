@@ -4,7 +4,6 @@ import os
 import queue
 import signal
 import socket
-import subprocess
 import threading
 import time
 
@@ -51,48 +50,6 @@ class FakeFP(queue.Queue):
 
     def close(self):
         self.write(b'')
-
-
-class StreamPlayer(threading.Thread):
-    def __init__(self, cmd: list, fp):
-        super().__init__()
-        self._fp = fp
-        self._popen = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
-        self.poll = self._popen.poll
-        self.start()
-
-    def wait(self, timeout=None):
-        try:
-            self._popen.wait(timeout)
-        finally:
-            self.kill()
-
-    def kill(self):
-        self._fp.write(b'')
-        self._popen.kill()
-        if self.is_alive():
-            super().join()
-
-    def run(self):
-        data = self._fp.read()
-        while data and self.poll() is None:
-            try:
-                self._popen.stdin.write(data)
-            except BrokenPipeError:
-                # FIXME: Иногда aplay падает без видимой причины
-                # aplay: xrun:1624: read/write error, state = RUNNING
-                # Скорее всего это аппаратная проблема или проблема паузы между чанками
-                # На всякий случай я увеличу размер чанка при стриминге wav до 4 KiB, но это не сильно помогает
-                break
-            data = self._fp.read()
-        try:
-            self._popen.stdin.close()
-        except BrokenPipeError:
-            pass
-        try:
-            self._popen.stderr.close()
-        except BrokenPipeError:
-            pass
 
 
 class EnergyControl:

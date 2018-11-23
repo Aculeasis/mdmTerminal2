@@ -12,6 +12,7 @@ python3-pip
 build-essential
 mpg123
 mpd
+opus-tools
 flac
 sox
 python-pip

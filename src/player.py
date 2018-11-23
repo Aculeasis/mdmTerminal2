@@ -8,15 +8,11 @@ import threading
 import time
 
 import logger
-import utils
 from languages import PLAYER as LNG
+from lib import linux_play
 
 
 class Player:
-    PLAY = {
-        '.mp3': ['mpg123', '-q'],
-        '.wav': ['aplay', '-q'],
-    }
     MAX_BUSY_WAIT = 60  # Макс время блокировки, потом отлуп. Поможет от возможных зависаний
 
     def __init__(self, cfg, log, tts):
@@ -191,17 +187,14 @@ class Player:
         ext = ext or os.path.splitext(path)[1]
         if not stream and not os.path.isfile(path):
             return self.log(LNG['file_not_found'].format(path), logger.ERROR)
-        if ext not in self.PLAY:
+        if ext not in linux_play.CMD:
             return self.log(LNG['unknown_type'].format(ext), logger.CRIT)
-        cmd = self.PLAY[ext].copy()
         if stream is None:
-            cmd.append(path)
             self.log(LNG['play'].format(path, logger.DEBUG))
-            self._popen = subprocess.Popen(cmd, stderr=subprocess.PIPE)
+            self._popen = linux_play.get_popen(ext, path, False)
         else:
-            cmd.append('-')
             self.log(LNG['stream'].format(path, logger.DEBUG))
-            self._popen = utils.StreamPlayer(cmd, stream)
+            self._popen = linux_play.get_popen(ext, stream, True)
 
 
 class LowPrioritySay(threading.Thread):
