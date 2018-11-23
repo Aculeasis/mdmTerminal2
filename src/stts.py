@@ -170,8 +170,7 @@ class SpeechToText:
         self._work = True
         self._play = play_
         self._tts = tts
-        self._energy_threshold = None
-        self._energy_threshold_lock = threading.Lock()
+        self.energy = utils.EnergyControl(cfg, play_)
         try:
             self.max_mic_index = len(sr.Microphone().list_microphone_names()) - 1
         except OSError as e:
@@ -258,11 +257,11 @@ class SpeechToText:
         if commands:
             msg = ''
             if energy_threshold:
-                self.set_energy_threshold(energy_threshold)
+                self.energy.set(energy_threshold)
                 msg = ', energy_threshold={}'.format(int(energy_threshold))
             self.log(LNG['recognized'].format(commands, msg), logger.INFO)
         else:
-            self.set_energy_threshold(None)
+            self.energy.set(None)
         return commands
 
     def _non_block_listen(self, hello, lvl, file_path):
@@ -273,7 +272,7 @@ class SpeechToText:
         mic = sr.Microphone(device_index=self.get_mic_index())
 
         with mic as source:  # Слушаем шум 1 секунду, потом распознаем, если раздажает задержка можно закомментировать.
-            energy_threshold = self.correct_energy_threshold(r, source)
+            energy_threshold = self.energy.correct(r, source)
 
         if self._cfg.gts('alarmtts') and not hello:
             self._play.play(self._cfg.path['dong'], lvl)
@@ -309,7 +308,7 @@ class SpeechToText:
             if file_path:
                 self._play.play(file_path, lvl, wait=0.01, blocking=120)
 
-            energy_threshold = self.correct_energy_threshold(r, source)
+            energy_threshold = self.energy.correct(r, source)
 
             record_time = time.time()
             try:
@@ -324,28 +323,6 @@ class SpeechToText:
             return self._block_listen(hello=True, lvl=lvl, file_path=None, self_call=True)
         else:
             return audio, r, record_time, energy_threshold
-
-    def correct_energy_threshold(self, r: sr.Recognizer, source):
-        with self._energy_threshold_lock:
-            energy_threshold = self._cfg.gts('energy_threshold', 0)
-            if energy_threshold > 0:
-                r.energy_threshold = energy_threshold
-            elif energy_threshold < 0 and self._energy_threshold:
-                r.energy_threshold = self._energy_threshold
-                return self._energy_threshold
-            else:
-                if energy_threshold < 0 and self._play.noising:
-                    # Не подстаиваем автоматический уровень шума если терминал шумит сам.
-                    # Пусть будет 700
-                    self._energy_threshold = 700
-                    r.energy_threshold = self._energy_threshold
-                else:
-                    r.adjust_for_ambient_noise(source)
-                return r.energy_threshold
-
-    def set_energy_threshold(self, energy_threshold):
-        with self._energy_threshold_lock:
-            self._energy_threshold = energy_threshold
 
     def voice_record(self, hello: str, save_to: str, convert_rate=None, convert_width=None):
         if self.max_mic_index == -2:
@@ -469,7 +446,7 @@ class Phrases:
     def __init__(self, log, cfg):
         self._phrases = cfg.load_dict(self.NAME)
         try:
-            check_phrases(self._phrases)
+            utils.check_phrases(self._phrases)
         except ValueError as e:
             log('Error phrases loading, restore default phrases: {}'.format(e), logger.ERROR)
             self._phrases = None
@@ -492,21 +469,3 @@ class Phrases:
     @property
     def chance(self) -> bool:
         return random.SystemRandom().randint(1, 100) <= self._phrases['chance']
-
-
-def check_phrases(phrases):
-    if phrases is None:
-        return
-    if not isinstance(phrases, dict):
-        raise ValueError('Not a dict - {}'.format(type(phrases)))
-    keys = ['hello', 'deaf', 'ask']
-    for key in keys:
-        if not isinstance(phrases.get(key), list):
-            raise ValueError('{} must be list, not a {}'.format(key, type(phrases.get(key))))
-        if not phrases[key]:
-            raise ValueError('{} empty'.format(key))
-    if not isinstance(phrases.get('chance'), int):
-        raise ValueError('chance must be int type, not a {}'.format(type(phrases.get('chance'))))
-    if phrases['chance'] < 0:
-        raise ValueError('chance must be 0 or greater, not a {}'.format(phrases['chance']))
-

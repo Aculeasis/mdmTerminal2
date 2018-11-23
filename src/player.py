@@ -82,7 +82,6 @@ class Player:
     def clear_lvl(self):
         self._lvl = 0
 
-    @property
     def noising(self):
         # Плеер шумит, шумел только что или скоро начнет шуметь.
         return self.really_busy() or self.mpd.plays

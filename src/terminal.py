@@ -6,14 +6,13 @@ import threading
 import time
 
 import lib.snowboy_training as training_service
-import lib.sr_proxifier as sr
 import logger
 import player
+from snowboy import SnowBoySR, SnowBoy
 import stts
 import utils
 from languages import STTS as LNG2
 from languages import TERMINAL as LNG
-from lib import snowboydecoder
 
 
 class MDTerminal(threading.Thread):
@@ -44,15 +43,12 @@ class MDTerminal(threading.Thread):
     def _reload(self):
         if len(self._cfg.path['models_list']) and self._stt.max_mic_index != -2:
             if self._cfg.gts('chrome_mode'):
-                self._snowboy = SnowBoySR(
-                    self._stt,
-                    self._detected_sr,
-                    self._cfg,
-                    self._play,
-                )
+                snowboy = SnowBoySR
+                detected = self._detected_sr
             else:
-                self._snowboy = SnowBoy()
-            self._snowboy.init(self._cfg.gts('sensitivity'), self._cfg.path['models_list'], self._detected)
+                snowboy = SnowBoy
+                detected = self._detected
+            self._snowboy = snowboy(self._cfg, detected, self._interrupt_callback, self._stt, self._play)
         else:
             self._snowboy = None
 
@@ -90,7 +86,7 @@ class MDTerminal(threading.Thread):
         if self._snowboy is None:
             time.sleep(0.5)
         else:
-            self._snowboy.start(interrupt_check=self._interrupt_callback)
+            self._snowboy.start()
             self._snowboy.terminate()
 
     def _external_check(self):
@@ -275,75 +271,3 @@ class MDTerminal(threading.Thread):
         if reply:
             self._play.say(reply, lvl=1)
         self._listen()
-
-
-class SnowBoy:
-    def __init__(self):
-        self._callbacks = None
-        self._snowboy = None
-
-    def init(self, sensitivity, decoder_model, callback):
-        self._callbacks = [callback for _ in decoder_model]
-        self._snowboy = snowboydecoder.HotwordDetector(
-            decoder_model=decoder_model, sensitivity=sensitivity if isinstance(sensitivity, list) else [sensitivity]
-        )
-
-    def start(self, interrupt_check):
-        self._snowboy.start(detected_callback=self._callbacks, interrupt_check=interrupt_check)
-
-    def terminate(self):
-        self._snowboy.terminate()
-
-
-class SnowBoySR:
-    def __init__(self, stt: stts.SpeechToText, real_callback, cfg, play: player.Player):
-        self._stt = stt
-        self._callback = real_callback
-        self._cfg = cfg
-        self._sb_path = os.path.join(self._cfg.path['home'], 'lib')
-        self._hotword_callback = play.full_quiet if self._cfg.gts('chrome_choke') else None
-        self._play = play
-        self._sensitivity = 0.45
-        self._decoder_model = None
-        self._terminate = False
-        self._interrupt_check = None
-
-    def init(self, sensitivity, decoder_model, *_):
-        self._sensitivity = sensitivity
-        self._decoder_model = decoder_model
-
-    def _interrupted(self):
-        return self._terminate or self._interrupt_check()
-
-    def start(self, interrupt_check):
-        self._interrupt_check = interrupt_check
-        self._terminate = False
-        while not self._interrupted():
-            msg = ''
-            with sr.Microphone() as source:
-                r = sr.Recognizer(self._interrupted, self._sensitivity, self._hotword_callback)
-                energy_threshold = self._stt.correct_energy_threshold(r, source)
-                try:
-                    adata = r.listen(source, 5, 10, (self._sb_path, self._decoder_model))
-                except sr.WaitTimeoutError:
-                    self._stt.set_energy_threshold(None)
-                    continue
-                except RuntimeError:
-                    self._stt.set_energy_threshold(energy_threshold)
-                    continue
-                model = r.get_model
-                if model:  # Не распознаем если модель не опознана
-                    if self._cfg.gts('chrome_alarmstt'):
-                        self._play.play(self._cfg.path['dong'], lvl=5)
-                    msg = self._stt.voice_recognition(adata, r, 2)
-                    if self._cfg.gts('chrome_alarmstt'):
-                        self._play.clear_lvl()
-            if msg and model:
-                if self._callback(msg, model, energy_threshold):
-                    self._stt.set_energy_threshold(energy_threshold)
-                else:
-                    self._stt.set_energy_threshold(None)
-                break
-
-    def terminate(self):
-        self._terminate = True

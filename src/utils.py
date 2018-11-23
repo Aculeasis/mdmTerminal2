@@ -95,6 +95,40 @@ class StreamPlayer(threading.Thread):
             pass
 
 
+class EnergyControl:
+    def __init__(self, cfg, play, default=700):
+        self._cfg = cfg
+        self._noising = play.noising
+        self._energy_previous = default
+        self._energy_currently = None
+        self._lock = threading.Lock()
+
+    def _energy_threshold(self):
+        return self._cfg.gts('energy_threshold', 0)
+
+    def correct(self, r, source):
+        with self._lock:
+            energy_threshold = self._energy_threshold()
+            if energy_threshold > 0:
+                r.energy_threshold = energy_threshold
+                return None
+            elif energy_threshold < 0 and self._energy_currently:
+                r.energy_threshold = self._energy_currently
+            elif energy_threshold < 0 and self._noising():
+                # Не подстаиваем автоматический уровень шума если терминал шумит сам.
+                # Пусть будет прошлое успешное значение или 700
+                r.energy_threshold = self._energy_previous
+            else:
+                r.adjust_for_ambient_noise(source)
+            return r.energy_threshold
+
+    def set(self, energy_threshold):
+        with self._lock:
+            if self._energy_currently:
+                self._energy_previous = self._energy_currently
+            self._energy_currently = energy_threshold
+
+
 def get_ip_address():
     s = socket.socket(type=socket.SOCK_DGRAM)
     s.connect(('8.8.8.8', 80))
@@ -139,3 +173,20 @@ def rhvoice_rest_sets(data: dict):
         if val != ignore:
             sets[param] = val
     return sets
+
+
+def check_phrases(phrases):
+    if phrases is None:
+        return
+    if not isinstance(phrases, dict):
+        raise ValueError('Not a dict - {}'.format(type(phrases)))
+    keys = ['hello', 'deaf', 'ask']
+    for key in keys:
+        if not isinstance(phrases.get(key), list):
+            raise ValueError('{} must be list, not a {}'.format(key, type(phrases.get(key))))
+        if not phrases[key]:
+            raise ValueError('{} empty'.format(key))
+    if not isinstance(phrases.get('chance'), int):
+        raise ValueError('chance must be int type, not a {}'.format(type(phrases.get('chance'))))
+    if phrases['chance'] < 0:
+        raise ValueError('chance must be 0 or greater, not a {}'.format(phrases['chance']))
