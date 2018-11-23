@@ -65,8 +65,6 @@ class ConfigHandler(dict):
         self._add_log(log)
         self._print(msg='CFG: {}'.format(self))
 
-        # ~/tts_cache/
-        self._make_dir(self.path['tts_cache'])
         # ~/resources/
         self._make_dir(self.path['resources'])
         # ~/resources/models/
@@ -99,9 +97,19 @@ class ConfigHandler(dict):
         to_save |= self._cfg_checker('yandex', 'emotion', YANDEX_EMOTION, 'good')
         to_save |= self._cfg_checker('yandex', 'speaker', YANDEX_SPEAKER, 'alyss')
         to_save |= self._log_file_init()
+        to_save |= self._tts_cache_path_check()
         to_save |= self._first()
         if to_save:
             self.config_save()
+
+    def _tts_cache_path_check(self):
+        to_save = False
+        if not self['cache']['path']:
+            # ~/tts_cache/
+            self['cache']['path'] = os.path.join(self.path['home'], 'tts_cache')
+            to_save = True
+        self._make_dir(self['cache']['path'])
+        return to_save
 
     def _log_file_init(self):  # Выбираем доступную для записи директорию для логов
         if self['log']['file']:
@@ -221,15 +229,16 @@ class ConfigHandler(dict):
         return updater.from_json(data) > 0 if isinstance(data, str) else updater.from_dict(data) > 0
 
     def tts_cache_check(self):
-        if not os.path.isdir(self.path['tts_cache']):
-            self._print(msg=LNG['miss_tts_cache'].format(self.path['tts_cache']), mode=3)
+        cache_path = self.gt('cache', 'path')
+        if not os.path.isdir(cache_path):
+            self._print(msg=LNG['miss_tts_cache'].format(cache_path), mode=3)
             return
         max_size = self['cache'].get('tts_size', 50) * 1024 * 1024
         current_size = 0
         files = []
         # Формируем список из пути и размера файлов, заодно считаем общий размер.
-        for file in os.listdir(self.path['tts_cache']):
-            pfile = os.path.join(self.path['tts_cache'], file)
+        for file in os.listdir(cache_path):
+            pfile = os.path.join(cache_path, file)
             if os.path.isfile(pfile):
                 fsize = os.path.getsize(pfile)
                 current_size += fsize

@@ -77,7 +77,7 @@ class _TTSWrapper(threading.Thread):
             else:
                 format_ = 'wav'
                 self._buff_size = 1024 * 4
-            self.file_path = os.path.join(self.cfg.path['tts_cache'], provider + rname) if use_cache else \
+            self.file_path = os.path.join(self.cfg.gt('cache', 'path'), provider + rname) if use_cache else \
                 '<{}><{}>'.format(sha1, format_)
             self._tts_gen(self.file_path if use_cache else None, format_, self.msg)
             self._unlock()
@@ -114,7 +114,7 @@ class _TTSWrapper(threading.Thread):
         return file
 
     def _file_check(self, rname, prov):
-        file = os.path.join(self.cfg.path['tts_cache'], prov + rname)
+        file = os.path.join(self.cfg.gt('cache', 'path'), prov + rname)
         return file if os.path.isfile(file) else ''
 
     def _tts_gen(self, file, format_, msg: str):

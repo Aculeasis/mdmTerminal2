@@ -74,6 +74,7 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
     'cache': {
         'tts_priority': 'yandex',
         'tts_size': 100,
+        'path': '',
     },
     'models': {},
     'proxy': {
@@ -105,8 +106,6 @@ def get_path(home) -> dict:
     }
     # ~/settings.ini
     path['settings'] = os.path.join(path['home'], 'settings.ini')
-    # ~/tts_cache/
-    path['tts_cache'] = os.path.join(path['home'], 'tts_cache')
     # ~/resources/
     path['resources'] = os.path.join(path['home'], 'resources')
     # ~/resources/models/
