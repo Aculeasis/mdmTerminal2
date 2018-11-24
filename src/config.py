@@ -26,7 +26,7 @@ class ConfigHandler(dict):
         self._to_tts = []  # Пока player нет храним фразы тут.
         self._to_log = []  # А тут принты в лог
         self._config_init()
-        self._yandex = None
+        self._yandex_keys = yandex_utils.Keystore()
 
     def __print(self, msg, lvl):
         self._to_log.append((msg, lvl))
@@ -38,7 +38,7 @@ class ConfigHandler(dict):
             # Будем брать ключ у транслита для старой версии
             # и (folderId, aim) для новой через oauth
             try:
-                key_ = yandex_utils.get_key(key_, api)
+                key_ = self._yandex_keys.get(key_, api)
             except RuntimeError as e:
                 raise RuntimeError(LNG['err_ya_key'].format(e))
         return key_

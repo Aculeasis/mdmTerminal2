@@ -8,10 +8,12 @@ from utils import REQUEST_ERRORS
 from .gtts_proxifier import Google, gTTSError
 from .proxy import proxies
 
-__all__ = ['support', 'GetTTS', 'Google', 'Yandex', 'YandexCloud', 'RHVoiceREST', 'RHVoice']
+__all__ = ['support', 'GetTTS', 'Google', 'Yandex', 'YandexCloud', 'RHVoiceREST', 'RHVoice', 'gTTSError']
 
 
 class BaseTTS:
+    MAX_CHARS = None
+
     def __init__(self, url, proxy_key=None, buff_size=1024, **kwargs):
         self._url = url
         self._buff_size = buff_size
@@ -26,6 +28,8 @@ class BaseTTS:
     def _request_check(self):
         if not self._params.get('text'):
             raise RuntimeError('No text to speak')
+        if self.MAX_CHARS and len(self._params['text']) >= self.MAX_CHARS:
+            raise RuntimeError('Number of characters must be less than {}'.format(self.MAX_CHARS))
 
     def _request(self, proxy_key):
         try:
@@ -67,17 +71,13 @@ class BaseTTS:
 
 
 class Yandex(BaseTTS):
+    # https://tech.yandex.ru/speechkit/cloud/doc/guide/common/speechkit-common-tts-http-request-docpage/
     URL = 'https://tts.voicetech.yandex.net/generate'
     MAX_CHARS = 2000
 
     def __init__(self, text, buff_size, speaker, audio_format, key, emotion, lang, *_, **__):
         super().__init__(self.URL, 'tts_yandex', buff_size=buff_size, text=text, speaker=speaker or 'alyss',
                          format=audio_format, key=key, lang=lang or 'ru-RU', emotion=emotion or 'good')
-
-    def _request_check(self):
-        super()._request_check()
-        if len(self._params['text']) >= self.MAX_CHARS:
-            raise RuntimeError('Number of characters must be less than 2000')
 
 
 class YandexCloud(BaseTTS):
@@ -91,11 +91,6 @@ class YandexCloud(BaseTTS):
         self._headers = {'Authorization': 'Bearer {}'.format(key[1])}
         super().__init__(self.URL, 'tts_yandex', buff_size=buff_size, text=text, voice=speaker or 'alyss',
                          format='oggopus', folderId=key[0], lang=lang or 'ru-RU', emotion=emotion or 'good')
-
-    def _request_check(self):
-        super()._request_check()
-        if len(self._params['text']) >= self.MAX_CHARS:
-            raise RuntimeError('Number of characters must be less than 5000')
 
     def _request(self, proxy_key):
         try:

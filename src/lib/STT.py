@@ -8,15 +8,11 @@ from io import BytesIO
 import requests
 from speech_recognition import AudioData
 
-from utils import REQUEST_ERRORS
+from utils import REQUEST_ERRORS, UnknownValueError
 from .proxy import proxies
-from .yandex_utils import requests_post
+from .yandex_utils import requests_post, xml_yandex
 
 __all__ = ['Yandex', 'YandexCloud', 'PocketSphinxREST']
-
-
-class UnknownValueError(Exception):
-    pass
 
 
 class BaseSTT:
@@ -66,20 +62,23 @@ class BaseSTT:
 
     def _reply_check(self):
         if not self._rq.ok:
+            print(self._rq.status_code, self._rq.reason, self._rq.text)
             raise RuntimeError('{}: {}'.format(self._rq.status_code, self._rq.reason))
 
     def _parse_response(self):
         pass
 
     def text(self):
+        if not self._text:
+            raise UnknownValueError('No variants')
         return self._text
 
 
 class Yandex(BaseSTT):
+    # https://tech.yandex.ru/speechkit/cloud/doc/guide/common/speechkit-common-asr-http-request-docpage/
     URL = 'https://asr.yandex.net/asr_xml'
 
     def __init__(self, audio_data: AudioData, key, lang='ru-RU'):
-        # https://tech.yandex.ru/speechkit/cloud/doc/guide/common/speechkit-common-asr-http-request-docpage/
         if not key:
             raise RuntimeError('API-Key unset')
         rate = 16000
@@ -119,9 +118,6 @@ class YandexCloud(BaseSTT):
         }
         super().__init__(self.URL, audio_data, headers, rate, width, 'stt_yandex', **kwargs)
 
-    def _get_audio(self, audio_data: AudioData):
-        return audio_data.get_wav_data(self._convert_rate, self._convert_width)
-
     def _chunks(self):
         cmd = ['opusenc', '--quiet', '--discard-comments', '-', '-']
         with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE) as popen:
@@ -150,6 +146,7 @@ class YandexCloud(BaseSTT):
 
 
 class PocketSphinxREST(BaseSTT):
+    # https://github.com/Aculeasis/pocketsphinx-rest
     def __init__(self, audio_data: AudioData, url='http://127.0.0.1:8085'):
         url = '{}/stt'.format(url)
         super().__init__(url, audio_data, {'Content-Type': 'audio/wav'}, 16000, 2, 'stt_pocketsphinx-rest')
@@ -163,41 +160,3 @@ class PocketSphinxREST(BaseSTT):
         if 'code' not in result or 'text' not in result or result['code']:
             raise RuntimeError('Response error: {}: {}'.format(result.get('code', 'None'), result.get('text', 'None')))
         self._text = result['text']
-        if not self._text:
-            raise UnknownValueError('No variants')
-
-
-def xml_yandex(data):
-    # https://tech.yandex.ru/speechkit/cloud/doc/guide/common/speechkit-common-asr-http-response-docpage/
-    success_shift = 9
-    variant_len = 10
-    text = ''
-    end_point = 0
-    success_found = False
-    for test in data.split('\n'):
-        if success_found:
-            end_point = test.rfind('</variant>')
-            if end_point > 0:
-                text = test
-                break
-        else:
-            start_success = test.find('success="') + success_shift
-            if start_success > success_shift:
-                success_str = test[start_success:start_success+1]
-                if success_str == '1':
-                    success_found = True
-                elif success_str == '0':
-                    raise UnknownValueError('No variants')
-                else:
-                    raise RuntimeError('xml: root attribute broken - \'{}\''.format(success_str))
-
-    if not success_found:
-        raise RuntimeError('xml: root attribute not found, not XML?')
-
-    start_variant = text.find('>') + 1
-    if start_variant < variant_len or start_variant > end_point:
-        raise RuntimeError('xml: broken XML')
-    text = text[start_variant:end_point]
-    if not text:
-        raise RuntimeError('xml: get empty text, WTF?')
-    return text

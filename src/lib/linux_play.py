@@ -15,13 +15,8 @@ class StreamPlayer(threading.Thread):
         self._fp = fp
         self._popen = popen
         self.poll = self._popen.poll
+        self.wait = self._popen.wait
         self.start()
-
-    def wait(self, timeout=None):
-        try:
-            self._popen.wait(timeout)
-        finally:
-            self.kill()
 
     def kill(self):
         self._fp.write(b'')
@@ -98,6 +93,10 @@ class DoublePopen:
                 pass
 
 
+def _select_popen(cmd1, cmd2):
+    return Popen(cmd2) if cmd1 is None else DoublePopen(cmd1, cmd2)
+
+
 def _get_cmd2(ext, path):
     cmd = CMD[ext].copy()
     cmd.append(path)
@@ -118,8 +117,4 @@ def get_popen(ext, fp_or_file, stream):
     else:
         cmd1 = None
         cmd2 = _get_cmd2(ext, file_path)
-    if cmd1 is None:
-        popen = Popen(cmd2)
-    else:
-        popen = DoublePopen(cmd1, cmd2)
-    return StreamPlayer(popen, fp_or_file) if stream else popen
+    return StreamPlayer(_select_popen(cmd1, cmd2), fp_or_file) if stream else _select_popen(cmd1, cmd2)

@@ -19,6 +19,10 @@ REQUEST_ERRORS = (
 ) + _PROXY_ERROR
 
 
+class UnknownValueError(Exception):
+    pass
+
+
 class SignalHandler:
     def __init__(self, signals=(signal.SIGTERM,)):
         self._sleep = threading.Event()

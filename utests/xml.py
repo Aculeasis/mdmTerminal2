@@ -34,12 +34,6 @@ xml_err1 = """
 
 xml_err2 = """
 <recognitionResults success="1">
-\t<variant confidence="0.69"></variant>
-</recognitionResults>
-"""
-
-xml_err3 = """
-<recognitionResults success="1">
 твой номер 212-85-06</variant>
 \t<variant confidence="0.7">твой номер 213-85-06</variant>
 </recognitionResults>
@@ -93,8 +87,7 @@ class YandexXML(unittest.TestCase):
     def test_err(self):
         variants = (
             (xml_err1, 'xml: root attribute not found, not XML?'),
-            (xml_err2, 'xml: get empty text, WTF?'),
-            (xml_err3, 'xml: broken XML'),
+            (xml_err2, 'xml: broken XML'),
         )
         for data, msg in variants:
             self._xml_err(data, msg)
