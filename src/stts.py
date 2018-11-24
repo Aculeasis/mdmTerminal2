@@ -57,7 +57,9 @@ class _TTSWrapper(threading.Thread):
         wtime = time.time()
         sha1 = hashlib.sha1(self.msg.encode()).hexdigest()
         provider = self.cfg.gts('providertts', 'google')
-        rname = '_'+sha1 + '.mp3'
+        ext = 'mp3' if self.cfg.yandex_api(provider) != 2 else 'opus'
+        find_part = ''.join(('_', sha1, '.'))
+        rname = find_part + ext
         if self.realtime:
             self.log('say \'{}\''.format(self.msg), logger.INFO)
             msg_gen = ''
@@ -65,18 +67,18 @@ class _TTSWrapper(threading.Thread):
             msg_gen = '\'{}\' '.format(self.msg)
         use_cache = self.cfg['cache'].get('tts_size', 50) > 0
 
-        self.file_path = self._find_in_cache(rname, provider) if use_cache else None
+        self.file_path = self._find_in_cache(provider, find_part, ext) if use_cache else None
         if self.file_path:
             self._unlock()
             work_time = time.time() - wtime
             action = LNG['action_cache'].format(msg_gen)
             time_diff = ''
         else:
-            if use_cache or provider in ['google', 'yandex']:
-                format_ = 'mp3'
-            else:
+            if not use_cache and provider in ('rhvoice-rest', 'rhvoice'):
                 format_ = 'wav'
                 self._buff_size = 1024 * 4
+            else:
+                format_ = ext
             self.file_path = os.path.join(self.cfg.gt('cache', 'path'), provider + rname) if use_cache else \
                 '<{}><{}>'.format(sha1, format_)
             self._tts_gen(self.file_path if use_cache else None, format_, self.msg)
@@ -96,33 +98,40 @@ class _TTSWrapper(threading.Thread):
             self.work_time = time.time() - self.start_time
         self.event.set()
 
-    def _find_in_cache(self, rname: str, prov: str):
+    def _find_in_cache(self, prov: str, rname: str, ext: str):
         prov_priority = self.cfg['cache'].get('tts_priority', '')
         file = None
         if prov_priority in self.PROVIDERS:  # Приоритет
-            file = self._file_check(rname, prov_priority)
+            file = self._file_check(prov_priority, rname, ext)
 
         if not file and prov_priority != prov:  # Обычная, второй раз не чекаем
-            file = self._file_check(rname, prov)
+            file = self._file_check(prov, rname, ext)
 
         if not file and prov_priority == '*':  # Ищем всех
             for key in self.PROVIDERS:
                 if key != prov:
-                    file = self._file_check(rname, key)
+                    file = self._file_check(key, rname, ext)
                 if file:
                     break
         return file
 
-    def _file_check(self, rname, prov):
-        file = os.path.join(self.cfg.gt('cache', 'path'), prov + rname)
+    def _file_check(self, prov, rname, ext):
+        if prov == 'yandex':
+            for ext_ in ('mp3', 'opus'):
+                file = os.path.join(self.cfg.gt('cache', 'path'), prov + rname + ext_)
+                if os.path.isfile(file):
+                    return file
+            return ''
+        file = os.path.join(self.cfg.gt('cache', 'path'), prov + rname + ext)
         return file if os.path.isfile(file) else ''
 
     def _tts_gen(self, file, format_, msg: str):
         prov = self.cfg.gts('providertts', 'unset')
-        key = self.cfg.key(prov, 'apikeytts')
+        key = None
         if TTS.support(prov):
             sets = utils.rhvoice_rest_sets(self.cfg[prov]) if prov == 'rhvoice-rest' else {}
             try:
+                key = self.cfg.key(prov, 'apikeytts')
                 tts = TTS.GetTTS(
                     prov,
                     text=msg,
@@ -133,7 +142,8 @@ class _TTSWrapper(threading.Thread):
                     lang=LNG['tts_lng_dict'].get(prov, LNG['tts_lng_def']),
                     emotion=self.cfg.gt(prov, 'emotion'),
                     url=self.cfg.gt(prov, 'server'),
-                    sets=sets
+                    sets=sets,
+                    yandex_api=self.cfg.yandex_api(prov)
                 )
             except(RuntimeError, TTS.gTTSError) as e:
                 self._synthesis_error(prov, key, e)
@@ -362,11 +372,11 @@ class SpeechToText:
 
     def voice_recognition(self, audio, recognizer, quiet: int =0) -> str or None:
         prov = self._cfg.gts('providerstt', 'google')
-        key = self._cfg.key(prov, 'apikeystt')
         if quiet < 2:
             self.log(LNG['recognized_from'].format(prov), logger.DEBUG)
         wtime = time.time()
         try:
+            key = self._cfg.key(prov, 'apikeystt')
             if prov == 'google':
                 command = recognizer.recognize_google(audio, language=LNG['stt_lng'])
             elif prov == 'wit.ai':
@@ -379,7 +389,10 @@ class SpeechToText:
                     url=self._cfg.gt(prov, 'server', 'http://127.0.0.1:8085')
                 ).text()
             elif prov == 'yandex':
-                command = STT.Yandex(audio_data=audio, key=key).text()
+                if self._cfg.yandex_api(prov) == 2:
+                    command = STT.YandexCloud(audio_data=audio, key=key).text()
+                else:
+                    command = STT.Yandex(audio_data=audio, key=key).text()
             else:
                 self.log(LNG['err_unknown_prov'].format(prov), logger.CRIT)
                 return ''

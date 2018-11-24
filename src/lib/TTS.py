@@ -3,13 +3,12 @@ import subprocess
 from shlex import quote
 
 import requests
-from bs4 import BeautifulSoup
 
 from utils import REQUEST_ERRORS
-from .proxy import proxies
 from .gtts_proxifier import Google, gTTSError
+from .proxy import proxies
 
-__all__ = ['support', 'GetTTS', 'Google', 'Yandex', 'RHVoiceREST', 'RHVoice']
+__all__ = ['support', 'GetTTS', 'Google', 'Yandex', 'YandexCloud', 'RHVoiceREST', 'RHVoice']
 
 
 class BaseTTS:
@@ -43,8 +42,7 @@ class BaseTTS:
 
     def _reply_check(self):
         if not self._rq.ok:
-            msg = BeautifulSoup(self._rq.text, features='html.parser').text.replace('\n', ' ')[:99]
-            raise RuntimeError('{}: {}'.format(self._rq.status_code, msg))
+            raise RuntimeError('{}: {}'.format(self._rq.status_code, self._rq.reason))
 
     def iter_me(self):
         if self._data is None:
@@ -80,6 +78,50 @@ class Yandex(BaseTTS):
         super()._request_check()
         if len(self._params['text']) >= self.MAX_CHARS:
             raise RuntimeError('Number of characters must be less than 2000')
+
+
+class YandexCloud(BaseTTS):
+    # https://cloud.yandex.ru/docs/speechkit/tts/request
+    URL = 'https://tts.api.cloud.yandex.net/speech/v1/tts:synthesize'
+    MAX_CHARS = 5000
+
+    def __init__(self, text, buff_size, speaker, key, emotion, lang, *_, **__):
+        if not isinstance(key, (tuple, list)) or len(key) < 2:
+            raise RuntimeError('Wrong Yandex APIv2 key')
+        self._headers = {'Authorization': 'Bearer {}'.format(key[1])}
+        super().__init__(self.URL, 'tts_yandex', buff_size=buff_size, text=text, voice=speaker or 'alyss',
+                         format='oggopus', folderId=key[0], lang=lang or 'ru-RU', emotion=emotion or 'good')
+
+    def _request_check(self):
+        super()._request_check()
+        if len(self._params['text']) >= self.MAX_CHARS:
+            raise RuntimeError('Number of characters must be less than 5000')
+
+    def _request(self, proxy_key):
+        try:
+            self._rq = requests.post(
+                self._url,
+                data=self._params,
+                headers=self._headers,
+                stream=True,
+                timeout=30,
+                proxies=proxies(proxy_key)
+            )
+        except REQUEST_ERRORS as e:
+            raise RuntimeError(str(e))
+        self._data = self._rq.iter_content
+
+    def _reply_check(self):
+        if not self._rq.ok:
+            try:
+                data = self._rq.json()
+            except ValueError:
+                data = {}
+            if 'error_code' in data:
+                msg = '[{}]{}: {}'.format(self._rq.status_code, data.get('error_code'), data.get('error_message'))
+            else:
+                msg = '{}: {}'.format(self._rq.status_code, self._rq.reason)
+            raise RuntimeError(msg)
 
 
 class RHVoiceREST(BaseTTS):
@@ -130,4 +172,6 @@ def support(name):
 def GetTTS(name, **kwargs):
     if not support(name):
         raise RuntimeError('TTS {} not found'.format(name))
+    if kwargs.get('yandex_api') == 2:
+        return YandexCloud(**kwargs)
     return _CLASS_BY_NAME[name](**kwargs)

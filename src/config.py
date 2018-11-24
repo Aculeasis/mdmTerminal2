@@ -9,7 +9,7 @@ import time
 import logger
 import utils
 from lib import proxy
-from lib import yandex_apikey
+from lib import yandex_utils
 import languages
 from languages import CONFIG as LNG, YANDEX_EMOTION, YANDEX_SPEAKER
 
@@ -32,16 +32,22 @@ class ConfigHandler(dict):
         self._to_log.append((msg, lvl))
 
     def key(self, prov, api_key):
-        key_ = self.get(prov, {}).get(api_key)
-        if prov == 'yandex' and not key_:
-            # Будем брать ключ у транслита
-            if self._yandex is None:
-                self._yandex = yandex_apikey.APIKey()
+        key_ = self.gt(prov, api_key)
+        api = self.yandex_api(prov)
+        if api == 2 or (prov == 'yandex' and not key_):
+            # Будем брать ключ у транслита для старой версии
+            # и (folderId, aim) для новой через oauth
             try:
-                key_ = self._yandex.key
+                key_ = yandex_utils.get_key(key_, api)
             except RuntimeError as e:
-                self._log(LNG['err_ya_key'].format(e), logger.ERROR)
+                raise RuntimeError(LNG['err_ya_key'].format(e))
         return key_
+
+    def yandex_api(self, prov):
+        if prov == 'yandex':
+            return self.gt(prov, 'api', 1)
+        else:
+            return 1
 
     def gt(self, sec, key, default=None):
         # .get для саб-словаря

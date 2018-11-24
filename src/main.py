@@ -55,6 +55,7 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'file': '',
     },
     'yandex': {
+        'api': 1,
         'emotion': 'good',
         'speaker': 'alyss',
     },

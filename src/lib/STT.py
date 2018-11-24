@@ -1,17 +1,18 @@
 
 import hashlib
 import json
+import subprocess
 import time
 from io import BytesIO
 
 import requests
-from bs4 import BeautifulSoup
 from speech_recognition import AudioData
 
 from utils import REQUEST_ERRORS
 from .proxy import proxies
+from .yandex_utils import requests_post
 
-__all__ = ['Yandex', 'PocketSphinxREST']
+__all__ = ['Yandex', 'YandexCloud', 'PocketSphinxREST']
 
 
 class UnknownValueError(Exception):
@@ -65,8 +66,7 @@ class BaseSTT:
 
     def _reply_check(self):
         if not self._rq.ok:
-            msg = BeautifulSoup(self._rq.text, features='html.parser').text.replace('\n', ' ')[:99]
-            raise RuntimeError('{}: {}'.format(self._rq.status_code, msg))
+            raise RuntimeError('{}: {}'.format(self._rq.status_code, self._rq.reason))
 
     def _parse_response(self):
         pass
@@ -99,6 +99,54 @@ class Yandex(BaseSTT):
 
     def _parse_response(self):
         self._text = xml_yandex(self._rq.text)
+
+
+class YandexCloud(BaseSTT):
+    # https://cloud.yandex.ru/docs/speechkit/stt/request
+    URL = 'https://stt.api.cloud.yandex.net/speech/v1/stt:recognize'
+
+    def __init__(self, audio_data: AudioData, key, lang='ru-RU'):
+        if not isinstance(key, (tuple, list)) or len(key) < 2:
+            raise RuntimeError('Wrong Yandex APIv2 key')
+        rate = 16000
+        width = 2
+        headers = {'Authorization': 'Bearer {}'.format(key[1])}
+        kwargs = {
+            'topic': 'general',
+            'lang': lang,
+            'profanityFilter': 'false',
+            'folderId': key[0]
+        }
+        super().__init__(self.URL, audio_data, headers, rate, width, 'stt_yandex', **kwargs)
+
+    def _get_audio(self, audio_data: AudioData):
+        return audio_data.get_wav_data(self._convert_rate, self._convert_width)
+
+    def _chunks(self):
+        cmd = ['opusenc', '--quiet', '--discard-comments', '-', '-']
+        with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE) as popen:
+            popen.stdin.write(self._audio)
+            del self._audio
+            while True:
+                chunk = popen.stdout.read(self.BUFF_SIZE)
+                yield chunk
+                if not chunk:
+                    break
+
+    def _send(self, proxy_key):
+        self._text = requests_post(
+            self._url,
+            'result',
+            data=self._chunks(),
+            params=self._params,
+            headers=self._headers,
+            stream=True,
+            timeout=60,
+            proxies=proxies(proxy_key)
+        )
+
+    def _reply_check(self):
+        pass
 
 
 class PocketSphinxREST(BaseSTT):
