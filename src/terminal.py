@@ -113,6 +113,8 @@ class MDTerminal(threading.Thread):
                 self._rec_play(*data)
             elif cmd == 'compile':
                 self._rec_compile(*data)
+            elif cmd == 'tts':
+                self._play.say(data, lvl=lvl)
             else:
                 self.log(LNG['err_call'].format(cmd, data, lvl), logger.ERROR)
 
@@ -202,11 +204,10 @@ class MDTerminal(threading.Thread):
             os.remove(x)
 
     def external_cmd(self, cmd: str, data='', lvl: int = 0):
-        if cmd == 'tts':
-            if not lvl:
-                self._play.say(data, lvl=0)
-                return
-        self._queue.put_nowait((cmd, data, lvl, time.time()))
+        if cmd == 'tts' and not lvl:
+            self._play.say(data, lvl=0)
+        else:
+            self._queue.put_nowait((cmd, data, lvl, time.time()))
 
     def _model_data_by_id(self, model: int):
         model -= 1

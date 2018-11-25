@@ -13,7 +13,7 @@ from lib import linux_play
 
 
 class Player:
-    MAX_BUSY_WAIT = 60  # Макс время блокировки, потом отлуп. Поможет от возможных зависаний
+    MAX_BUSY_WAIT = 300  # Макс время блокировки, потом отлуп. Поможет от возможных зависаний
 
     def __init__(self, cfg, log, tts):
         self._cfg = cfg
@@ -59,7 +59,7 @@ class Player:
         start_time = time.time()
         if lvl <= self.get_lvl():
                 while self.busy() and time.time() - start_time < self.MAX_BUSY_WAIT:
-                    pass
+                    time.sleep(0.01)
         if lvl >= self.get_lvl():
             self._lvl = lvl
             self.quiet()
@@ -118,12 +118,17 @@ class Player:
         except subprocess.TimeoutExpired:
             self.kill_popen()
 
+    def _no_background_play(self, lvl, blocking):
+        if not self._cfg.gts('no_background_play'):
+            return lvl, blocking
+        return lvl if lvl >= 5 else 2, 250
+
     def play(self, file, lvl: int=2, wait=0, blocking: int=0):
-        if not lvl:
+        if not lvl and not self._cfg.gts('no_background_play'):
             self.log('low play \'{}\' pause {}'.format(file, wait), logger.DEBUG)
             return self._lp_play.play(file, wait)
         self._only_one.acquire()
-
+        lvl, blocking = self._no_background_play(lvl, blocking)
         if not self.set_lvl(lvl):
             return
 
@@ -146,11 +151,11 @@ class Player:
         self.say(msg, lvl, alarm, wait, is_file)
 
     def say(self, msg: str, lvl: int=2, alarm=None, wait=0, is_file: bool = False, blocking: int=0):
-        if not lvl:
+        if not lvl and not self._cfg.gts('no_background_play'):
             self.log('low say \'{}\' pause {}'.format(msg, wait), logger.DEBUG)
             return self._lp_play.say(msg, wait, is_file)
         self._only_one.acquire()
-
+        lvl, blocking = self._no_background_play(lvl, blocking)
         if not self.set_lvl(lvl):
             return
 
