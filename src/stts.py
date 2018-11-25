@@ -222,7 +222,7 @@ class SpeechToText:
         if msg is None and deaf:
             say = self.sys_say.deaf
             if say:
-                self._play.say(say)
+                self._play.say(say, blocking=120 if self._cfg.gts('blocking_listener') else 0)
         return msg or ''
 
     def get_mic_index(self):
@@ -317,7 +317,6 @@ class SpeechToText:
 
             if file_path:
                 self._play.play(file_path, lvl, wait=0.01, blocking=120)
-
             energy_threshold = self.energy.correct(r, source)
 
             record_time = time.time()

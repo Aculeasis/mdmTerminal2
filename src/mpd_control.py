@@ -27,10 +27,7 @@ class MPDControl(threading.Thread):
 
     def __init__(self, cfg: dict, log, play):
         super().__init__(name='MPDControl')
-        self.IP = cfg.get('ip', '127.0.0.1')
-        self.PORT = cfg.get('port', 6600)
-        self.RESUME_TIME = cfg.get('wait', 13)
-
+        self._cfg = cfg  # ip, port, wait
         self._last_play = play.last_activity
         self._say = play.say
         self.log = log
@@ -44,7 +41,7 @@ class MPDControl(threading.Thread):
         if self.is_conn:
             self._disconnect()
         try:
-            self._mpd.connect(self.IP, self.PORT)
+            self._mpd.connect(self._cfg['ip'], self._cfg['port'])
         except (mpd.MPDError, IOError) as e:
             self.log('{}: {}'.format(LNG['err_mpd'], e), logger.ERROR)
             self.is_conn = False
@@ -105,7 +102,7 @@ class MPDControl(threading.Thread):
         return self.allow() and self._mpd_is_play()
 
     def pause(self, paused=None):
-        if not self.allow():
+        if not self.allow() or (not self._cfg['wait'] and paused is not None):
             return
         if paused is None:
             self._resume = False
@@ -132,7 +129,7 @@ class MPDControl(threading.Thread):
         self._disconnect()
 
     def _resume_check(self):
-        if self._resume and time.time() - self._last_play() > self.RESUME_TIME:
+        if self._resume and time.time() - self._last_play() > self._cfg['wait']:
             self.pause(False)
 
     @_auto_reconnect

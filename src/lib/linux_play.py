@@ -81,7 +81,7 @@ class DoublePopen:
         if timeout is None:
             self._two.wait(timeout)
         else:
-            end = time.time() - end - timeout
+            end = timeout - (time.time() - end)
             if end > 0:
                 self._two.wait(end)
 
