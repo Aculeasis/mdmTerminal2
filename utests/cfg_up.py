@@ -47,9 +47,9 @@ class ConfigUpdater(unittest.TestCase):
         self.assertEqual(updater.from_json(add), 4)
         self.assertFalse(updater.save_me)
 
-    def test_5_4_dict(self):
+    def test_5_5_dict(self):
         updater = new_updater()
-        self.assertEqual(updater.from_dict({'settings': self.ADD_5}), 4)
+        self.assertEqual(updater.from_dict({'settings': self.ADD_5}), 5)
         self.assertFalse(updater.save_me)
 
     def test_prov(self):
