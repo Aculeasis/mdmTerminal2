@@ -309,7 +309,12 @@ class ConfigUpdater:
     # Ключ: (новая секция, новое имя ключа)
     KEY_MOVE = {
         'ip_server': ('majordomo', 'ip'),
-        'linkedroom': ('majordomo', 'linkedroom'),
+        'linkedroom': ('majordomo', ''),
+    }
+    # Только то что приходит от сервера
+    KEY_FROM_SERVER_MOVE = {
+        'token': ('snowboy', ''),
+        'clear_models': ('snowboy', ''),
     }
 
     def __init__(self, cfg, log):
@@ -320,8 +325,11 @@ class ConfigUpdater:
         self._updated_count = 0
         self._lock = threading.Lock()
         self._save_me = False
+        # 0 - dict, 1 - ini, 2 - server
+        self._source = None
 
-    def _clear(self):
+    def _init(self, source):
+        self._source = source
         self._new_cfg = {}
         self._change_count = 0
         self._updated_count = 0
@@ -339,7 +347,7 @@ class ConfigUpdater:
         except (json.decoder.JSONDecodeError, TypeError) as err:
             self._log(LNG['wrong_json'].format(data, err.msg), logger.ERROR)
             return
-        self._parser(self._dict_normalization(data), True)
+        self._parser(self._dict_normalization(data))
 
     def _dict_normalization(self, data: dict) -> dict:
         settings = {key: data.pop(key) for key in [x for x in data.keys()] if not isinstance(data[key], dict)}
@@ -350,16 +358,16 @@ class ConfigUpdater:
                 data[self.SETTINGS].update(settings)
         return data
 
-    def _parser(self, data: dict, external=False):
+    def _parser(self, data: dict):
         for key, val in data.items():
             if not isinstance(val, dict):
                 self._print_result('Section must be dict. {}: {}'.format(key, val), logger.CRIT)
                 continue
             if key == self.SETTINGS:
                 self._settings_adapter(val)
-            self._recursive_parser(self._cfg, self._new_cfg, key, val, external)
+            self._recursive_parser(self._cfg, self._new_cfg, key, val, self._source == 2)
 
-    def _recursive_parser(self, cfg: dict, cfg_diff: dict, key, val, external=False):
+    def _recursive_parser(self, cfg: dict, cfg_diff: dict, key, val, external):
         if not isinstance(key, str):
             self._log(LNG['wrong_key'].format(type(key), key), logger.ERROR)
             return
@@ -394,8 +402,10 @@ class ConfigUpdater:
                 cfg_diff[key] = tmp
 
     def _settings_adapter(self, data: dict):
+        if not self._source:
+            return
         for key in [x for x in data.keys() if isinstance(x, str)]:
-            for mover in (self._api_key_move, self._key_move):
+            for mover in (self._api_key_move, self._key_move, self._key_move_server):
                 if key not in data:  # элемент мог быть удален мовером
                     break
                 mover(data, key, data[key])
@@ -415,11 +425,19 @@ class ConfigUpdater:
                 data.pop(api_key)
 
     def _key_move(self, data: dict, key: str, val):
+        if self._source:
+            self._key_move_from(data, key, val, self.KEY_MOVE)
+
+    def _key_move_server(self, data: dict, key: str, val):
+        if self._source == 2:
+            self._key_move_from(data, key, val, self.KEY_FROM_SERVER_MOVE)
+
+    def _key_move_from(self, data: dict, key: str, val, rules: dict):
         key_lower = key.lower()
-        if key_lower in self.KEY_MOVE:
+        if key_lower in rules:
             # перемещаем ключ
-            sec = self.KEY_MOVE[key_lower][0]
-            key_move = self.KEY_MOVE[key_lower][1]
+            sec = rules[key_lower][0]
+            key_move = rules[key_lower][1] or key_lower
             if sec not in self._new_cfg:
                 self._new_cfg[sec] = {}
 
@@ -457,21 +475,21 @@ class ConfigUpdater:
 
     def from_ini(self, path: str):
         with self._lock:
-            self._clear()
+            self._init(1)
             self._ini_to_cfg(path)
             self._print_result('INI')
             return self._update()
 
     def from_json(self, json_: str):
         with self._lock:
-            self._clear()
+            self._init(2)
             self._json_to_cfg(json_)
             self._print_result('JSON')
             return self._update()
 
     def from_dict(self, dict_: dict):
         with self._lock:
-            self._clear()
+            self._init(0)
             self._parser(dict_)
             self._print_result('DICT')
             return self._update()
