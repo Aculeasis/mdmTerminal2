@@ -182,7 +182,6 @@ class SpeechToText:
         self._tts = tts
         self.energy = utils.EnergyControl(cfg, play_)
         self._recognizer = sr.Recognizer()
-        self._recognizer.operation_timeout = 60
         try:
             self.max_mic_index = len(sr.Microphone().list_microphone_names()) - 1
         except OSError as e:

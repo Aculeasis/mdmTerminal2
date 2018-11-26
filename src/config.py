@@ -47,6 +47,18 @@ class ConfigHandler(dict):
         else:
             return 1
 
+    def model_info_by_id(self, model: int):
+        model -= 1
+        if model < len(self.path['models_list']):
+            model_name = os.path.split(self.path['models_list'][model])[1]
+            phrase = self.gt('models', model_name, '')
+            msg = '' if not phrase else ': "{}"'.format(phrase)
+        else:
+            model_name = str(model)
+            phrase = ''
+            msg = ''
+        return model_name, phrase, msg
+
     def gt(self, sec, key, default=None):
         # .get для саб-словаря
         return self.get(sec, {}).get(key, default)

@@ -191,18 +191,6 @@ class MDTerminal(threading.Thread):
         else:
             self._queue.put_nowait((cmd, data, lvl, time.time() if save_time else 0))
 
-    def _model_data_by_id(self, model: int):
-        model -= 1
-        if model < len(self._cfg.path['models_list']):
-            model_name = os.path.split(self._cfg.path['models_list'][model])[1]
-            phrase = self._cfg.gt('models', model_name, '')
-            msg = '' if not phrase else ': "{}"'.format(phrase)
-        else:
-            model_name = str(model)
-            phrase = ''
-            msg = ''
-        return model_name, phrase, msg
-
     def _detected(self, model: int=0):
         if self._snowboy is not None:
             self._snowboy.terminate()
@@ -210,7 +198,7 @@ class MDTerminal(threading.Thread):
         if not model:
             self.log(LNG['err_call2'], logger.CRIT)
         else:
-            model_name, phrase, msg = self._model_data_by_id(model)
+            model_name, phrase, msg = self._cfg.model_info_by_id(model)
             self.log(LNG['activate_by'].format(model_name, msg), logger.INFO)
         no_hello = self._cfg.gts('no_hello', 0)
         hello = ''
@@ -218,16 +206,10 @@ class MDTerminal(threading.Thread):
             hello = LNG['model_listened'].format(phrase)
         self._detected_parse(hello, self._stt.listen(hello, voice=no_hello))
 
-    def _detected_sr(self, msg: str, model: int, energy_threshold: int):
-        model_name, phrase, model_msg = self._model_data_by_id(model)
-        phrase2 = phrase.lower()
-        msg2 = msg.lower()
-        offset = msg2.find(phrase2)
-        if not phrase2 or offset < 0:  # Ошибка активации
-            return False
-        msg = msg[offset+len(phrase):]
-        for l_del in ('.', ',', ' '):
-            msg = msg.lstrip(l_del)
+    def _detected_sr(self, msg: str, model_name: str, model_msg: str, energy_threshold: int):
+        if not model_name:
+            self.log(LNG['wrong_activation'].format(msg), logger.DEBUG)
+            return
         if self._cfg.gts('energy_threshold', 0) < 1:
             energy_threshold = ', energy_threshold={}'.format(energy_threshold)
         else:
@@ -235,11 +217,10 @@ class MDTerminal(threading.Thread):
         self.log(LNG2['recognized'].format(msg, energy_threshold), logger.INFO)
         self.log(LNG['activate_by'].format(model_name, model_msg), logger.INFO)
         if not msg:  # Пустое сообщение
-            return True
+            return
         if self._cfg.gts('alarmkwactivated'):
             self._play.play(self._cfg.path['ding'])
         self._detected_parse(False, msg)
-        return True
 
     def _detected_parse(self, voice, reply):
         caller = False

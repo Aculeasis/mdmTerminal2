@@ -23,13 +23,10 @@ class SnowBoy:
 
 class SnowBoySR:
     def __init__(self, cfg, callback, interrupt_check, stt, play):
-        self._sensitivity = cfg.gts('sensitivity')
-        self._decoder_model = cfg.path['models_list']
+        self._cfg = cfg
         self._callback = callback
         self._interrupt_check = interrupt_check
         self._stt = stt
-        self._cfg = cfg
-        self._sb_path = os.path.join(self._cfg.path['home'], 'lib')
         self._play = play
         self._hotword_callback = play.full_quiet if self._cfg.gts('chrome_choke') else None
         self._terminate = False
@@ -37,30 +34,39 @@ class SnowBoySR:
     def start(self):
         self._terminate = False
         while not self._interrupted():
-            msg = ''
             with sr.Microphone() as source:
-                r = sr.Recognizer(self._interrupted, self._sensitivity, self._hotword_callback)
+                r = sr.Recognizer(self._interrupted, self._cfg.gts('sensitivity'), self._hotword_callback)
                 energy_threshold = self._stt.energy.correct(r, source)
                 try:
-                    adata = r.listen(source, 5, 10, (self._sb_path, self._decoder_model))
+                    adata = r.listen(source, 5, self._cfg.gts('phrase_time_limit'),
+                                     (self._cfg.path['home'], self._cfg.path['models_list']))
                 except sr.WaitTimeoutError:
                     self._stt.energy.set(None)
                     continue
-                except RuntimeError:
+                except sr.Interrupted:
                     self._stt.energy.set(energy_threshold)
                     continue
             model = r.get_model
-            if model:  # Не распознаем если модель не опознана
-                msg = self._get_text(adata)
-            if msg and model:
-                if self._callback(msg, model, energy_threshold):
-                    self._stt.energy.set(energy_threshold)
-                else:
-                    self._stt.energy.set(None)
+            if model < 1:
                 continue
+            self._adata_parse(adata, model, energy_threshold)
 
     def terminate(self):
         self._terminate = True
+
+    def _adata_parse(self, adata, model, energy_threshold):
+        model_name, phrase, model_msg = self._cfg.model_info_by_id(model)
+        if not phrase:
+            return
+        msg = self._get_text(adata)
+        if msg:
+            clear_msg = self._msg_parse(msg, phrase)
+            if clear_msg is None:
+                self._stt.energy.set(None)
+                self._callback(msg, None, None, None)
+            else:
+                self._stt.energy.set(energy_threshold)
+                self._callback(clear_msg, model_name, model_msg, energy_threshold)
 
     def _interrupted(self):
         return self._terminate or self._interrupt_check()
@@ -74,3 +80,15 @@ class SnowBoySR:
         finally:
             if alarm:
                 self._play.clear_lvl()
+
+    @staticmethod
+    def _msg_parse(msg, phrase):
+        phrase2 = phrase.lower()
+        msg2 = msg.lower()
+        offset = msg2.find(phrase2)
+        if offset < 0:  # Ошибка активации
+            return
+        msg = msg[offset+len(phrase):]
+        for l_del in ('.', ',', ' '):
+            msg = msg.lstrip(l_del)
+        return msg

@@ -18,6 +18,10 @@ RequestError = speech_recognition.RequestError
 WaitTimeoutError = speech_recognition.WaitTimeoutError
 
 
+class Interrupted(Exception):
+    pass
+
+
 class Recognizer(speech_recognition.Recognizer):
     def __init__(self, interrupt_check=None, sensitivity=0.45, hotword_callback=None):
         super().__init__()
@@ -104,16 +108,15 @@ class Recognizer(speech_recognition.Recognizer):
 
             if time.time() - start_time > 0.05:
                 if self._interrupt_check and self._interrupt_check():
-                    raise RuntimeError('Interrupted')
-                # Висим 30 скунд на сноубое, потом перезапускаем листинг
-                if elapsed_time > 30:
-                    raise RuntimeError("listening timed out while waiting for hotword to be said")
+                    raise Interrupted('Interrupted')
+                if elapsed_time > 60:
+                    raise Interrupted("listening timed out while waiting for hotword to be said")
                 start_time = time.time()
 
         self._snowboy_result = snowboy_result
         if self._hotword_callback:
             self._hotword_callback()
-        return b"".join(frames), elapsed_time
+        return b"".join(frames), elapsed_time if elapsed_time < 5 else 5.0
 
     # part of https://github.com/Uberi/speech_recognition/blob/master/speech_recognition/__init__.py#L616
     def listen(self, source, timeout=None, phrase_time_limit=None, snowboy_configuration=None):
@@ -133,10 +136,6 @@ class Recognizer(speech_recognition.Recognizer):
         assert isinstance(source, AudioSource), "Source must be an audio source"
         assert source.stream is not None, "Audio source must be entered before listening, see documentation for ``AudioSource``; are you using ``source`` outside of a ``with`` statement?"
         assert self.pause_threshold >= self.non_speaking_duration >= 0
-        if snowboy_configuration is not None:
-            assert os.path.isfile(os.path.join(snowboy_configuration[0], "snowboydetect.py")), "``snowboy_configuration[0]`` must be a Snowboy root directory containing ``snowboydetect.py``"
-            for hot_word_file in snowboy_configuration[1]:
-                assert os.path.isfile(hot_word_file), "``snowboy_configuration[1]`` must be a list of Snowboy hot word configuration files"
 
         seconds_per_buffer = float(source.CHUNK) / source.SAMPLE_RATE
         pause_buffer_count = int(math.ceil(self.pause_threshold / seconds_per_buffer))  # number of buffers of non-speaking audio during a phrase, before the phrase should be considered complete
