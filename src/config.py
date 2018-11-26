@@ -222,14 +222,14 @@ class ConfigHandler(dict):
         wtime = time.time()
         if not os.path.isfile(self.path['settings']):
             self._print(LNG['miss_settings'].format(self.path['settings']), logger.INFO)
-            return False
+            return True
         updater = ConfigUpdater(self, self._print)
         count = updater.from_ini(self.path['settings'])
         wtime = time.time() - wtime
         self._lang_init()
         self._print(LNG['load_for'].format(count, utils.pretty_time(wtime)), logger.INFO)
         self._print(LNG['load'], logger.INFO, mode=2)
-        return updater.save_me
+        return updater.save_ini
 
     def _lang_init(self):
         lang = self.gts('lang')
@@ -327,7 +327,7 @@ class ConfigHandler(dict):
 class ConfigUpdater:
     SETTINGS = 'settings'
     PROVIDERS_KEYS = ('providertts', 'providerstt')
-    API_KEYS = ('apikeytts', 'apikeystt')
+    NOT_LOWER = {'apikeytts', 'apikeystt'}
     # Автоматически переносим ключи в подсекции из settings.
     # Ключ: (новая секция, новое имя ключа)
     KEY_MOVE = {
@@ -382,12 +382,11 @@ class ConfigUpdater:
         return data
 
     def _parser(self, data: dict):
+        self._settings_adapter(data)
         for key, val in data.items():
             if not isinstance(val, dict):
                 self._print_result('Section must be dict. {}: {}'.format(key, val), logger.CRIT)
                 continue
-            if key == self.SETTINGS:
-                self._settings_adapter(val)
             self._recursive_parser(self._cfg, self._new_cfg, key, val, self._source == 2)
 
     def _recursive_parser(self, cfg: dict, cfg_diff: dict, key, val, external):
@@ -400,7 +399,8 @@ class ConfigUpdater:
         elif external and isinstance(val, (dict, list, set, tuple)):
             self._log(LNG['wrong_val'].format(key, val), logger.ERROR)
         else:
-            self._parse_param_element(cfg, cfg_diff, key, val, external)
+            if self._parse_param_element(cfg, cfg_diff, key, val, external):
+                self._change_count += 1
 
     def _parse_section_element(self, cfg: dict, cfg_diff: dict, key, val, external):
         if external and key not in cfg:  # Не принимаем новые секции от сервера
@@ -413,7 +413,7 @@ class ConfigUpdater:
             del cfg_diff[key]
 
     def _parse_param_element(self, cfg: dict, cfg_diff: dict, key, val, external):
-        if external and isinstance(val, str):
+        if external and isinstance(val, str) and key not in self.NOT_LOWER:
             val = val.lower()
         try:
             tmp = type(cfg.get(key, ''))(val)
@@ -421,55 +421,60 @@ class ConfigUpdater:
             self._log(LNG['wrong_type_val'].format(key, val, type(val), cfg.get(key, 'None'), e), logger.ERROR)
         else:
             if key not in cfg or tmp != cfg[key]:
-                self._change_count += 1
                 cfg_diff[key] = tmp
+                return True
+        return False
 
-    def _settings_adapter(self, data: dict):
-        if not self._source:
+    def _settings_adapter(self, cfg: dict):
+        if not (self.SETTINGS in cfg and isinstance(cfg[self.SETTINGS], dict) and self._source):
             return
+        data = cfg[self.SETTINGS]
         for key in [x for x in data.keys() if isinstance(x, str)]:
             for mover in (self._api_key_move, self._key_move, self._key_move_server):
                 if key not in data:  # элемент мог быть удален мовером
                     break
-                mover(data, key, data[key])
+                mover(data, key, data[key], cfg)
 
-    def _api_key_move(self, data: dict, key: str, val):
+    def _api_key_move(self, data: dict, key: str, val, cfg: dict):
         key = key.lower()
         if isinstance(val, str) and key in self.PROVIDERS_KEYS:
             val = val.lower()
             api_key = 'apikey{}'.format(key[-3:])  # apikeytts or apikeystt
             if api_key in data:
-                if self._cfg.get(val, {}).get(api_key) != data[api_key]:
-                    self._new_cfg[val] = self._new_cfg.get(val, {})
-                    self._new_cfg[val][api_key] = data[api_key]
-                    self._change_count += 1
+                if cfg.get(val, {}).get(api_key) != data[api_key]:
+                    if not isinstance(self._cfg.get(val), dict):
+                        self._cfg[val] = {}
+                    cfg[val] = cfg.get(val, {})
+                    cfg[val][api_key] = data[api_key]
                     self._save_me = True
                 # Удаляем api-ключ из settings
                 data.pop(api_key)
 
-    def _key_move(self, data: dict, key: str, val):
+    def _key_move(self, data: dict, key: str, val, cfg: dict):
         if self._source:
-            self._key_move_from(data, key, val, self.KEY_MOVE)
+            self._key_move_from(data, key, val, self.KEY_MOVE, cfg)
 
-    def _key_move_server(self, data: dict, key: str, val):
+    def _key_move_server(self, data: dict, key: str, val, cfg: dict):
         if self._source == 2:
-            self._key_move_from(data, key, val, self.KEY_FROM_SERVER_MOVE)
+            self._key_move_from(data, key, val, self.KEY_FROM_SERVER_MOVE, cfg)
 
-    def _key_move_from(self, data: dict, key: str, val, rules: dict):
+    def _key_move_from(self, data: dict, key: str, val, rules: dict, cfg: dict):
         key_lower = key.lower()
         if key_lower in rules:
             # перемещаем ключ
             sec = rules[key_lower][0]
             key_move = rules[key_lower][1] or key_lower
-            if sec not in self._new_cfg:
-                self._new_cfg[sec] = {}
+            add_empty = False
+            if sec not in cfg:
+                cfg[sec] = {}
+                add_empty = True
 
-            old_count = self._change_count
-            self._parse_param_element(self._cfg.get(sec, {}), self._new_cfg[sec], key_move, val, False)
-            self._save_me = self._save_me or self._change_count > old_count
+            self._save_me |= self._parse_param_element(cfg.get(sec, {}), cfg[sec], key_move, val, False)
 
-            if not self._new_cfg[sec]:
-                del self._new_cfg[sec]
+            if not cfg[sec] and add_empty:
+                del cfg[sec]
+            elif add_empty and sec not in self._cfg:
+                self._cfg[sec] = {}
             # Удаляем перемещенный ключ из settings
             data.pop(key)
 
@@ -518,6 +523,6 @@ class ConfigUpdater:
             return self._update()
 
     @property
-    def save_me(self):
+    def save_ini(self):
         with self._lock:
             return self._save_me
