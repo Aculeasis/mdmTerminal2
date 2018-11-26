@@ -82,9 +82,9 @@ class SnowBoySR:
                 self._play.clear_lvl()
 
     @staticmethod
-    def _msg_parse(msg, phrase):
-        phrase2 = phrase.lower()
-        msg2 = msg.lower()
+    def _msg_parse(msg: str, phrase: str):
+        phrase2 = phrase.lower().replace('ё', 'е')
+        msg2 = msg.lower().replace('ё', 'е')
         offset = msg2.find(phrase2)
         if offset < 0:  # Ошибка активации
             return
