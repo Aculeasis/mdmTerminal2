@@ -106,6 +106,7 @@ class HotwordDetector(object):
 
         self.ring_buffer = RingBuffer(
             self.detector.NumChannels() * self.detector.SampleRate() * 5)
+        self._terminate = False
 
     def start(self, detected_callback=play_audio_file,
               interrupt_check=lambda: False,
@@ -176,8 +177,8 @@ class HotwordDetector(object):
             "callbacks (%d)" % (self.num_hotwords, len(detected_callback))
 
         logger.debug("detecting...")
-
-        while True:
+        self._terminate = False
+        while not self._terminate:
             if interrupt_check():
                 logger.debug("detect voice break")
                 break
@@ -208,3 +209,4 @@ class HotwordDetector(object):
         self.stream_in.stop_stream()
         self.stream_in.close()
         self.audio.terminate()
+        self._terminate = True
