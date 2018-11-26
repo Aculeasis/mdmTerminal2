@@ -63,6 +63,7 @@ class Recognizer(speech_recognition.Recognizer):
         finally:
             monkey_patching_disable()
 
+    # part of https://github.com/Uberi/speech_recognition/blob/master/speech_recognition/__init__.py#L574
     def snowboy_wait_for_hot_word(self, snowboy_location, snowboy_hot_word_files, source, timeout=None):
         self._snowboy_result = 0
 
@@ -114,6 +115,7 @@ class Recognizer(speech_recognition.Recognizer):
             self._hotword_callback()
         return b"".join(frames), elapsed_time
 
+    # part of https://github.com/Uberi/speech_recognition/blob/master/speech_recognition/__init__.py#L616
     def listen(self, source, timeout=None, phrase_time_limit=None, snowboy_configuration=None):
         """
         Records a single phrase from ``source`` (an ``AudioSource`` instance) into an ``AudioData`` instance, which it returns.

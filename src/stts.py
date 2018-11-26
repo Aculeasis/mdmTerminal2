@@ -181,6 +181,8 @@ class SpeechToText:
         self._play = play_
         self._tts = tts
         self.energy = utils.EnergyControl(cfg, play_)
+        self._recognizer = sr.Recognizer()
+        self._recognizer.operation_timeout = 60
         try:
             self.max_mic_index = len(sr.Microphone().list_microphone_names()) - 1
         except OSError as e:
@@ -251,9 +253,9 @@ class SpeechToText:
         file_path = self._tts(hello) if not voice and hello else None
 
         if self._cfg.gts('blocking_listener'):
-            audio, recognizer, record_time, energy_threshold = self._block_listen(hello, lvl, file_path)
+            audio, record_time, energy_threshold = self._block_listen(hello, lvl, file_path)
         else:
-            audio, recognizer, record_time, energy_threshold = self._non_block_listen(hello, lvl, file_path)
+            audio, record_time, energy_threshold = self._non_block_listen(hello, lvl, file_path)
 
         self.log(LNG['record_for'].format(utils.pretty_time(record_time)), logger.INFO)
         # Выключаем монопольный режим
@@ -262,7 +264,7 @@ class SpeechToText:
         if self._cfg.gts('alarmstt'):
             self._play.play(self._cfg.path['dong'])
         if audio is not None:
-            commands = self.voice_recognition(audio, recognizer)
+            commands = self.voice_recognition(audio)
 
         if commands:
             msg = ''
@@ -294,7 +296,8 @@ class SpeechToText:
         # Начинаем фоновое распознавание голосом после того как запустился плей.
         listener = NonBlockListener(r=r, source=mic, phrase_time_limit=self._cfg.gts('phrase_time_limit', 15))
         if file_path:
-            while listener.work() and self._play.really_busy() and time.time() - start_wait < max_play_time and self._work:
+            while listener.work() and self._play.really_busy() and \
+                    time.time() - start_wait < max_play_time and self._work:
                 # Ждем пока время не выйдет, голос не распознался и файл играет
                 time.sleep(0.01)
         self._play.quiet()
@@ -306,7 +309,7 @@ class SpeechToText:
 
         record_time = time.time() - start_wait
         listener.stop()
-        return listener.audio, listener.recognizer, record_time, energy_threshold
+        return listener.audio, record_time, energy_threshold
 
     def _block_listen(self, hello, lvl, file_path, self_call=False):
         with sr.Microphone(device_index=self.get_mic_index()) as source:
@@ -331,7 +334,7 @@ class SpeechToText:
             self.log('Long ask fix!', logger.DEBUG)
             return self._block_listen(hello=True, lvl=lvl, file_path=None, self_call=True)
         else:
-            return audio, r, record_time, energy_threshold
+            return audio, record_time, energy_threshold
 
     def voice_record(self, hello: str, save_to: str, convert_rate=None, convert_width=None):
         if self.max_mic_index == -2:
@@ -369,7 +372,7 @@ class SpeechToText:
         else:
             return None
 
-    def voice_recognition(self, audio, recognizer, quiet: int =0) -> str or None:
+    def voice_recognition(self, audio, quiet: int =0) -> str or None:
         prov = self._cfg.gts('providerstt', 'google')
         if quiet < 2:
             self.log(LNG['recognized_from'].format(prov), logger.DEBUG)
@@ -377,11 +380,11 @@ class SpeechToText:
         try:
             key = self._cfg.key(prov, 'apikeystt')
             if prov == 'google':
-                command = recognizer.recognize_google(audio, language=LNG['stt_lng'])
+                command = self._recognizer.recognize_google(audio, language=LNG['stt_lng'])
             elif prov == 'wit.ai':
-                command = recognizer.recognize_wit(audio, key=key)
+                command = self._recognizer.recognize_wit(audio, key=key)
             elif prov == 'microsoft':
-                command = recognizer.recognize_bing(audio, key=key, language=LNG['stt_lng'])
+                command = self._recognizer.recognize_bing(audio, key=key, language=LNG['stt_lng'])
             elif prov == 'pocketsphinx-rest':
                 command = STT.PocketSphinxREST(
                     audio_data=audio,
@@ -396,7 +399,7 @@ class SpeechToText:
                 self.log(LNG['err_unknown_prov'].format(prov), logger.CRIT)
                 return ''
         except (sr.UnknownValueError, STT.UnknownValueError):
-            return None
+            return ''
         except (sr.RequestError, RuntimeError) as e:
             if not quiet:
                 self._play.say(LNG['err_stt_say'])
@@ -411,14 +414,11 @@ class SpeechToText:
     def phrase_from_files(self, files: list):
         if not files:
             return ''
-        count = len(files)
-        result = [None] * count
-        for i in range(count):
-            threading.Thread(target=self._recognition_worker, args=(files[i], result, i)).start()
-        while [True for x in result if x is None]:
-            time.sleep(0.05)
+        workers = [RecognitionWorker(self.voice_recognition, file) for file in files]
+        result = [worker.get for worker in workers]
+        del workers
         # Фраза с 50% + 1 побеждает
-        consensus = count // 2 + 1
+        consensus = len(result) // 2 + 1
         phrase = ''
         match_count = 0
         for say in result:
@@ -429,27 +429,37 @@ class SpeechToText:
         self.log(LNG['consensus'].format(', '.join([str(x) for x in result]), phrase), logger.DEBUG)
         return phrase, match_count
 
-    def _recognition_worker(self, file, result, i):
-        r = sr.Recognizer()
-        with wave.open(file, 'rb') as fp:
+
+class RecognitionWorker(threading.Thread):
+    def __init__(self, voice_recognition, file_path):
+        super().__init__()
+        self._voice_recognition = voice_recognition
+        self._file_path = file_path
+        self._result = ''
+        self.start()
+
+    def run(self):
+        with wave.open(self._file_path, 'rb') as fp:
             adata = sr.AudioData(fp.readframes(fp.getnframes()), fp.getframerate(), fp.getsampwidth())
-        say = self.voice_recognition(adata, r, 1) or ''
-        result[i] = say.strip()
+        self._result = self._voice_recognition(adata, 1)
+
+    @property
+    def get(self):
+        super().join()
+        return self._result
 
 
 class NonBlockListener:
     def __init__(self, r, source, phrase_time_limit):
-        self.recognizer = None
         self.audio = None
         self.stop = r.listen_in_background(source, self._callback, phrase_time_limit=phrase_time_limit)
 
     def work(self):
         return self.audio is None
 
-    def _callback(self, rec, audio):
+    def _callback(self, _, audio):
         if self.work():
             self.audio = audio
-            self.recognizer = rec
 
 
 class Phrases:

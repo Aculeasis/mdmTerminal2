@@ -15,8 +15,6 @@ from languages import CONFIG as LNG, YANDEX_EMOTION, YANDEX_SPEAKER
 
 
 class ConfigHandler(dict):
-    SETTINGS = 'settings'
-
     def __init__(self, cfg: dict, path: dict):
         super().__init__()
         self.update(cfg)
@@ -184,9 +182,8 @@ class ConfigHandler(dict):
         wtime = time.time()
 
         config = configparser.ConfigParser()
-        config.add_section(self.SETTINGS)
         for key, val in self.items():
-            if type(val) == dict:
+            if isinstance(val, dict):
                 config[key] = val
 
         with open(self.path['settings'], 'w') as configfile:
@@ -230,9 +227,23 @@ class ConfigHandler(dict):
             self._print(LNG['err_lng'].format(lang, err), logger.ERROR)
         self._print(LNG['lng_load_for'].format(lang, utils.pretty_time(languages.load_time())), logger.INFO)
 
-    def json_to_cfg(self, data: str or dict) -> bool:
-        updater = ConfigUpdater(self, self._print)
-        return updater.from_json(data) > 0 if isinstance(data, str) else updater.from_dict(data) > 0
+    def update_from_json(self, data: str) -> bool:
+        result = self._cfg_update(ConfigUpdater(self, self._print).from_json(data))
+        if result:
+            self._print(LNG['cfg_up'].format(self))
+            return True
+        else:
+            self._print(LNG['cfg_no_change'])
+            return False
+
+    def update_from_dict(self, data: dict) -> bool:
+        return self._cfg_update(ConfigUpdater(self, self._print).from_dict(data))
+
+    def _cfg_update(self, result: int):
+        if result:
+            self.config_save()
+            return True
+        return False
 
     def tts_cache_check(self):
         cache_path = self.gt('cache', 'path')

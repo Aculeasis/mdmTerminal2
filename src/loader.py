@@ -42,7 +42,7 @@ class Loader:
 
         self._server = MDTServer(
             cfg=self._cfg, log=self._logger.add('Server'),
-            play=self._play, terminal=self._terminal, die_in=self.die_in
+            play=self._play, terminal_call=self._terminal.call, die_in=self.die_in
         )
 
     def start(self):

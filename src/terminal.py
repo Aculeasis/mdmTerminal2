@@ -25,20 +25,9 @@ class MDTerminal(threading.Thread):
         self._play = play_
         self._stt = stt
         self._handler = handler
-        self.work = False
-        self._paused = False
-        self._is_paused = False
+        self._work = False
         self._snowboy = None
-        self._callbacks = []
-        self.reload()
         self._queue = queue.Queue()
-
-    def reload(self):
-        self.paused(True)
-        try:
-            self._reload()
-        finally:
-            self.paused(False)
 
     def _reload(self):
         if len(self._cfg.path['models_list']) and self._stt.max_mic_index != -2:
@@ -53,32 +42,23 @@ class MDTerminal(threading.Thread):
             self._snowboy = None
 
     def join(self, timeout=None):
-        self.work = False
-        self.log('stopping...', logger.DEBUG)
-        super().join()
-        self.log('stop.', logger.INFO)
+        if self._work:
+            self._work = False
+            self.log('stopping...', logger.DEBUG)
+            super().join()
+            self.log('stop.', logger.INFO)
 
     def start(self):
-        self.work = True
-        super().start()
+        self._work = True
         self.log('start', logger.INFO)
-
-    def paused(self, paused: bool):
-        if self._paused == paused or self._snowboy is None:
-            return
-        self._paused = paused
-        while self._is_paused != paused and self.work:
-            time.sleep(0.1)
+        super().start()
 
     def _interrupt_callback(self):
-        return not self.work or self._paused or self._queue.qsize()
+        return not self._work or self._queue.qsize()
 
     def run(self):
-        while self.work:
-            self._is_paused = self._paused
-            if self._paused:
-                time.sleep(0.1)
-                continue
+        self._reload()
+        while self._work:
             self._listen()
             self._external_check()
 
@@ -90,23 +70,26 @@ class MDTerminal(threading.Thread):
             self._snowboy.terminate()
 
     def _external_check(self):
-        while self._queue.qsize() and self.work:
+        while self._queue.qsize() and self._work:
             try:
                 (cmd, data, lvl, late) = self._queue.get_nowait()
             except queue.Empty:
                 self.log(LNG['err_queue_empty'], logger.ERROR)
                 continue
-            late = time.time() - late
+            if late:
+                late = time.time() - late
             msg = LNG['get_call'].format(cmd, data, lvl, int(late))
             if late > self.MAX_LATE:
                 self.log(LNG['ignore_call'].format(msg), logger.WARN)
                 continue
             else:
                 self.log(msg, logger.DEBUG)
-            if cmd == 'ask' and data:
-                self.detected(data)
+            if cmd == 'reload':
+                self._reload()
+            elif cmd == 'ask' and data:
+                self._detected_parse(data, self._stt.listen(data))
             elif cmd == 'voice' and not data:
-                self.detected(voice=True)
+                self._detected_parse('', self._stt.listen(voice=True))
             elif cmd == 'rec':
                 self._rec_rec(*data)
             elif cmd == 'play':
@@ -195,25 +178,24 @@ class MDTerminal(threading.Thread):
         self.log(LNG['compile_ok_log'].format(msg, work_time, pmdl_path), logger.INFO)
         self._play.say(LNG['compile_ok_say'].format(msg, model, work_time))
 
+        self._cfg.update_from_dict({'models': {pmdl_name: phrase}})
         self._cfg.models_load()
-        if self._cfg.json_to_cfg({'models': {pmdl_name: phrase}}):
-            self._cfg.config_save()
         self._reload()
         # Удаляем временные файлы
         for x in models:
             os.remove(x)
 
-    def external_cmd(self, cmd: str, data='', lvl: int = 0):
+    def call(self, cmd: str, data='', lvl: int=0, save_time: bool=True):
         if cmd == 'tts' and not lvl:
             self._play.say(data, lvl=0)
         else:
-            self._queue.put_nowait((cmd, data, lvl, time.time()))
+            self._queue.put_nowait((cmd, data, lvl, time.time() if save_time else 0))
 
     def _model_data_by_id(self, model: int):
         model -= 1
         if model < len(self._cfg.path['models_list']):
             model_name = os.path.split(self._cfg.path['models_list'][model])[1]
-            phrase = self._cfg['models'].get(model_name, '')
+            phrase = self._cfg.gt('models', model_name, '')
             msg = '' if not phrase else ': "{}"'.format(phrase)
         else:
             model_name = str(model)
@@ -222,6 +204,8 @@ class MDTerminal(threading.Thread):
         return model_name, phrase, msg
 
     def _detected(self, model: int=0):
+        if self._snowboy is not None:
+            self._snowboy.terminate()
         phrase = ''
         if not model:
             self.log(LNG['err_call2'], logger.CRIT)
@@ -232,12 +216,7 @@ class MDTerminal(threading.Thread):
         hello = ''
         if phrase and self._stt.sys_say.chance and not no_hello:
             hello = LNG['model_listened'].format(phrase)
-        self.detected(hello=hello, voice=no_hello)
-
-    def detected(self, hello: str = '', voice=False):
-        if self._snowboy is not None:
-            self._snowboy.terminate()
-        self._detected_parse(voice, self._stt.listen(hello, voice=voice))
+        self._detected_parse(hello, self._stt.listen(hello, voice=no_hello))
 
     def _detected_sr(self, msg: str, model: int, energy_threshold: int):
         model_name, phrase, model_msg = self._model_data_by_id(model)
@@ -270,5 +249,4 @@ class MDTerminal(threading.Thread):
                 if caller:
                     reply = self._stt.listen(reply or '', voice=not reply)
         if reply:
-            self._play.say(reply, lvl=1)
-        self._listen()
+            self._play.say(reply)

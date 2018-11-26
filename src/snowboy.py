@@ -51,13 +51,13 @@ class SnowBoySR:
                     continue
             model = r.get_model
             if model:  # Не распознаем если модель не опознана
-                msg = self._get_text(adata, r)
+                msg = self._get_text(adata)
             if msg and model:
                 if self._callback(msg, model, energy_threshold):
                     self._stt.energy.set(energy_threshold)
                 else:
                     self._stt.energy.set(None)
-                break
+                continue
 
     def terminate(self):
         self._terminate = True
@@ -65,12 +65,12 @@ class SnowBoySR:
     def _interrupted(self):
         return self._terminate or self._interrupt_check()
 
-    def _get_text(self, adata, r):
+    def _get_text(self, adata):
         alarm = self._cfg.gts('chrome_alarmstt')
         if alarm:
             self._play.play(self._cfg.path['dong'], lvl=5)
         try:
-            return self._stt.voice_recognition(adata, r, 2)
+            return self._stt.voice_recognition(adata, 2)
         finally:
             if alarm:
                 self._play.clear_lvl()

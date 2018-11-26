@@ -8,7 +8,7 @@ from languages import SERVER as LNG
 
 
 class MDTServer(threading.Thread):
-    def __init__(self, cfg, log, play, terminal, die_in):
+    def __init__(self, cfg, log, play, terminal_call, die_in):
         super().__init__(name='MDTServer')
         self.MDAPI = {
             'hi': self._api_voice,
@@ -30,7 +30,7 @@ class MDTServer(threading.Thread):
         self._cfg = cfg
         self.log = log
         self._play = play
-        self._terminal = terminal
+        self._terminal_call = terminal_call
         self._die_in = die_in
 
         self.work = False
@@ -98,7 +98,7 @@ class MDTServer(threading.Thread):
             self.log(LNG['unknown_cmd'].format(cmd[0]), logger.WARN)
 
     def _api_voice(self, cmd: str):
-        self._terminal.external_cmd('voice', cmd)
+        self._terminal_call('voice', cmd)
 
     def _api_home(self, cmd: str):
         self.log(LNG['no_implement'].format('home', cmd), logger.WARN)
@@ -113,10 +113,10 @@ class MDTServer(threading.Thread):
         self._play.mpd.pause()
 
     def _api_tts(self, cmd: str):
-        self._terminal.external_cmd('tts', cmd, 0 if not self._cfg.gts('no_background_play') else 2)
+        self._terminal_call('tts', cmd, 0 if not self._cfg.gts('no_background_play') else 2)
 
     def _api_ask(self, cmd: str):
-        self._terminal.external_cmd('ask', cmd)
+        self._terminal_call('ask', cmd)
 
     def _api_rtsp(self, cmd: str):
         self.log(LNG['no_implement'].format('rtsp', cmd), logger.WARN)
@@ -124,15 +124,9 @@ class MDTServer(threading.Thread):
     def _api_run(self, cmd: str):
         self.log(LNG['no_implement'].format('run', cmd), logger.WARN)
 
-    def _api_settings(self, cmd: str or dict) -> bool:
-        if self._cfg.json_to_cfg(cmd):
-            self._cfg.config_save()
-            self._terminal.reload()
-            self.log(LNG['cfg_up'].format(self._cfg), logger.DEBUG)
-            return True
-        else:
-            self.log(LNG['cfg_no_change'], logger.DEBUG)
-            return False
+    def _api_settings(self, cmd: str):
+        if self._cfg.update_from_json(cmd):
+            self._terminal_call('reload', save_time=False)
 
     def _api_rec(self, cmd: str):
         param = cmd.split('_')  # должно быть вида rec_1_1, play_2_1, compile_5_1
@@ -142,14 +136,10 @@ class MDTServer(threading.Thread):
         # a = param[0]  # rec, play или compile
         # b = param[1]  # 1-6
         # c = param[2]  # 1-3
-        if param[0] == 'play':
-            self._terminal.external_cmd('play', param[1:])
+        if param[0] in ('play', 'rec', 'compile'):
+            self._terminal_call(param[0], param[1:])
         elif param[0] == 'save':
             self._die_in(3, True)
-        elif param[0] == 'rec':
-            self._terminal.external_cmd('rec', param[1:])
-        elif param[0] == 'compile':
-            self._terminal.external_cmd('compile', param[1:])
         else:
             self.log(LNG['unknown_rec_cmd'].format(param[0]), logger.ERROR)
 
