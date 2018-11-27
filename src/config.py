@@ -358,6 +358,20 @@ class ConfigUpdater:
         self._updated_count = 0
         self._save_me = False
 
+    def _ini_version_updated(self, data: dict) -> bool:
+        if self._source == 1:
+            try:
+                file_ver = int(data['system'].pop('ini_version'))
+            except (ValueError, TypeError, KeyError):
+                file_ver = 0
+            try:
+                cfg_ver = int(self._cfg['system'].get('ini_version'))
+            except (ValueError, TypeError, KeyError):
+                pass
+            else:
+                return cfg_ver > file_ver
+        return False
+
     def _ini_to_cfg(self, path: str):
         cfg = configparser.ConfigParser()
         cfg.read(path)
@@ -382,6 +396,7 @@ class ConfigUpdater:
         return data
 
     def _parser(self, data: dict):
+        self._save_me |= self._ini_version_updated(data)
         self._settings_adapter(data)
         for key, val in data.items():
             if not isinstance(val, dict):

@@ -93,6 +93,9 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'microphone': 'mic',
 
     },
+    'system': {
+        'ini_version': 1,
+    }
 }
 
 

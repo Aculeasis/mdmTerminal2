@@ -19,7 +19,6 @@ TOP_DIR = os.path.abspath(sys.path[0])
 RESOURCE_FILE = os.path.join(os.path.join(TOP_DIR, "resources"), "common.res")
 
 
-
 class RingBuffer(object):
     """Ring buffer to hold audio from PortAudio"""
     def __init__(self, size = 4096):
