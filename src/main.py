@@ -65,6 +65,7 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'access_key_id': '',
         'secret_access_key': '',
         'region': 'eu-central-1',
+        'boto3': 0,
     },
     'rhvoice-rest': {
         'server': 'http://127.0.0.1:8080',
@@ -100,7 +101,7 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
 
     },
     'system': {
-        'ini_version': 2,
+        'ini_version': 3,
     }
 }
 

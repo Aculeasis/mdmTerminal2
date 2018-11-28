@@ -44,9 +44,10 @@ class ConfigHandler(dict):
         return key_
 
     def _aws_credentials(self):
-        return self.gt('aws', 'access_key_id'), \
-               self.gt('aws', 'secret_access_key'), \
-               self.gt('aws', 'region'),
+        return (
+            (self.gt('aws', 'access_key_id'),   self.gt('aws', 'secret_access_key'),self.gt('aws', 'region')),
+            self.gt('aws', 'boto3')
+        )
 
     def yandex_api(self, prov):
         if prov == 'yandex':

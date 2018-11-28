@@ -6,6 +6,7 @@ import requests
 
 from utils import REQUEST_ERRORS
 from .gtts_proxifier import Google, gTTSError
+from .polly_boto3 import aws_boto3
 from .polly_signing import signing as polly_signing
 from .proxy import proxies
 
@@ -196,16 +197,30 @@ class RHVoice(RHVoiceREST):
             yield chunk
 
 
-_CLASS_BY_NAME = {'google': Google, 'yandex': Yandex, 'aws': AWS, 'rhvoice-rest': RHVoiceREST, 'rhvoice': RHVoice}
+def aws(key, **kwargs):
+    if len(key) != 2:
+        raise RuntimeError('Wrong key')
+    if key[1]:
+        return aws_boto3(key=key[0], **kwargs)
+    else:
+        return AWS(key=key[0], **kwargs)
+
+
+def yandex(yandex_api, **kwargs):
+    if yandex_api == 2:
+        return YandexCloud(**kwargs)
+    else:
+        return Yandex(**kwargs)
+
+
+_CALL_BY_NAME = {'google': Google, 'yandex': yandex, 'aws': aws, 'rhvoice-rest': RHVoiceREST, 'rhvoice': RHVoice}
 
 
 def support(name):
-    return name in _CLASS_BY_NAME
+    return name in _CALL_BY_NAME
 
 
 def GetTTS(name, **kwargs):
     if not support(name):
         raise RuntimeError('TTS {} not found'.format(name))
-    if kwargs.get('yandex_api') == 2:
-        return YandexCloud(**kwargs)
-    return _CLASS_BY_NAME[name](**kwargs)
+    return _CALL_BY_NAME[name](**kwargs)
