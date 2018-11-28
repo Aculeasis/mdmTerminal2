@@ -52,15 +52,17 @@ def tests_mono():
         time.sleep(10)
         loader.stop()
         err = check_log(test_log_file)
-        if err:
-            raise RuntimeError('{}'.format(', '.join(err)))
     finally:
         for target in [test_settings, test_log_file]:
             if os.path.isfile(target):
                 os.remove(target)
+    return err
 
 
 if __name__ == '__main__':
-    tests_mono()
+    mono_err = tests_mono()
     print()
     unittest.main(verbosity=2)
+    if mono_err:
+        print()
+        raise RuntimeError('{}'.format(', '.join(mono_err)))
