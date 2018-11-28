@@ -30,6 +30,8 @@ class ConfigHandler(dict):
         self._to_log.append((msg, lvl))
 
     def key(self, prov, api_key):
+        if prov == 'aws':
+            return self._aws_credentials()
         key_ = self.gt(prov, api_key)
         api = self.yandex_api(prov)
         if api == 2 or (prov == 'yandex' and not key_):
@@ -40,6 +42,11 @@ class ConfigHandler(dict):
             except RuntimeError as e:
                 raise RuntimeError(LNG['err_ya_key'].format(e))
         return key_
+
+    def _aws_credentials(self):
+        return self.gt('aws', 'access_key_id'), \
+               self.gt('aws', 'secret_access_key'), \
+               self.gt('aws', 'region'),
 
     def yandex_api(self, prov):
         if prov == 'yandex':

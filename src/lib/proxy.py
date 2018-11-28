@@ -10,6 +10,7 @@ from logger import ERROR
 PROXIES = {
     'tts_google': ('google_tts', 'google'),
     'tts_yandex': ('yandex_tts', 'yandex'),
+    'tts_aws': ('aws',),
     'tts_rhvoice-rest': ('rhvoice-rest',),
     'stt_google': ('google_stt', 'google'),
     'stt_yandex': ('yandex_stt', 'yandex'),

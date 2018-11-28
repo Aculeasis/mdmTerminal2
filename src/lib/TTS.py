@@ -6,9 +6,10 @@ import requests
 
 from utils import REQUEST_ERRORS
 from .gtts_proxifier import Google, gTTSError
+from .polly_signing import signing as polly_signing
 from .proxy import proxies
 
-__all__ = ['support', 'GetTTS', 'Google', 'Yandex', 'YandexCloud', 'RHVoiceREST', 'RHVoice', 'gTTSError']
+__all__ = ['support', 'GetTTS', 'Google', 'Yandex', 'AWS', 'YandexCloud', 'RHVoiceREST', 'RHVoice', 'gTTSError']
 
 
 class BaseTTS:
@@ -119,6 +120,44 @@ class YandexCloud(BaseTTS):
             raise RuntimeError(msg)
 
 
+class AWS(BaseTTS):
+    MAX_CHARS = 3000
+
+    # noinspection PyMissingConstructor
+    def __init__(self, text, buff_size, speaker, audio_format, key, lang, *_, **__):
+        if not isinstance(key, (tuple, list)) or len(key) < 3:
+            raise RuntimeError('Wrong AWS key')
+        params = {
+            'OutputFormat': audio_format,
+            'Text': text,
+            'LanguageCode': lang,
+            'VoiceId': speaker
+        }
+        self._params = {'text': text}
+        self._url, self._body, self._headers = polly_signing(params, *key)
+        self._buff_size = buff_size
+        self._data = None
+        self._rq = None
+
+        self._request_check()
+        self._request('tts_aws')
+        self._reply_check()
+
+    def _request(self, proxy_key):
+        try:
+            self._rq = requests.post(
+                self._url,
+                data=self._body,
+                headers=self._headers,
+                stream=True,
+                timeout=30,
+                proxies=proxies(proxy_key)
+            )
+        except REQUEST_ERRORS as e:
+            raise RuntimeError(str(e))
+        self._data = self._rq.iter_content
+
+
 class RHVoiceREST(BaseTTS):
     def __init__(self, text, buff_size, speaker, audio_format, url, sets, *_, **__):
         super().__init__('{}/say'.format(url or 'http://127.0.0.1:8080'), 'tts_rhvoice-rest', buff_size=buff_size,
@@ -157,7 +196,7 @@ class RHVoice(RHVoiceREST):
             yield chunk
 
 
-_CLASS_BY_NAME = {'google': Google, 'yandex': Yandex, 'rhvoice-rest': RHVoiceREST, 'rhvoice': RHVoice}
+_CLASS_BY_NAME = {'google': Google, 'yandex': Yandex, 'aws': AWS, 'rhvoice-rest': RHVoiceREST, 'rhvoice': RHVoice}
 
 
 def support(name):

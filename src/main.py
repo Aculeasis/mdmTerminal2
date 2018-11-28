@@ -60,6 +60,12 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'emotion': 'good',
         'speaker': 'alyss',
     },
+    'aws': {
+        'speaker': 'Tatyana',
+        'access_key_id': '',
+        'secret_access_key': '',
+        'region': 'eu-central-1',
+    },
     'rhvoice-rest': {
         'server': 'http://127.0.0.1:8080',
         'speaker': 'anna',
@@ -94,7 +100,7 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
 
     },
     'system': {
-        'ini_version': 1,
+        'ini_version': 2,
     }
 }
 
@@ -135,33 +141,3 @@ def main():
 if __name__ == '__main__':
     while main():
         pass
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -31,7 +31,7 @@ class TextToSpeech:
 
 
 class _TTSWrapper(threading.Thread):
-    PROVIDERS = frozenset({'google', 'yandex', 'rhvoice-rest', 'rhvoice'})
+    PROVIDERS = frozenset({'google', 'yandex', 'rhvoice-rest', 'rhvoice', 'aws'})
 
     def __init__(self, cfg, log, msg, realtime):
         super().__init__()
