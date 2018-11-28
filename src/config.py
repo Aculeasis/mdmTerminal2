@@ -432,7 +432,7 @@ class ConfigUpdater:
         cfg_diff[key] = cfg_diff.get(key, {})
         for key_, val_ in val.items():
             self._recursive_parser(cfg.get(key, {}), cfg_diff[key], key_, val_, external)
-        if not cfg_diff[key]:  # Удаляем пустые секции
+        if not cfg_diff[key] and key in cfg:  # Удаляем существующие пустые секции
             del cfg_diff[key]
 
     def _parse_param_element(self, cfg: dict, cfg_diff: dict, key, val, external):
