@@ -50,6 +50,18 @@ chmod +x ${install_path}/scripts/systemd_install.sh
 
 if [ ! -f ${install_path}/src/lib/_snowboydetect.so ]; then
     echo ""
+    SWIG_VERSION="$(swig -version | grep -i Version | \
+	sed "s/^.* //g" | sed -e "s/\.\([0-9][0-9]\)/\1/g" -e "s/\.\([0-9]\)/0\1/g" -e "s/^[0-9]\{3,4\}$$/&00/")"
+    if [ ! $SWIG_VERSION -ge 30010 ]; then
+        echo "#################################################################"
+        echo "  Внимание! Для сборки snowboy нужен swig не ниже 3.0.10,"
+        echo "  Установлен $(swig -version | grep -i Version)"
+        echo "  Если терминал не запустится, обновите swig вручную и пересоберите snowboy"
+        echo "  См. https://github.com/Aculeasis/mdmTerminal2#сборка-snowboy-_snowboydetectso"
+        echo "##################################################################"
+        echo ""
+        exit 0
+    fi
     ${install_path}/scripts/snowboy_build.sh
 fi
 
