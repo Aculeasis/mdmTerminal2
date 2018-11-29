@@ -61,7 +61,7 @@ class SnowBoySR:
             clear_msg = self._msg_parse(msg, phrase)
             if clear_msg is None:
                 self._stt.energy.set(None)
-                self._callback(msg, None, None, None)
+                self._callback(msg, phrase, None, None)
             else:
                 self._stt.energy.set(energy_threshold)
                 self._callback(clear_msg, model_name, model_msg, energy_threshold)
