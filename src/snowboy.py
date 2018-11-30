@@ -19,6 +19,18 @@ class SnowBoy:
         self._snowboy.terminate()
 
 
+def msg_parse(msg: str, phrase: str):
+    phrase2 = phrase.lower().replace('ё', 'е')
+    msg2 = msg.lower().replace('ё', 'е')
+    offset = msg2.find(phrase2)
+    if offset < 0:  # Ошибка активации
+        return
+    msg = msg[offset+len(phrase):]
+    for l_del in ('.', ',', ' '):
+        msg = msg.lstrip(l_del)
+    return msg
+
+
 class SnowBoySR:
     def __init__(self, cfg, callback, interrupt_check, stt, play):
         self._cfg = cfg
@@ -27,41 +39,25 @@ class SnowBoySR:
         self._stt = stt
         self._play = play
         self._hotword_callback = play.full_quiet if self._cfg.gts('chrome_choke') else None
-        self._improve_energy_threshold = self._cfg.gts('energy_threshold') == -2
-        if self._improve_energy_threshold:
-            self._energy = Dummy
-        else:
-            self._energy = self._stt.energy
         self._terminate = False
 
     def start(self):
         self._terminate = False
-        energy_threshold = 300
         while not self._interrupted():
             with sr.Microphone() as source:
                 r = sr.Recognizer(self._interrupted, self._cfg.gts('sensitivity'), self._hotword_callback)
-                if not self._improve_energy_threshold:
-                    energy_threshold = self._energy.correct(r, source)
-                else:
-                    r.adaptive_noising(self._play.noising)
-                    r.energy_threshold = energy_threshold
+                energy_threshold = self._stt.energy.correct(r, source)
                 try:
                     adata = r.listen(source, 5, self._cfg.gts('phrase_time_limit'),
                                      (self._cfg.path['home'], self._cfg.path['models_list']))
                 except sr.WaitTimeoutError:
-                    self._energy.set(None)
-                    energy_threshold = 300
+                    self._stt.energy.set(None)
                     continue
                 except sr.Interrupted:
-                    self._energy.set(energy_threshold)
-                    energy_threshold = r.energy_threshold
+                    self._stt.energy.set(energy_threshold)
                     continue
-            if self._improve_energy_threshold:
-                energy_threshold = r.energy_threshold
-            model = r.get_model
-            if model < 1:
-                continue
-            self._adata_parse(adata, model, energy_threshold)
+            if r.get_model > 0:
+                self._adata_parse(adata, r.get_model, energy_threshold)
 
     def terminate(self):
         self._terminate = True
@@ -72,12 +68,12 @@ class SnowBoySR:
             return
         msg = self._get_text(adata)
         if msg:
-            clear_msg = self._msg_parse(msg, phrase)
+            clear_msg = msg_parse(msg, phrase)
             if clear_msg is None:
-                self._energy.set(None)
+                self._stt.energy.set(None)
                 self._callback(msg, phrase, None, energy_threshold)
             else:
-                self._energy.set(energy_threshold)
+                self._stt.energy.set(energy_threshold)
                 self._callback(clear_msg, model_name, model_msg, energy_threshold)
 
     def _interrupted(self):
@@ -93,24 +89,30 @@ class SnowBoySR:
             if alarm:
                 self._play.clear_lvl()
 
-    @staticmethod
-    def _msg_parse(msg: str, phrase: str):
-        phrase2 = phrase.lower().replace('ё', 'е')
-        msg2 = msg.lower().replace('ё', 'е')
-        offset = msg2.find(phrase2)
-        if offset < 0:  # Ошибка активации
+
+class SnowBoySR2(SnowBoySR):
+    def start(self):
+        self._terminate = False
+        r = sr.Recognizer(self._interrupted, self._cfg.gts('sensitivity'), self._hotword_callback)
+        r.adaptive_noising(self._play.noising)
+        while not self._interrupted():
+            with sr.Microphone() as source:
+                try:
+                    adata = r.listen(source, 5, self._cfg.gts('phrase_time_limit'),
+                                     (self._cfg.path['home'], self._cfg.path['models_list']))
+                except (sr.WaitTimeoutError, sr.Interrupted):
+                    continue
+            if r.get_model > 0:
+                self._adata_parse(adata, r.get_model, r.energy_threshold)
+
+    def _adata_parse(self, adata, model, energy_threshold):
+        model_name, phrase, model_msg = self._cfg.model_info_by_id(model)
+        if not phrase:
             return
-        msg = msg[offset+len(phrase):]
-        for l_del in ('.', ',', ' '):
-            msg = msg.lstrip(l_del)
-        return msg
-
-
-class Dummy:
-    @classmethod
-    def set(cls, *_):
-        pass
-
-    @classmethod
-    def correct(cls, *_):
-        return 300
+        msg = self._get_text(adata)
+        if msg:
+            clear_msg = msg_parse(msg, phrase)
+            if clear_msg is None:
+                self._callback(msg, phrase, None, energy_threshold)
+            else:
+                self._callback(clear_msg, model_name, model_msg, energy_threshold)
