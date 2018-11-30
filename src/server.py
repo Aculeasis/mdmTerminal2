@@ -113,7 +113,7 @@ class MDTServer(threading.Thread):
         self._play.mpd.pause()
 
     def _api_tts(self, cmd: str):
-        self._terminal_call('tts', cmd, 0 if not self._cfg.gts('no_background_play') else 2)
+        self._terminal_call('tts', cmd, 0)
 
     def _api_ask(self, cmd: str):
         self._terminal_call('ask', cmd)

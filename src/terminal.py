@@ -187,9 +187,12 @@ class MDTerminal(threading.Thread):
 
     def call(self, cmd: str, data='', lvl: int=0, save_time: bool=True):
         if cmd == 'tts' and not lvl:
-            self._play.say(data, lvl=0)
-        else:
-            self._queue.put_nowait((cmd, data, lvl, time.time() if save_time else 0))
+            if self._cfg.gts('no_background_play'):
+                lvl = 2
+            else:
+                self._play.say(data, lvl=0)
+                return
+        self._queue.put_nowait((cmd, data, lvl, time.time() if save_time else 0))
 
     def _detected(self, model: int=0):
         if self._snowboy is not None:
