@@ -103,6 +103,14 @@ class TestShell(cmd__.Cmd):
         if num_check([cmd, 1]):
             self._send('rec:compile_{0}_{0}'.format(cmd))
 
+    def do_update(self, _):
+        """Обновить терминал. Аргументы: нет"""
+        self._send('rec:update_0_0')
+
+    def do_rollback(self, _):
+        """Откатывает последнее обновление. Аргументы: нет"""
+        self._send('rec:rollback_0_0')
+
     def do_raw(self, arg):
         """Отправляет терминалу любые данные. Аргументы: что угодно"""
         if not arg:

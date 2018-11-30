@@ -18,13 +18,14 @@ from languages import TERMINAL as LNG
 class MDTerminal(threading.Thread):
     MAX_LATE = 60
 
-    def __init__(self, cfg, play_: player.Player, stt: stts.SpeechToText, log, handler):
+    def __init__(self, cfg, play_: player.Player, stt: stts.SpeechToText, log, handler, updater):
         super().__init__(name='MDTerminal')
         self.log = log
         self._cfg = cfg
         self._play = play_
         self._stt = stt
         self._handler = handler
+        self._updater = updater
         self._work = False
         self._snowboy = None
         self._queue = queue.Queue()
@@ -98,6 +99,13 @@ class MDTerminal(threading.Thread):
                 self._rec_compile(*data)
             elif cmd == 'tts':
                 self._play.say(data, lvl=lvl)
+            elif cmd == 'update':
+                self._updater.update()
+            elif cmd == 'rollback':
+                self._updater.manual_rollback()
+            elif cmd == 'notify' and data:
+                terminal_name = self._cfg.gt('majordomo', 'terminal') or 'mdmTerminal2'
+                self._detected_parse(None, '[{}] {}'.format(terminal_name, data))
             else:
                 self.log(LNG['err_call'].format(cmd, data, lvl), logger.ERROR)
 

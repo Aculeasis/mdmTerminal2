@@ -136,7 +136,7 @@ class MDTServer(threading.Thread):
         # a = param[0]  # rec, play или compile
         # b = param[1]  # 1-6
         # c = param[2]  # 1-3
-        if param[0] in ('play', 'rec', 'compile'):
+        if param[0] in ('play', 'rec', 'compile', 'update', 'rollback'):
             self._terminal_call(param[0], param[1:])
         elif param[0] == 'save':
             self._die_in(3, True)

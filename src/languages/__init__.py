@@ -22,6 +22,7 @@ PLAYER = {}
 SERVER = {}
 STTS = {}
 TERMINAL = {}
+UPDATER = {}
 
 YANDEX_EMOTION = {}
 YANDEX_SPEAKER = {}
@@ -29,7 +30,7 @@ RHVOICE_SPEAKER = {}
 
 # Список копируемых словарей
 _dicts = ('CONFIG', 'LOADER', 'LOGGER', 'MODULES', 'MODULES_MANAGER', 'MPD_CONTROL', 'PLAYER', 'SERVER', 'STTS',
-          'TERMINAL', 'YANDEX_EMOTION', 'YANDEX_SPEAKER', 'RHVOICE_SPEAKER')
+          'TERMINAL', 'UPDATER', 'YANDEX_EMOTION', 'YANDEX_SPEAKER', 'RHVOICE_SPEAKER')
 
 _path = os.path.dirname(os.path.abspath(__file__))
 _lang = None

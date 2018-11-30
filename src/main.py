@@ -100,8 +100,15 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'microphone': 'mic',
 
     },
+    'update': {
+        'interval': 0,
+        'pip': 1,
+        'apt': 0,
+        'turnoff': -1,
+        'fallback': 1,
+    },
     'system': {
-        'ini_version': 3,
+        'ini_version': 4,
     }
 }
 
