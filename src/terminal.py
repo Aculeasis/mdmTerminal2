@@ -219,7 +219,7 @@ class MDTerminal(threading.Thread):
 
     def _detected_sr(self, msg: str, model_name: str, model_msg: str, energy_threshold: int):
         if model_msg is None:
-            self.log(LNG['wrong_activation'].format(msg, model_name), logger.DEBUG)
+            self.log(LNG['wrong_activation'].format(msg, model_name, energy_threshold), logger.DEBUG)
             return
         if self._cfg.gts('energy_threshold', 0) < 1:
             energy_threshold = ', energy_threshold={}'.format(energy_threshold)

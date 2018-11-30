@@ -30,6 +30,19 @@ class Recognizer(speech_recognition.Recognizer):
         self._sensitivity = sensitivity
         self._hotword_callback = hotword_callback
 
+        self._noising = None
+
+    def adaptive_noising(self, noising):
+        self._noising = noising
+
+    def calc_noise(self, buffer, sample_width, seconds_per_buffer):
+        energy = audioop.rms(buffer, sample_width)  # energy of the audio signal
+
+        # dynamically adjust the energy threshold using asymmetric weighted average
+        damping = self.dynamic_energy_adjustment_damping ** seconds_per_buffer  # account for different chunk sizes and rates
+        target_energy = energy * self.dynamic_energy_ratio
+        self.energy_threshold = self.energy_threshold * damping + target_energy * (1 - damping)
+
     @property
     def get_model(self):
         return self._snowboy_result
@@ -112,6 +125,9 @@ class Recognizer(speech_recognition.Recognizer):
                 if elapsed_time > 60:
                     raise Interrupted("listening timed out while waiting for hotword to be said")
                 start_time = time.time()
+
+            if self._noising and not self._noising():
+                self.calc_noise(buffer, source.SAMPLE_WIDTH, seconds_per_buffer)
 
         self._snowboy_result = snowboy_result
         if self._hotword_callback:

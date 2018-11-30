@@ -27,23 +27,37 @@ class SnowBoySR:
         self._stt = stt
         self._play = play
         self._hotword_callback = play.full_quiet if self._cfg.gts('chrome_choke') else None
+        self._improve_energy_threshold = self._cfg.gts('energy_threshold') == -2
+        if self._improve_energy_threshold:
+            self._energy = Dummy
+        else:
+            self._energy = self._stt.energy
         self._terminate = False
 
     def start(self):
         self._terminate = False
+        energy_threshold = 300
         while not self._interrupted():
             with sr.Microphone() as source:
                 r = sr.Recognizer(self._interrupted, self._cfg.gts('sensitivity'), self._hotword_callback)
-                energy_threshold = self._stt.energy.correct(r, source)
+                if not self._improve_energy_threshold:
+                    energy_threshold = self._energy.correct(r, source)
+                else:
+                    r.adaptive_noising(self._play.noising)
+                    r.energy_threshold = energy_threshold
                 try:
                     adata = r.listen(source, 5, self._cfg.gts('phrase_time_limit'),
                                      (self._cfg.path['home'], self._cfg.path['models_list']))
                 except sr.WaitTimeoutError:
-                    self._stt.energy.set(None)
+                    self._energy.set(None)
+                    energy_threshold = 300
                     continue
                 except sr.Interrupted:
-                    self._stt.energy.set(energy_threshold)
+                    self._energy.set(energy_threshold)
+                    energy_threshold = r.energy_threshold
                     continue
+            if self._improve_energy_threshold:
+                energy_threshold = r.energy_threshold
             model = r.get_model
             if model < 1:
                 continue
@@ -60,10 +74,10 @@ class SnowBoySR:
         if msg:
             clear_msg = self._msg_parse(msg, phrase)
             if clear_msg is None:
-                self._stt.energy.set(None)
-                self._callback(msg, phrase, None, None)
+                self._energy.set(None)
+                self._callback(msg, phrase, None, energy_threshold)
             else:
-                self._stt.energy.set(energy_threshold)
+                self._energy.set(energy_threshold)
                 self._callback(clear_msg, model_name, model_msg, energy_threshold)
 
     def _interrupted(self):
@@ -90,3 +104,13 @@ class SnowBoySR:
         for l_del in ('.', ',', ' '):
             msg = msg.lstrip(l_del)
         return msg
+
+
+class Dummy:
+    @classmethod
+    def set(cls, *_):
+        pass
+
+    @classmethod
+    def correct(cls, *_):
+        return 300
