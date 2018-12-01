@@ -12,7 +12,7 @@ import pyaudio
 
 import lib.STT as STT
 import lib.TTS as TTS
-import lib.sr_proxifier as sr
+import lib.sr_wrapper as sr
 import logger
 import utils
 from languages import STTS as LNG

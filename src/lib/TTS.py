@@ -5,7 +5,7 @@ from shlex import quote
 import requests
 
 from utils import REQUEST_ERRORS
-from .gtts_proxifier import Google, gTTSError
+from .gtts_wrapper import Google, gTTSError
 from .polly_boto3 import aws_boto3
 from .polly_signing import signing as polly_signing
 from .proxy import proxies

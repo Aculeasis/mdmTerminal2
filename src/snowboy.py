@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import lib.snowboydecoder as snowboydecoder
-import lib.sr_proxifier as sr
+import lib.sr_wrapper as sr
 
 
 class SnowBoy:
