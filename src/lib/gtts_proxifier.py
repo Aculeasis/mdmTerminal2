@@ -2,6 +2,7 @@
 import calendar
 import math
 import re
+import threading
 import time
 
 import gtts
@@ -12,13 +13,39 @@ from gtts.tts import log, gTTSError, _len
 from .proxy import proxies
 
 
+# gtts_token token cache
+def get_timestamp():
+    return int(math.floor(int(time.time()) / 3600))
+
+
+class _TokenStorage:
+    def __init__(self):
+        self._token = {}
+        self._lock = threading.Lock()
+
+    @property
+    def token(self):
+        with self._lock:
+            return self._token.get(get_timestamp())
+
+    @token.setter
+    def token(self, token):
+        with self._lock:
+            self._token = {get_timestamp(): token}
+
+
+_token_cache = _TokenStorage()
+
 # TODO: Следить за актуальностью копипаст
 
 
 # part of https://github.com/Boudewijn26/gTTS-token/blob/master/gtts_token/gtts_token.py#L51
 def _get_token_key(self):
-    if self.token_key is not None:
-        return self.token_key
+    # if self.token_key is not None:
+    #     return self.token_key
+    result = _token_cache.token
+    if result is not None:
+        return result
 
     # response = requests.get("https://translate.google.com/")
     response = requests.get("https://translate.google.com/", proxies=proxies('token_google'))
@@ -41,7 +68,8 @@ def _get_token_key(self):
 
         result = str(hours) + "." + str(int(a) + int(b))
 
-    self.token_key = result
+    # self.token_key = result
+    _token_cache.token = result
     return result
 
 
