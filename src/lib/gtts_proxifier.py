@@ -7,10 +7,10 @@ import time
 import gtts
 import requests
 import urllib3
-from gtts.lang import URL_BASE, JS_FILE, BeautifulSoup
 from gtts.tts import log, gTTSError, _len
 
 from .proxy import proxies
+
 
 # TODO: Следить за актуальностью копипаст
 
@@ -46,52 +46,6 @@ def _get_token_key(self):
 
 
 gtts.tts.gtts_token.Token._get_token_key = _get_token_key
-
-
-# part of https://github.com/pndurette/gTTS/blob/master/gtts/lang.py#L44
-def _fetch_langs():
-    """Fetch (scrape) languages from Google Translate.
-
-    Google Translate loads a JavaScript Array of 'languages codes' that can
-    be spoken. We intersect this list with all the languages Google Translate
-    provides to get the ones that support text-to-speech.
-
-    Returns:
-        dict: A dictionnary of languages from Google Translate
-
-    """
-    # Load HTML
-    # page = requests.get(URL_BASE)
-    page = requests.get(URL_BASE, proxies=proxies('tts_google', True))
-    soup = BeautifulSoup(page.content, 'html.parser')
-
-    # JavaScript URL
-    # The <script src=''> path can change, but not the file.
-    # Ex: /zyx/abc/20180211/desktop_module_main.js
-    js_path = soup.find(src=re.compile(JS_FILE))['src']
-    js_url = "{}/{}".format(URL_BASE, js_path)
-
-    # Load JavaScript
-    # js_contents = str(requests.get(js_url).content)
-    js_contents = str(requests.get(js_url, proxies=proxies('tts_google', True)).content)
-
-    # Approximately extract TTS-enabled language codes
-    # RegEx pattern search because minified variables can change.
-    # Extra garbage will be dealt with later as we keep languages only.
-    # In: "[...]Fv={af:1,ar:1,[...],zh:1,"zh-cn":1,"zh-tw":1}[...]"
-    # Out: ['is', '12', [...], 'af', 'ar', [...], 'zh', 'zh-cn', 'zh-tw']
-    pattern = '[{,\"](\w{2}|\w{2}-\w{2,3})(?=:1|\":1)'
-    tts_langs = re.findall(pattern, js_contents)
-
-    # Build lang. dict. from HTML lang. <select>
-    # Filtering with the TTS-enabled languages
-    # In: [<option value='af'>Afrikaans</option>, [...]]
-    # Out: {'af': 'Afrikaans', [...]}
-    langs_html = soup.find('select', {'id': 'gt-sl'}).findAll('option')
-    return {l['value']: l.text for l in langs_html if l['value'] in tts_langs}
-
-
-gtts.lang._fetch_langs = _fetch_langs
 
 
 # part of https://github.com/pndurette/gTTS/blob/master/gtts/tts.py#L165
@@ -182,8 +136,8 @@ class FPBranching:
 
 
 class Google(gtts.gTTS):
-    def __init__(self, text, buff_size, lang='en', slow=False, lang_check=True, *_, **__):
-        super().__init__(text, lang, slow, lang_check)
+    def __init__(self, text, buff_size, lang='en', slow=False, *_, **__):
+        super().__init__(text, lang, slow, lang_check=False)
         self._buff_size = buff_size
 
     def stream_to_fps(self, fps):
