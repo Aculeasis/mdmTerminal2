@@ -32,8 +32,11 @@ class MDTerminal(threading.Thread):
 
     def _reload(self):
         if len(self._cfg.path['models_list']) and self._stt.max_mic_index != -2:
-            if self._cfg.gts('chrome_mode'):
-                snowboy = SnowBoySR2 if self._cfg.gts('energy_threshold') == -2 else SnowBoySR
+            if self._cfg.gts('chrome_mode') == 1:
+                snowboy = SnowBoySR
+                detected = self._detected_sr
+            elif self._cfg.gts('chrome_mode') == 2:
+                snowboy = SnowBoySR2
                 detected = self._detected_sr
             else:
                 snowboy = SnowBoy

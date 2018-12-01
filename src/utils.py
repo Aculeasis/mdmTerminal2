@@ -73,9 +73,9 @@ class EnergyControl:
             if energy_threshold > 0:
                 r.energy_threshold = energy_threshold
                 return None
-            elif energy_threshold == -1 and self._energy_currently:
+            elif energy_threshold < 0 and self._energy_currently:
                 r.energy_threshold = self._energy_currently
-            elif energy_threshold == -1 and self._noising():
+            elif energy_threshold < 0 and self._noising():
                 # Не подстаиваем автоматический уровень шума если терминал шумит сам.
                 # Пусть будет прошлое успешное значение или 700
                 r.energy_threshold = self._energy_previous
