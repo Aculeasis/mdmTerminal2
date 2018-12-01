@@ -227,6 +227,7 @@ def help_(self, _, phrase):
     def words():
         return ', '.join(data[0] for data in self.words_by_f(f)) or LNG['help_any_phrase']
     if phrase:
+        phrase = phrase.lower()
         if phrase in self.by_name:
             f = self.by_name[phrase]
             is_del = '' if self.all[f]['enable'] else LNG['help_mod_deleted']
