@@ -1,7 +1,6 @@
 
 import hashlib
 import json
-import subprocess
 import time
 from io import BytesIO
 
@@ -10,7 +9,7 @@ from speech_recognition import AudioData
 
 from utils import REQUEST_ERRORS, UnknownValueError
 from .proxy import proxies
-from .yandex_utils import requests_post, xml_yandex
+from .yandex_utils import requests_post, xml_yandex, wav_to_opus
 
 __all__ = ['Yandex', 'YandexCloud', 'PocketSphinxREST']
 
@@ -118,16 +117,8 @@ class YandexCloud(BaseSTT):
         }
         super().__init__(self.URL, audio_data, headers, rate, width, 'stt_yandex', **kwargs)
 
-    def _chunks(self):
-        cmd = ['opusenc', '--quiet', '--discard-comments', '-', '-']
-        with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE) as popen:
-            popen.stdin.write(self._audio)
-            del self._audio
-            while True:
-                chunk = popen.stdout.read(self.BUFF_SIZE)
-                yield chunk
-                if not chunk:
-                    break
+    def _get_audio(self, audio_data: AudioData):
+        return wav_to_opus(audio_data.get_wav_data(self._convert_rate, self._convert_width))
 
     def _send(self, proxy_key):
         self._text = requests_post(

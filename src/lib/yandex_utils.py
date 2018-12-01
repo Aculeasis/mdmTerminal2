@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import subprocess
 import threading
 import time
 
@@ -127,3 +128,13 @@ def _get_api_key_v1():
         return line[start:end].strip(' \'')
     else:
         raise RuntimeError('API Key not extracted. Yandex change page?')
+
+
+def wav_to_opus(wav_data):
+    process = subprocess.Popen(
+        ['opusenc', '--quiet', '--discard-comments', '-', '-'],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        stdin=subprocess.PIPE)
+    opus_data, _ = process.communicate(wav_data)
+    return opus_data
