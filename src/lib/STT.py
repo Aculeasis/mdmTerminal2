@@ -73,6 +73,49 @@ class BaseSTT:
         return self._text
 
 
+class Google(BaseSTT):
+    URL = 'http://www.google.com/speech-api/v2/recognize'
+
+    def __init__(self, audio_data: AudioData, key=None, lang='ru-RU'):
+        rate = None if audio_data.sample_rate >= 8000 else 8000
+        width = 2
+        headers = {'Content-Type': 'audio/x-flac; rate={}'.format(audio_data.sample_rate)}
+        kwargs = {
+            'client': 'chromium',
+            'lang': lang,
+            'key': key or 'AIzaSyBOti4mM-6x9WDnZIjIeyEU21OpBXqWBgw',
+        }
+        super().__init__(self.URL, audio_data, headers, rate, width, 'stt_google', **kwargs)
+
+    def _get_audio(self, audio_data: AudioData):
+        return audio_data.get_flac_data(self._convert_rate, self._convert_width)
+
+    def _parse_response(self):
+        # ignore any blank blocks
+        actual_result = None
+        for line in self._rq.text.split('\n'):
+            if not line:
+                continue
+            try:
+                result = json.loads(line).get('result')
+            except json.JSONDecodeError:
+                continue
+            if result and isinstance(result[0], dict):
+                actual_result = result[0].get('alternative')
+                break
+
+        # print(actual_result)
+        if not actual_result:
+            raise UnknownValueError()
+
+        if 'confidence' in actual_result:
+            # return alternative with highest confidence score
+            self._text = max(actual_result, key=lambda alternative: alternative['confidence']).get('transcript')
+        else:
+            # when there is no confidence available, we arbitrarily choose the first hypothesis.
+            self._text = actual_result[0].get('transcript')
+
+
 class Yandex(BaseSTT):
     # https://tech.yandex.ru/speechkit/cloud/doc/guide/common/speechkit-common-asr-http-request-docpage/
     URL = 'https://asr.yandex.net/asr_xml'

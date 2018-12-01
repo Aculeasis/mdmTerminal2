@@ -379,7 +379,7 @@ class SpeechToText:
         try:
             key = self._cfg.key(prov, 'apikeystt')
             if prov == 'google':
-                command = self._recognizer.recognize_google(audio, language=LNG['stt_lng'])
+                command = STT.Google(audio, lang=LNG['stt_lng']).text()
             elif prov == 'wit.ai':
                 command = self._recognizer.recognize_wit(audio, key=key)
             elif prov == 'microsoft':
