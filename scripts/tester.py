@@ -103,6 +103,15 @@ class TestShell(cmd__.Cmd):
         if num_check([cmd, 1]):
             self._send('rec:compile_{0}_{0}'.format(cmd))
 
+    def do_del(self, arg):
+        """Удаляет модель. Аргументы: [Номер модели (1-6)]"""
+        cmd = get_params(arg, '[Номер модели (1-6)]', count=1)
+        if not cmd:
+            return
+        cmd = cmd[0]
+        if num_check([cmd, 1]):
+            self._send('rec:del_{0}_{0}'.format(cmd))
+
     def do_update(self, _):
         """Обновить терминал. Аргументы: нет"""
         self._send('rec:update_0_0')

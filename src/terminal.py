@@ -100,6 +100,8 @@ class MDTerminal(threading.Thread):
                 self._rec_play(*data)
             elif cmd == 'compile':
                 self._rec_compile(*data)
+            elif cmd == 'del':
+                self._rec_del(*data)
             elif cmd == 'tts':
                 self._play.say(data, lvl=lvl)
             elif cmd == 'update':
@@ -152,6 +154,38 @@ class MDTerminal(threading.Thread):
                 self._play.say(LNG['compile_no_file'].format(os.path.basename(x)))
         if not miss:
             self._compile_model(model, models)
+
+    def _rec_del(self, model, _):
+        is_del = False
+        pmdl_name = ''.join(['model', model, self._cfg.path['model_ext']])
+        pmdl_path = os.path.join(self._cfg.path['models'], pmdl_name)
+
+        # remove model file
+        if os.path.isfile(pmdl_path):
+            try:
+                os.remove(pmdl_path)
+            except OSError as e:
+                msg = LNG['err_del'].format(model)
+                self.log('{} [{}]: {}'.format(msg, pmdl_path, e), logger.ERROR)
+                self._play.say(msg)
+            else:
+                is_del = True
+                msg = LNG['del_ok'].format(model)
+                self.log('{}: {}'.format(msg, pmdl_path), logger.INFO)
+                self._play.say(msg)
+        else:
+            msg = LNG['del_not_found'].format(model)
+            self.log('{}: {}'.format(msg, pmdl_path), logger.WARN)
+            self._play.say(msg)
+
+        # remove model record in config
+        if pmdl_name in self._cfg['models']:
+            del self._cfg['models'][pmdl_name]
+            self._cfg.config_save()
+
+        if is_del:
+            self._cfg.models_load()
+            self._reload()
 
     def _compile_model(self, model, models):
         phrase, match_count = self._stt.phrase_from_files(models)
