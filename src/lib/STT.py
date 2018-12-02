@@ -77,9 +77,9 @@ class Google(BaseSTT):
     URL = 'http://www.google.com/speech-api/v2/recognize'
 
     def __init__(self, audio_data: AudioData, key=None, lang='ru-RU'):
-        rate = None if audio_data.sample_rate >= 8000 else 8000
+        rate = 16000
         width = 2
-        headers = {'Content-Type': 'audio/x-flac; rate={}'.format(audio_data.sample_rate)}
+        headers = {'Content-Type': 'audio/x-flac; rate={}'.format(rate)}
         kwargs = {
             'client': 'chromium',
             'lang': lang,
@@ -97,7 +97,7 @@ class Google(BaseSTT):
             if not line:
                 continue
             try:
-                result = json.loads(line).get('result')
+                result = json.loads(line).get('result', [])
             except json.JSONDecodeError:
                 continue
             if result and isinstance(result[0], dict):
