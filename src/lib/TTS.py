@@ -183,7 +183,8 @@ class RHVoice(RHVoiceREST):
 
     def _reply_check(self):
         if self._rq.poll():
-            raise RuntimeError('{}: {}'.format(self._rq.poll(), ' '.join(self._rq.stderr.read().decode().split())[:99]))
+            prepare_err = [line for line in self._rq.stderr.read().decode().split('\n') if not line.startswith('ALSA')]
+            raise RuntimeError('{}: {}'.format(self._rq.poll(), ' '.join(prepare_err)[:99]))
 
     def iter_me(self):
         if self._data is None:
