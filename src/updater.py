@@ -190,6 +190,12 @@ def l_split(path: str) -> list:
     return data if len(data) == 2 else ['', '']
 
 
+def is_commit_hash(commit_hash):
+    if not isinstance(commit_hash, str):
+        return False
+    return len(commit_hash) == 40
+
+
 class Worker:
     APT_UPDATE = ['apt-get', 'update', '-qq']
     APT_INSTALL = ['apt-get', 'install', '-y', '-qq']
@@ -223,14 +229,14 @@ class Worker:
         return ', '.join(self._new_files)
 
     def fallback(self):
-        if self._old_hash and len(self._old_hash) == 40:
+        if is_commit_hash(self._old_hash):
             self._git(['reset', '--hard', self._old_hash])
         else:
             raise RuntimeError('Rollback impossible, wrong hash: {}'.format(repr(self._old_hash)))
 
     def set_old_hash(self, old_hash: str or None):
         current_hash = self._get_hash()
-        if not old_hash or len(old_hash) != 40:
+        if not is_commit_hash(old_hash):
             raise RuntimeError('Wrong hash: {}'.format(repr(old_hash)))
         if current_hash == old_hash:
             raise RuntimeError('This is current hash: {}'.format(repr(old_hash)))
@@ -285,7 +291,7 @@ class Worker:
     def _get_hash(self):
         data = self._git(['log', '-n', '1'])
         hash_ = data.split('\n')[0].split(' ')[-1]
-        if len(hash_) != 40:
+        if not is_commit_hash(hash_):
             raise RuntimeError('Error getting hash from git: {}'.format(repr(data)))
         return hash_
 
@@ -302,14 +308,11 @@ class _Popen:
 
     def _close(self):
         if self._popen:
-            try:
-                self._popen.stderr.close()
-            except BrokenPipeError:
-                pass
-            try:
-                self._popen.stdout.close()
-            except BrokenPipeError:
-                pass
+            for target in (self._popen.stderr, self._popen.stdout):
+                try:
+                    target.close()
+                except BrokenPipeError:
+                    pass
 
     def run(self):
         try:
