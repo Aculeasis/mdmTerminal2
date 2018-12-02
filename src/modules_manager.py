@@ -92,12 +92,28 @@ class ModuleManager:
         self.by_name = {val['name']: key for key, val in self.all.items()}
         # Загружаем настройки модулей
         self._set_options(self.cfg.load_dict(self._cfg_name))
-        self._log(LNG['modules_load'].format(', '.join([key for key in self.by_name])))
+        self._print_info()
         self._conflicts_checker()
 
     def save(self):
         # Сохраняем настройки модулей
         self.cfg.save_dict(self._cfg_name, self._get_options())
+
+    def _print_info(self):
+        active, inactive, disable = [], [], []
+        for module in self.all.values():
+            if not module['enable']:
+                disable.append(module['name'])
+            elif module['mode'] in (NM, ANY):
+                active.append(module['name'])
+            else:
+                inactive.append(module['name'])
+        if disable:
+            self._log(LNG['disable_m'].format(', '.join(disable)))
+        if inactive:
+            self._log(LNG['inactive_m'].format(', '.join(inactive)))
+        if active:
+            self._log(LNG['active_m'].format(', '.join(active)), logger.INFO)
 
     def _conflicts_checker(self):
         # Ищет возможные конфликты в модулях. Разные режимы сравниваются отдельно
