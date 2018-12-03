@@ -5,7 +5,7 @@ import json
 import os
 import threading
 import time
-
+from lib import volume
 import logger
 import utils
 from lib.proxy import proxies
@@ -125,9 +125,16 @@ class ConfigHandler(dict):
         to_save |= self._cfg_checker('yandex', 'speaker', YANDEX_SPEAKER, 'alyss')
         to_save |= self._log_file_init()
         to_save |= self._tts_cache_path_check()
+        to_save |= self._init_volume()
         to_save |= self._first()
         if to_save:
             self.config_save()
+
+    def _init_volume(self):
+        if self.gt('volume', 'line_out'):
+            return False
+        self['volume']['line_out'] = volume.extract_volume()
+        return len(self['volume']['line_out']) > 0
 
     def _tts_cache_path_check(self):
         to_save = False
@@ -249,7 +256,6 @@ class ConfigHandler(dict):
         if err:
             self._print(LNG['err_lng'].format(lang, err), logger.ERROR)
         self._print(LNG['lng_load_for'].format(lang, utils.pretty_time(languages.set_lang.load_time)), logger.INFO)
-        print(YANDEX_EMOTION)
 
     def update_from_json(self, data: str) -> dict or None:
         cu = ConfigUpdater(self, self._print)

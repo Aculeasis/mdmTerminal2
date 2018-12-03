@@ -59,13 +59,14 @@ class SayLow:  # Говорим с низким приоритетом
 
 
 class ModuleManager:
-    def __init__(self, log, cfg, die_in, say):
+    def __init__(self, log, cfg, die_in, say, terminal_call):
         (self._log, self._m_log) = log
         self.cfg = cfg
         # Для отправки запросов к мжд
         self.mjd = MajordomoRequests(self.cfg['majordomo'])
         self._set_die_in = die_in
         self._say = say
+        self.terminal_call = terminal_call
         # Режим разработчика
         self.debug = False
         # Если установлено, будет всегда вызывать его

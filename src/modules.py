@@ -264,6 +264,15 @@ def reboot_(*_):
     return Say(LNG['rbt_bye']), Set(die=[5, True])
 
 
+@mod.name(ANY, LNG['volume_name'], LNG['volume_desc'])
+@mod.phrase(LNG['volume_name'])
+def volume(self, _, phrase):
+    if phrase.isdigit():
+        self.terminal_call('volume', phrase)
+    else:
+        return Next
+
+
 @mod.name(NM, LNG['mjd_name'], LNG['mjd_desc'])
 @mod.phrase('')  # Захватит любые фразы
 def majordomo(self, _, phrase):

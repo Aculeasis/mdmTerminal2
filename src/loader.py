@@ -36,7 +36,8 @@ class Loader:
         self._stt = stts.SpeechToText(cfg=self._cfg, play_=self._play, log=self._logger.add('STT'), tts=self._tts)
 
         self._mm = ModuleManager(
-            log=self._logger.add_plus('MM'), cfg=self._cfg, die_in=self.die_in, say=self._play.say
+            log=self._logger.add_plus('MM'), cfg=self._cfg, die_in=self.die_in, say=self._play.say,
+            terminal_call=self.call_terminal_call
         )
 
         self._updater = Updater(

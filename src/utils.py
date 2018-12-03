@@ -4,6 +4,7 @@ import os
 import queue
 import signal
 import socket
+import subprocess
 import threading
 import time
 
@@ -88,6 +89,42 @@ class EnergyControl:
             if self._energy_currently:
                 self._energy_previous = self._energy_currently
             self._energy_currently = energy_threshold
+
+
+class Popen:
+    TIMEOUT = 3 * 3600
+
+    def __init__(self, cmd):
+        self._cmd = cmd
+        self._popen = None
+
+    def _close(self):
+        if self._popen:
+            for target in (self._popen.stderr, self._popen.stdout):
+                try:
+                    target.close()
+                except BrokenPipeError:
+                    pass
+
+    def run(self):
+        try:
+            return self._run()
+        finally:
+            self._close()
+
+    def _run(self):
+        try:
+            self._popen = subprocess.Popen(self._cmd, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+        except FileNotFoundError as e:
+            raise RuntimeError(e)
+        try:
+            self._popen.wait(self.TIMEOUT)
+        except subprocess.TimeoutExpired as e:
+            self._popen.kill()
+            raise RuntimeError(e)
+        if self._popen.poll():
+            raise RuntimeError('{}: {}'.format(self._popen.poll(), repr(self._popen.stderr.read().decode())))
+        return self._popen.stdout.read().decode()
 
 
 def get_ip_address():

@@ -108,8 +108,11 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'turnoff': -1,
         'fallback': 1,
     },
+    'volume': {
+        'line_out': '',
+    },
     'system': {
-        'ini_version': 5,
+        'ini_version': 6,
     }
 }
 

@@ -24,6 +24,7 @@ class MDTServer(threading.Thread):
         }
         self.MTAPI = {
             'settings': self._api_settings,
+            'volume': self._api_volume,
             'rec': self._api_rec,
         }
 
@@ -127,6 +128,9 @@ class MDTServer(threading.Thread):
 
     def _api_settings(self, cmd: str):
         self._parse_settings(cmd)
+
+    def _api_volume(self, cmd: str):
+        self._terminal_call('volume', cmd)
 
     def _api_rec(self, cmd: str):
         param = cmd.split('_')  # должно быть вида rec_1_1, play_2_1, compile_5_1

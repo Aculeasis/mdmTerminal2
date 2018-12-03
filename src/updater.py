@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 
 import os
-import subprocess
 import sys
 import threading
 import time
 
 import logger
 from languages import UPDATER as LNG
+from utils import Popen
 
 
 class Updater(threading.Thread):
@@ -216,13 +216,13 @@ class Worker:
 
     def update_pip(self, upgrade: int):
         if upgrade and self._new_pip:
-            _Popen(self.PIP_INSTALL + self._new_pip).run()
+            Popen(self.PIP_INSTALL + self._new_pip).run()
         return ', '.join(self._new_pip)
 
     def update_apt(self, upgrade: int):
         if upgrade and self._new_apt:
-            _Popen(self.APT_UPDATE).run()
-            _Popen(self.APT_INSTALL + self._new_apt).run()
+            Popen(self.APT_UPDATE).run()
+            Popen(self.APT_INSTALL + self._new_apt).run()
         return ', '.join(self._new_apt)
 
     def new_files(self):
@@ -296,40 +296,4 @@ class Worker:
         return hash_
 
     def _git(self, cmd: list):
-        return _Popen(['git', '-C', self._home] + cmd).run()
-
-
-class _Popen:
-    TIMEOUT = 3 * 3600
-
-    def __init__(self, cmd):
-        self._cmd = cmd
-        self._popen = None
-
-    def _close(self):
-        if self._popen:
-            for target in (self._popen.stderr, self._popen.stdout):
-                try:
-                    target.close()
-                except BrokenPipeError:
-                    pass
-
-    def run(self):
-        try:
-            return self._run()
-        finally:
-            self._close()
-
-    def _run(self):
-        try:
-            self._popen = subprocess.Popen(self._cmd, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
-        except FileNotFoundError as e:
-            raise RuntimeError(e)
-        try:
-            self._popen.wait(self.TIMEOUT)
-        except subprocess.TimeoutExpired as e:
-            self._popen.kill()
-            raise RuntimeError(e)
-        if self._popen.poll():
-            raise RuntimeError('{}: {}'.format(self._popen.poll(), repr(self._popen.stderr.read().decode())))
-        return self._popen.stdout.read().decode()
+        return Popen(['git', '-C', self._home] + cmd).run()

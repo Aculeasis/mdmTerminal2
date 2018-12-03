@@ -13,7 +13,7 @@ import stts
 import utils
 from languages import STTS as LNG2
 from languages import TERMINAL as LNG
-
+from lib import volume
 
 class MDTerminal(threading.Thread):
     MAX_LATE = 60
@@ -103,6 +103,8 @@ class MDTerminal(threading.Thread):
                 self._rec_compile(*data)
             elif cmd == 'del':
                 self._rec_del(*data)
+            elif cmd == 'volume':
+                self._set_volume(data)
             elif cmd == 'tts':
                 self._play.say(data, lvl=lvl)
             elif cmd == 'update':
@@ -230,6 +232,22 @@ class MDTerminal(threading.Thread):
         # Удаляем временные файлы
         for x in models:
             os.remove(x)
+
+    def _set_volume(self, value):
+        control = self._cfg.gt('volume', 'line_out')
+        if not control or control == volume.UNDEFINED:
+            self.log(LNG['vol_not_cfg'], logger.WARN)
+            self._play.say(LNG['vol_not_cfg'])
+            return
+        try:
+            value = volume.set_volume(value, control)
+        except RuntimeError as e:
+            msg = LNG['vol_wrong_val'].format(value)
+            self.log('{}, {}'.format(msg, e), logger.WARN)
+            self._play.say(msg)
+            return
+        self.log(LNG['vol_ok'].format(value))
+        self._play.say(LNG['vol_ok'].format(value))
 
     def call(self, cmd: str, data='', lvl: int=0, save_time: bool=True):
         if cmd == 'tts' and not lvl:
