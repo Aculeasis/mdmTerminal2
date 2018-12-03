@@ -108,6 +108,8 @@ class Recognizer(speech_recognition.Recognizer):
         # buffers capable of holding 5 seconds of original and resampled audio
         five_seconds_buffer_count = int(math.ceil(5 / seconds_per_buffer))
         frames = collections.deque(maxlen=five_seconds_buffer_count)
+        # use 0.5 seconds buffer for snowboy
+        snowboy_buffer = collections.deque(maxlen=int(math.ceil(0.5 / seconds_per_buffer)))
         start_time = time.time()
         snowboy_result = 0
         while True:
@@ -120,15 +122,17 @@ class Recognizer(speech_recognition.Recognizer):
             # resample audio to the required sample rate
             resampled_buffer, resampling_state = audioop.ratecv(buffer, source.SAMPLE_WIDTH, 1, source.SAMPLE_RATE,
                                                                 snowboy_sample_rate, resampling_state)
-            # run Snowboy on the resampled audio
-            snowboy_result = detector.RunDetection(resampled_buffer)
-            if snowboy_result > 0:
-                # wake word found
-                break
-            elif snowboy_result == -1:
-                raise RuntimeError("Error initializing streams or reading audio data")
-
+            snowboy_buffer.append(resampled_buffer)
             if time.time() - start_time > 0.05:
+                # run Snowboy on the resampled audio
+                snowboy_result = detector.RunDetection(b''.join(snowboy_buffer))
+                snowboy_buffer.clear()
+                if snowboy_result > 0:
+                    # wake word found
+                    break
+                elif snowboy_result == -1:
+                    raise RuntimeError("Error initializing streams or reading audio data")
+
                 if self._interrupt_check and self._interrupt_check():
                     raise Interrupted('Interrupted')
                 if elapsed_time > 60:
@@ -246,7 +250,7 @@ class Recognizer(speech_recognition.Recognizer):
                     energy = audioop.rms(buffer, source.SAMPLE_WIDTH)  # unit energy of the audio signal within the buffer
                     speech = energy > self.energy_threshold
                 else:
-                    speech, resampling_state= speech_detect(resampling_state)
+                    speech, resampling_state = speech_detect(resampling_state)
                 if speech:
                     pause_count = 0
                 else:
