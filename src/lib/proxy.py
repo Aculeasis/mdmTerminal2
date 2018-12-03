@@ -90,20 +90,22 @@ class _Proxies:
         return data
 
     def configure(self, cfg_: dict):
-        cfg = cfg_.copy()
+        with self._locker:
+            cfg = cfg_.copy()
 
-        self._proxy_raw.clear()
-        self._params.clear()
-        self._get_proxy_monkey.cache_clear()
-        self._proxies.cache_clear()
+            self._proxy_raw.clear()
+            self._params.clear()
 
-        self._monkey_patching = cfg.pop('monkey_patching', 1)
+            self._monkey_patching = cfg.pop('monkey_patching', 1)
 
-        for key, val in cfg.items():
-            if key in PARAMS:
-                self._params[key] = _param_cleaning(val)
-            else:
-                self._proxy_raw[key] = val
+            for key, val in cfg.items():
+                if key in PARAMS:
+                    self._params[key] = _param_cleaning(val)
+                else:
+                    self._proxy_raw[key] = val
+            # clear proxies cache
+            self._get_proxy_monkey.cache_clear()
+            self._proxies.cache_clear()
 
     def add_logger(self, log):
         self._logger = log
