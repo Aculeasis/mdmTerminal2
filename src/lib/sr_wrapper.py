@@ -116,9 +116,9 @@ class Recognizer(speech_recognition.Recognizer):
             snowboy_result = detector.RunDetection(resampled_buffer)
             if snowboy_result > 0:
                 # wake word found
-                if snowboy_result == -1:
-                    raise RuntimeError("Error initializing streams or reading audio data")
                 break
+            elif snowboy_result == -1:
+                raise RuntimeError("Error initializing streams or reading audio data")
 
             if time.time() - start_time > 0.05:
                 if self._interrupt_check and self._interrupt_check():
