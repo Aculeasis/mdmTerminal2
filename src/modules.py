@@ -265,12 +265,14 @@ def reboot_(*_):
 
 
 @mod.name(ANY, LNG['volume_name'], LNG['volume_desc'])
-@mod.phrase(LNG['volume_name'])
-def volume(self, _, phrase):
-    if phrase.isdigit():
+@mod.phrase([LNG['volume_music'], LNG['volume_name']])
+def volume(self, trigger, phrase):
+    if not phrase.isdigit():
+        return Next
+    if trigger == LNG['volume_name']:
         self.terminal_call('volume', phrase)
     else:
-        return Next
+        self.terminal_call('mpd_volume', phrase)
 
 
 @mod.name(NM, LNG['mjd_name'], LNG['mjd_desc'])

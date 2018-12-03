@@ -105,6 +105,8 @@ class MDTerminal(threading.Thread):
                 self._rec_del(*data)
             elif cmd == 'volume':
                 self._set_volume(data)
+            elif cmd == 'mpd_volume':
+                self._set_mpd_volume(data)
             elif cmd == 'tts':
                 self._play.say(data, lvl=lvl)
             elif cmd == 'update':
@@ -248,6 +250,21 @@ class MDTerminal(threading.Thread):
             return
         self.log(LNG['vol_ok'].format(value))
         self._play.say(LNG['vol_ok'].format(value))
+
+    def _set_mpd_volume(self, value):
+        try:
+            vol = int(value)
+            if vol < 0 or vol > 100:
+                raise ValueError('volume must be 0..100')
+        except (TypeError, ValueError) as e:
+            msg = LNG['vol_wrong_val'].format(value)
+            self.log('{}, {}'.format(msg, e), logger.WARN)
+            self._play.say(msg)
+            return
+        self._play.mpd.volume = vol
+        value = self._play.mpd.volume
+        self.log(LNG['vol_mpd_ok'].format(value))
+        self._play.say(LNG['vol_mpd_ok'].format(value))
 
     def call(self, cmd: str, data='', lvl: int=0, save_time: bool=True):
         if cmd == 'tts' and not lvl:

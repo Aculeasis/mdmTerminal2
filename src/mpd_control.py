@@ -119,6 +119,18 @@ class MPDControl(threading.Thread):
             self._resume = False
             self._mpd_pause(0)
 
+    @property
+    def volume(self):
+        if not self.allow():
+            return -1
+        return self._mpd_get_volume()
+
+    @volume.setter
+    def volume(self, vol):
+        if not self.allow():
+            return
+        self._mpd_set_volume(vol)
+
     def run(self):
         ping = 0
         if not self._init():
@@ -151,6 +163,14 @@ class MPDControl(threading.Thread):
         self._mpd.clear()
         self._mpd.add(uri)
         self._mpd.play(0)
+
+    @_auto_reconnect
+    def _mpd_set_volume(self, vol):
+        return self._mpd.setvol(vol)
+
+    @_auto_reconnect
+    def _mpd_get_volume(self):
+        return self._mpd.status().get('volume', -1)
 
     @_auto_reconnect
     def _mpd_is_play(self):
