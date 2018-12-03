@@ -8,9 +8,14 @@ class SnowBoy:
     def __init__(self, cfg, callback, interrupt_check, *_, **__):
         sensitivity = [cfg.gts('sensitivity')]
         decoder_model = cfg.path['models_list']
+        audio_gain = cfg.gts('audio_gain')
         self._interrupt_check = interrupt_check
         self._callbacks = [callback for _ in decoder_model]
-        self._snowboy = snowboydecoder.HotwordDetector(decoder_model=decoder_model, sensitivity=sensitivity)
+        self._snowboy = snowboydecoder.HotwordDetector(
+            decoder_model=decoder_model,
+            sensitivity=sensitivity,
+            audio_gain=audio_gain
+        )
 
     def start(self):
         self._snowboy.start(detected_callback=self._callbacks, interrupt_check=self._interrupt_check)
@@ -45,7 +50,9 @@ class SnowBoySR:
         self._terminate = False
         while not self._interrupted():
             with sr.Microphone() as source:
-                r = sr.Recognizer(self._interrupted, self._cfg.gts('sensitivity'), self._hotword_callback)
+                r = sr.Recognizer(
+                    self._interrupted, self._cfg.gts('sensitivity'), self._hotword_callback, self._cfg.gts('audio_gain')
+                )
                 energy_threshold = self._stt.energy.correct(r, source)
                 try:
                     adata = r.listen(source, 5, self._cfg.gts('phrase_time_limit'),
@@ -93,7 +100,9 @@ class SnowBoySR:
 class SnowBoySR2(SnowBoySR):
     def start(self):
         self._terminate = False
-        r = sr.Recognizer(self._interrupted, self._cfg.gts('sensitivity'), self._hotword_callback)
+        r = sr.Recognizer(
+            self._interrupted, self._cfg.gts('sensitivity'), self._hotword_callback, self._cfg.gts('audio_gain')
+        )
         r.adaptive_noising(self._play.noising)
         while not self._interrupted():
             with sr.Microphone() as source:

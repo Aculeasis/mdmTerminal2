@@ -28,6 +28,7 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'no_hello': 0,
         'blocking_listener': 1,
         'energy_threshold': -1,
+        'audio_gain': 1.0,
         'phrase_time_limit': 15,
         'no_background_play': 0,
         'chrome_mode': 1,
@@ -108,7 +109,7 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'fallback': 1,
     },
     'system': {
-        'ini_version': 4,
+        'ini_version': 5,
     }
 }
 

@@ -23,12 +23,13 @@ class Interrupted(Exception):
 
 
 class Recognizer(speech_recognition.Recognizer):
-    def __init__(self, interrupt_check=None, sensitivity=0.45, hotword_callback=None):
+    def __init__(self, interrupt_check=None, sensitivity=0.45, hotword_callback=None, audio_gain=1.0):
         super().__init__()
         self._snowboy_result = 0
         self._interrupt_check = interrupt_check
         self._sensitivity = sensitivity
         self._hotword_callback = hotword_callback
+        self._audio_gain = audio_gain
 
         self._noising = None
 
@@ -88,7 +89,7 @@ class Recognizer(speech_recognition.Recognizer):
             resource_filename=os.path.join(snowboy_location, "resources", "common.res").encode(),
             model_str=",".join(snowboy_hot_word_files).encode()
         )
-        detector.SetAudioGain(1.0)
+        detector.SetAudioGain(self._audio_gain)
         detector.SetSensitivity(",".join([str(self._sensitivity)] * len(snowboy_hot_word_files)).encode())
         snowboy_sample_rate = detector.SampleRate()
 
