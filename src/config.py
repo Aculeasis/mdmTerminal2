@@ -249,15 +249,17 @@ class ConfigHandler(dict):
         if err:
             self._print(LNG['err_lng'].format(lang, err), logger.ERROR)
         self._print(LNG['lng_load_for'].format(lang, utils.pretty_time(languages.set_lang.load_time)), logger.INFO)
+        print(YANDEX_EMOTION)
 
-    def update_from_json(self, data: str) -> bool:
-        result = self._cfg_update(ConfigUpdater(self, self._print).from_json(data))
+    def update_from_json(self, data: str) -> dict or None:
+        cu = ConfigUpdater(self, self._print)
+        result = self._cfg_update(cu.from_json(data))
         if result:
             self._print(LNG['cfg_up'].format(self))
-            return True
+            return cu.diff
         else:
             self._print(LNG['cfg_no_change'])
-            return False
+            return None
 
     def update_from_dict(self, data: dict) -> bool:
         return self._cfg_update(ConfigUpdater(self, self._print).from_dict(data))
@@ -392,8 +394,8 @@ class ConfigUpdater:
     def _json_to_cfg(self, data: str):
         try:
             data = {key.lower(): val for key, val in json.loads(data).items()}
-        except (json.decoder.JSONDecodeError, TypeError) as err:
-            self._log(LNG['wrong_json'].format(data, err.msg), logger.ERROR)
+        except (json.decoder.JSONDecodeError, TypeError, AttributeError) as err:
+            self._log(LNG['wrong_json'].format(data, err), logger.ERROR)
             return
         self._parser(self._dict_normalization(data))
 
@@ -552,3 +554,7 @@ class ConfigUpdater:
     def save_ini(self):
         with self._lock:
             return self._save_me
+
+    @property
+    def diff(self):
+        return self._new_cfg

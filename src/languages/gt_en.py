@@ -47,6 +47,8 @@ STTS = {
 }
 TERMINAL = {}
 
+UPDATER = {}
+
 YANDEX_EMOTION = {
     'good'    : 'good',
     'neutral' : 'neutral',

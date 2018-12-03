@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+import threading
+
 import stts
 from config import ConfigHandler
 from languages import LOADER as LNG
@@ -17,6 +19,7 @@ class Loader:
     def __init__(self, init_cfg: dict, path: dict, die_in):
         self._die_in = die_in
         self.reload = False
+        self._lock = threading.Lock()
 
         self._cfg = ConfigHandler(cfg=init_cfg, path=path)
         self._logger = Logger(self._cfg['log'])
@@ -46,8 +49,8 @@ class Loader:
         )
 
         self._server = MDTServer(
-            cfg=self._cfg, log=self._logger.add('Server'),
-            play=self._play, terminal_call=self.call_terminal_call, die_in=self.die_in
+            cfg=self._cfg, log=self._logger.add('Server'),  play=self._play,
+            terminal_call=self.call_terminal_call, die_in=self.die_in, parse_settings=self.settings_from_mjd
         )
 
     def start(self):
@@ -83,3 +86,34 @@ class Loader:
 
     def call_terminal_call(self, cmd: str, data='', lvl: int=0, save_time: bool=True):
         self._terminal.call(cmd, data, lvl, save_time)
+
+    def settings_from_mjd(self, cfg: str):
+        # Reload modules if their settings could be changes
+        with self._lock:
+            diff = self._cfg.update_from_json(cfg)
+            if not diff:
+                return
+            if is_sub_dict('settings', diff) and ('lang' in diff['settings'] or 'lang_check' in diff['settings']):
+                # re-init lang
+                diff['settings'].pop('lang', None)
+                diff['settings'].pop('lang_check', None)
+                self._cfg.lang_init()
+            if is_sub_dict('log', diff):
+                # reload logger
+                self._logger.reload()
+            if is_sub_dict('cache', diff):
+                # re-check tts cache
+                self._cfg.tts_cache_check()
+            if is_sub_dict('proxy', diff):
+                # re-init proxy
+                self._cfg.proxies_init()
+            if is_sub_dict('mpd', diff):
+                # reconnect to mpd
+                self._mpd.reload()
+            if is_sub_dict('settings', diff):
+                # reload terminal
+                self.call_terminal_call('reload', save_time=False)
+
+
+def is_sub_dict(key, data: dict):
+    return isinstance(data.get(key), dict) and data[key]

@@ -65,7 +65,7 @@ class _LangSetter:
             self._load_time = time.time()
             if self._lang is not None and self._lang != DEFAULT_LANG:
                 # Восстанавливаем все словари из языка по умолчанию
-                self._load_error(DEFAULT_LANG, self._load('languages.' + DEFAULT_LANG, True))
+                self._load_error(DEFAULT_LANG, self._load('languages.' + DEFAULT_LANG))
             self._lang = lang_name
             module = 'languages.' + lang_name
             try:
@@ -73,7 +73,7 @@ class _LangSetter:
             finally:
                 self._load_time = time.time() - self._load_time
 
-    def _load(self, module, replace=False, deep: None or DeepChecker = None):
+    def _load(self, module, deep: None or DeepChecker = None):
         lib = importlib.import_module(module)
         miss_keys = []
         wrong_keys = []
@@ -93,10 +93,7 @@ class _LangSetter:
                 continue
             if deep is not None:
                 deep.check(key, globals()[key], lib.__dict__[key])
-            if replace:
-                globals()[key] = deepcopy(lib.__dict__[key])
-            else:
-                globals()[key].update(deepcopy(lib.__dict__[key]))
+            globals()[key].update(deepcopy(lib.__dict__[key]))
         if deep is not None:
             deep.end()
         del sys.modules[module]

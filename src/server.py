@@ -8,7 +8,7 @@ from languages import SERVER as LNG
 
 
 class MDTServer(threading.Thread):
-    def __init__(self, cfg, log, play, terminal_call, die_in):
+    def __init__(self, cfg, log, play, terminal_call, die_in, parse_settings):
         super().__init__(name='MDTServer')
         self.MDAPI = {
             'hi': self._api_voice,
@@ -32,6 +32,7 @@ class MDTServer(threading.Thread):
         self._play = play
         self._terminal_call = terminal_call
         self._die_in = die_in
+        self._parse_settings = parse_settings
 
         self.work = False
         self._socket = socket.socket()
@@ -125,8 +126,7 @@ class MDTServer(threading.Thread):
         self.log(LNG['no_implement'].format('run', cmd), logger.WARN)
 
     def _api_settings(self, cmd: str):
-        if self._cfg.update_from_json(cmd):
-            self._terminal_call('reload', save_time=False)
+        self._parse_settings(cmd)
 
     def _api_rec(self, cmd: str):
         param = cmd.split('_')  # должно быть вида rec_1_1, play_2_1, compile_5_1

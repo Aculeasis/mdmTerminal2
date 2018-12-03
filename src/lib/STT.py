@@ -61,7 +61,6 @@ class BaseSTT:
 
     def _reply_check(self):
         if not self._rq.ok:
-            print(self._rq.status_code, self._rq.reason, self._rq.text)
             raise RuntimeError('{}: {}'.format(self._rq.status_code, self._rq.reason))
 
     def _parse_response(self):
