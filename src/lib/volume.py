@@ -32,7 +32,9 @@ def extract_volume():
         line_low = line.lower()
         for test in WORST:
             if line_low.find(test) == -1:
+                line = None
                 break
+        if line:
             return line
     return UNDEFINED
 
