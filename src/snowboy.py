@@ -125,3 +125,21 @@ class SnowBoySR2(SnowBoySR):
                 self._callback(msg, phrase, None, energy_threshold)
             else:
                 self._callback(clear_msg, model_name, model_msg, energy_threshold)
+
+
+class SnowBoySR3(SnowBoySR2):
+    def start(self):
+        self._terminate = False
+        r = sr.Recognizer(
+            self._interrupted, self._cfg.gts('sensitivity'), self._hotword_callback, self._cfg.gts('audio_gain')
+        )
+        r.no_energy_threshold()
+        while not self._interrupted():
+            with sr.Microphone() as source:
+                try:
+                    adata = r.listen(source, 5, self._cfg.gts('phrase_time_limit'),
+                                     (self._cfg.path['home'], self._cfg.path['models_list']))
+                except (sr.WaitTimeoutError, sr.Interrupted):
+                    continue
+            if r.get_model > 0:
+                self._adata_parse(adata, r.get_model, None)

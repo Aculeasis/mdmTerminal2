@@ -30,8 +30,12 @@ class Recognizer(speech_recognition.Recognizer):
         self._sensitivity = sensitivity
         self._hotword_callback = hotword_callback
         self._audio_gain = audio_gain
+        self._no_energy_threshold = False
 
         self._noising = None
+
+    def no_energy_threshold(self):
+        self._no_energy_threshold = True
 
     def adaptive_noising(self, noising):
         self._noising = noising
@@ -81,16 +85,20 @@ class Recognizer(speech_recognition.Recognizer):
         finally:
             proxies.monkey_patching_disable()
 
-    # part of https://github.com/Uberi/speech_recognition/blob/master/speech_recognition/__init__.py#L574
-    def snowboy_wait_for_hot_word(self, snowboy_location, snowboy_hot_word_files, source, timeout=None):
-        self._snowboy_result = 0
-
+    def _get_detector(self, snowboy_location, snowboy_hot_word_files):
         detector = snowboydetect.SnowboyDetect(
             resource_filename=os.path.join(snowboy_location, "resources", "common.res").encode(),
             model_str=",".join(snowboy_hot_word_files).encode()
         )
         detector.SetAudioGain(self._audio_gain)
         detector.SetSensitivity(",".join([str(self._sensitivity)] * len(snowboy_hot_word_files)).encode())
+        return detector
+
+    # part of https://github.com/Uberi/speech_recognition/blob/master/speech_recognition/__init__.py#L574
+    def snowboy_wait_for_hot_word(self, snowboy_location, snowboy_hot_word_files, source, timeout=None):
+        self._snowboy_result = 0
+
+        detector = self._get_detector(snowboy_location, snowboy_hot_word_files)
         snowboy_sample_rate = detector.SampleRate()
 
         elapsed_time = 0
@@ -150,6 +158,13 @@ class Recognizer(speech_recognition.Recognizer):
 
         This operation will always complete within ``timeout + phrase_timeout`` seconds if both are numbers, either by returning the audio data, or by raising a ``speech_recognition.WaitTimeoutError`` exception.
         """
+        def speech_detect(resampling_state):
+            # return True if snowboy detect speech
+            resampled_buffer, resampling_state = audioop.ratecv(buffer, source.SAMPLE_WIDTH, 1,
+                                                                source.SAMPLE_RATE,
+                                                                snowboy_sample_rate, resampling_state)
+            return detector.RunDetection(resampled_buffer) >= 0, resampling_state
+
         assert isinstance(source, AudioSource), "Source must be an audio source"
         assert source.stream is not None, "Audio source must be entered before listening, see documentation for ``AudioSource``; are you using ``source`` outside of a ``with`` statement?"
         assert self.pause_threshold >= self.non_speaking_duration >= 0
@@ -162,6 +177,15 @@ class Recognizer(speech_recognition.Recognizer):
         # read audio input for phrases until there is a phrase that is long enough
         elapsed_time = 0  # number of seconds of audio read
         buffer = b""  # an empty buffer means that the stream has ended and there is no data left to read
+        energy = 0
+        resampling_state = None
+        if self._no_energy_threshold and snowboy_configuration:
+            # Use snowboy to words detecting instead of energy_threshold
+            detector = detector = self._get_detector(*snowboy_configuration)
+            snowboy_sample_rate = detector.SampleRate()
+        else:
+            detector, snowboy_sample_rate = None, None
+
         while True:
             frames = collections.deque()
 
@@ -180,11 +204,16 @@ class Recognizer(speech_recognition.Recognizer):
                         frames.popleft()
 
                     # detect whether speaking has started on audio input
-                    energy = audioop.rms(buffer, source.SAMPLE_WIDTH)  # energy of the audio signal
-                    if energy > self.energy_threshold: break
+                    if detector is None:
+                        energy = audioop.rms(buffer, source.SAMPLE_WIDTH)  # energy of the audio signal
+                        speech = energy > self.energy_threshold
+                    else:
+                        speech, resampling_state = speech_detect(resampling_state)
+                    if speech:
+                        break
 
                     # dynamically adjust the energy threshold using asymmetric weighted average
-                    if self.dynamic_energy_threshold:
+                    if self.dynamic_energy_threshold and detector is None:
                         damping = self.dynamic_energy_adjustment_damping ** seconds_per_buffer  # account for different chunk sizes and rates
                         target_energy = energy * self.dynamic_energy_ratio
                         self.energy_threshold = self.energy_threshold * damping + target_energy * (1 - damping)
@@ -213,8 +242,12 @@ class Recognizer(speech_recognition.Recognizer):
                 phrase_count += 1
 
                 # check if speaking has stopped for longer than the pause threshold on the audio input
-                energy = audioop.rms(buffer, source.SAMPLE_WIDTH)  # unit energy of the audio signal within the buffer
-                if energy > self.energy_threshold:
+                if detector is None:
+                    energy = audioop.rms(buffer, source.SAMPLE_WIDTH)  # unit energy of the audio signal within the buffer
+                    speech = energy > self.energy_threshold
+                else:
+                    speech, resampling_state= speech_detect(resampling_state)
+                if speech:
                     pause_count = 0
                 else:
                     pause_count += 1

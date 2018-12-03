@@ -8,7 +8,7 @@ import time
 import lib.snowboy_training as training_service
 import logger
 import player
-from snowboy import SnowBoySR, SnowBoySR2, SnowBoy
+from snowboy import SnowBoySR, SnowBoySR2, SnowBoySR3, SnowBoy
 import stts
 import utils
 from languages import STTS as LNG2
@@ -32,12 +32,13 @@ class MDTerminal(threading.Thread):
 
     def _reload(self):
         if len(self._cfg.path['models_list']) and self._stt.max_mic_index != -2:
+            detected = self._detected_sr
             if self._cfg.gts('chrome_mode') == 1:
                 snowboy = SnowBoySR
-                detected = self._detected_sr
             elif self._cfg.gts('chrome_mode') == 2:
                 snowboy = SnowBoySR2
-                detected = self._detected_sr
+            elif self._cfg.gts('chrome_mode') == 3:
+                snowboy = SnowBoySR3
             else:
                 snowboy = SnowBoy
                 detected = self._detected
