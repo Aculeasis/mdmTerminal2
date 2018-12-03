@@ -36,6 +36,7 @@ class MPDControl(threading.Thread):
         self._resume = False
         self.is_conn = False
         self._errors = 0
+        self._reload = False
 
     def connect(self):
         if self.is_conn:
@@ -81,6 +82,9 @@ class MPDControl(threading.Thread):
     def start(self):
         self._work = True
         super().start()
+
+    def reload(self):
+        self._reload = True
 
     def _init(self):
         time.sleep(self.START_DELAY)
@@ -129,6 +133,9 @@ class MPDControl(threading.Thread):
         self._disconnect()
 
     def _resume_check(self):
+        if self._reload:
+            self._reload = False
+            self.connect()
         if self._resume and time.time() - self._last_play() > self._cfg['wait']:
             self.pause(False)
 

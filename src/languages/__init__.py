@@ -10,7 +10,7 @@ from .deep_check import DeepChecker
 # Значение отсутствющие в других языках будут взяты из него.
 DEFAULT_LANG = 'ru'
 
-# Словари локализаций
+# Словари локализации, заполняются динамически
 # Могут содержать все что угодно - строки, классы, списки и т.д.
 CONFIG = {}
 LOADER = {}
@@ -28,81 +28,89 @@ YANDEX_EMOTION = {}
 YANDEX_SPEAKER = {}
 RHVOICE_SPEAKER = {}
 
-# Список копируемых словарей
-_dicts = ('CONFIG', 'LOADER', 'LOGGER', 'MODULES', 'MODULES_MANAGER', 'MPD_CONTROL', 'PLAYER', 'SERVER', 'STTS',
-          'TERMINAL', 'UPDATER', 'YANDEX_EMOTION', 'YANDEX_SPEAKER', 'RHVOICE_SPEAKER')
 
-_path = os.path.dirname(os.path.abspath(__file__))
-_lang = None
-_lock = threading.Lock()
+class _LangSetter:
+    # Список заполняемых словарей
+    DICTS = ('CONFIG', 'LOADER', 'LOGGER', 'MODULES', 'MODULES_MANAGER', 'MPD_CONTROL', 'PLAYER', 'SERVER', 'STTS',
+             'TERMINAL', 'UPDATER', 'YANDEX_EMOTION', 'YANDEX_SPEAKER', 'RHVOICE_SPEAKER')
+    PATH = os.path.dirname(os.path.abspath(__file__))
 
+    def __init__(self):
+        self._lang = None
+        self._lock = threading.Lock()
+        self._load_time = 0
 
-def load_time():
-    return _load_time
+        self._load_error(DEFAULT_LANG, self.__call__(DEFAULT_LANG))
 
-
-def set_lang(lang_name, print_=None):
-    # Если print_ задан выполняем глубокую проверку
-    global _lock, _lang, _load_time
-    if lang_name == _lang:
-        return
-    if not lang_name or not isinstance(lang_name, str):
-        return 'Bad name - \'{}\''.format(lang_name)
-
-    path = os.path.join(_path, lang_name + '.py')
-    if not os.path.isfile(path):
-        return 'File not found: {}'.format(path)
-    with _lock:
-        _load_time = time.time()
-        if _lang is not None and _lang != DEFAULT_LANG:
-            # Восстанавливаем все словари из языка по умолчанию
-            _load_error(DEFAULT_LANG, _load('languages.' + DEFAULT_LANG, True))
-        _lang = lang_name
-        module = 'languages.' + lang_name
+    @property
+    def load_time(self):
         try:
-            return _load(module, deep=None if not print_ else DeepChecker(print_, module))
+            return self._load_time
         finally:
-            _load_time = time.time() - _load_time
+            self._load_time = 0
 
+    def __call__(self, lang_name: str, print_=None):
 
-def _load(module, replace=False, deep: None or DeepChecker=None):
-    lib = importlib.import_module(module)
-    miss_keys = []
-    wrong_keys = []
-    msg = ''
-    if deep is not None:
-        deep.start()
-    for key in _dicts:
-        if key not in globals():
-            raise RuntimeError('{} missing in. FIXME!'.format(key))
-        if not isinstance(globals()[key], dict):
-            raise RuntimeError('{} not a dict. FIXME!'.format(key))
-        if key not in lib.__dict__:
-            miss_keys.append(key)
-            continue
-        if not isinstance(lib.__dict__[key], dict):
-            wrong_keys.append(key)
-            continue
+        # Если print_ задан выполняем глубокую проверку
+
+        if lang_name == self._lang:
+            return
+        if not lang_name or not isinstance(lang_name, str):
+            return 'Bad name - \'{}\''.format(lang_name)
+
+        path = os.path.join(self.PATH, lang_name + '.py')
+        if not os.path.isfile(path):
+            return 'File not found: {}'.format(path)
+        with self._lock:
+            self._load_time = time.time()
+            if self._lang is not None and self._lang != DEFAULT_LANG:
+                # Восстанавливаем все словари из языка по умолчанию
+                self._load_error(DEFAULT_LANG, self._load('languages.' + DEFAULT_LANG, True))
+            self._lang = lang_name
+            module = 'languages.' + lang_name
+            try:
+                return self._load(module, deep=None if not print_ else DeepChecker(print_, module))
+            finally:
+                self._load_time = time.time() - self._load_time
+
+    def _load(self, module, replace=False, deep: None or DeepChecker = None):
+        lib = importlib.import_module(module)
+        miss_keys = []
+        wrong_keys = []
+        msg = ''
         if deep is not None:
-            deep.check(key, globals()[key], lib.__dict__[key])
-        if replace:
-            globals()[key] = deepcopy(lib.__dict__[key])
-        else:
-            globals()[key].update(deepcopy(lib.__dict__[key]))
-    if deep is not None:
-        deep.end()
-    del sys.modules[module]
-    del lib
-    if miss_keys:
-        msg = 'missing dict: {}. '.format(', '.join(miss_keys))
-    if wrong_keys:
-        msg += 'Not a dict: {}.'.format(', '.join(wrong_keys))
-    return msg or None
+            deep.start()
+        for key in self.DICTS:
+            if key not in globals():
+                raise RuntimeError('{} missing in. FIXME!'.format(key))
+            if not isinstance(globals()[key], dict):
+                raise RuntimeError('{} not a dict. FIXME!'.format(key))
+            if key not in lib.__dict__:
+                miss_keys.append(key)
+                continue
+            if not isinstance(lib.__dict__[key], dict):
+                wrong_keys.append(key)
+                continue
+            if deep is not None:
+                deep.check(key, globals()[key], lib.__dict__[key])
+            if replace:
+                globals()[key] = deepcopy(lib.__dict__[key])
+            else:
+                globals()[key].update(deepcopy(lib.__dict__[key]))
+        if deep is not None:
+            deep.end()
+        del sys.modules[module]
+        del lib
+        if miss_keys:
+            msg = 'missing dict: {}. '.format(', '.join(miss_keys))
+        if wrong_keys:
+            msg += 'Not a dict: {}.'.format(', '.join(wrong_keys))
+        return msg or None
+
+    @staticmethod
+    def _load_error(lang_name, err):
+        if err:
+            raise RuntimeError('Error load default language \'{}\': {}'.format(lang_name, err))
 
 
-def _load_error(lang_name, err):
-    if err:
-        raise RuntimeError('Error load default language \'{}\': {}'.format(lang_name, err))
-
-
-_load_error(DEFAULT_LANG, set_lang(DEFAULT_LANG))
+set_lang = _LangSetter()

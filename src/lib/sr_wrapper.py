@@ -8,7 +8,7 @@ import time
 import speech_recognition
 
 from lib import snowboydetect
-from .proxy import monkey_patching_enable, monkey_patching_disable
+from .proxy import proxies
 
 Microphone = speech_recognition.Microphone
 AudioData = speech_recognition.AudioData
@@ -60,25 +60,25 @@ class Recognizer(speech_recognition.Recognizer):
         pass
 
     def recognize_google(self, audio_data, key=None, language="en-US", show_all=False):
-        monkey_patching_enable('stt_google')
+        proxies.monkey_patching_enable('stt_google')
         try:
             return super().recognize_google(audio_data, key, language, show_all)
         finally:
-            monkey_patching_disable()
+            proxies.monkey_patching_disable()
 
     def recognize_wit(self, audio_data, key, show_all=False):
-        monkey_patching_enable('stt_wit.ai')
+        proxies.monkey_patching_enable('stt_wit.ai')
         try:
             return super().recognize_wit(audio_data, key, show_all)
         finally:
-            monkey_patching_disable()
+            proxies.monkey_patching_disable()
 
     def recognize_bing(self, audio_data, key, language="en-US", show_all=False):
-        monkey_patching_enable('stt_microsoft')
+        proxies.monkey_patching_enable('stt_microsoft')
         try:
             return super().recognize_bing(audio_data, key, language, show_all)
         finally:
-            monkey_patching_disable()
+            proxies.monkey_patching_disable()
 
     # part of https://github.com/Uberi/speech_recognition/blob/master/speech_recognition/__init__.py#L574
     def snowboy_wait_for_hot_word(self, snowboy_location, snowboy_hot_word_files, source, timeout=None):

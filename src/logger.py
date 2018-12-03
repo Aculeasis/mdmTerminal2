@@ -75,16 +75,19 @@ class _LogWrapper:
 class Logger(threading.Thread):
     def __init__(self, cfg: dict):
         super().__init__(name='Logger')
-        self.file_lvl = get_loglvl(cfg.get('file_lvl', 'info'))
-        self.print_lvl = get_loglvl(cfg.get('print_lvl', 'info'))
-        self.file = cfg.get('file', '/var/log/mdmterminal.log')
-        self.in_file = cfg.get('method', 3) in [1, 3] and self.file_lvl <= CRIT
-        self.in_print = cfg.get('method', 3) in [2, 3] and self.print_lvl <= CRIT
-        self._queue = queue.Queue()
+        self._cfg = cfg
+        self.file_lvl = None
+        self.print_lvl = None
+        self.in_print = None
+        self._handler = None
         self._app_log = None
+        self._queue = queue.Queue()
         self._init()
         self._print('Logger', 'start', INFO)
         self.start()
+
+    def reload(self):
+        self._queue.put_nowait('reload')
 
     def join(self, timeout=None):
         self._print('Logger', 'stop.', INFO)
@@ -96,29 +99,45 @@ class Logger(threading.Thread):
             data = self._queue.get()
             if data is None:
                 break
-            self._best_print(*data)
+            if data == 'reload':
+                self._init()
+            else:
+                self._best_print(*data)
 
     def permission_check(self):
-        if not write_permission_check(self.file):
-            self._print('Logger', LNG['err_permission'].format(self.file), CRIT)
+        if not write_permission_check(self._cfg.get('file')):
+            self._print('Logger', LNG['err_permission'].format(self._cfg.get('file')), CRIT)
             return False
         return True
 
     def _init(self):
-        if self.file and self.in_file and self.permission_check():
-            my_handler = RotatingFileHandler(filename=self.file, maxBytes=1024 * 1024,
-                                             backupCount=2, delay=0
-                                             )
-            my_handler.rotator = _rotator
-            my_handler.namer = _namer
-            my_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
-            my_handler.setLevel(logging.DEBUG)
+        self.file_lvl = get_loglvl(self._cfg.get('file_lvl', 'info'))
+        self.print_lvl = get_loglvl(self._cfg.get('print_lvl', 'info'))
+        self.in_print = self._cfg.get('method', 3) in [2, 3] and self.print_lvl <= CRIT
+        in_file = self._cfg.get('method', 3) in [1, 3] and self.file_lvl <= CRIT
+
+        if self._app_log:
+            self._app_log.removeHandler(self._handler)
+            self._app_log = None
+
+        if self._handler:
+            self._handler.close()
+            self._handler = None
+
+        if self._cfg.get('file') and in_file and self.permission_check():
+            self._handler = RotatingFileHandler(filename=self._cfg.get('file'), maxBytes=1024 * 1024,
+                                                backupCount=2, delay=0
+                                                )
+            self._handler.rotator = _rotator
+            self._handler.namer = _namer
+            self._handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
+            self._handler.setLevel(logging.DEBUG)
 
             self._app_log = logging.getLogger('logger')
             # Отключаем печать в консольку
             self._app_log.propagate = False
             self._app_log.setLevel(logging.DEBUG)
-            self._app_log.addHandler(my_handler)
+            self._app_log.addHandler(self._handler)
 
     def add(self, name):
         return _LogWrapper(name, self._print).p

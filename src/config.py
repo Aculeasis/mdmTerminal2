@@ -8,7 +8,7 @@ import time
 
 import logger
 import utils
-from lib import proxy
+from lib.proxy import proxies
 from lib import yandex_utils
 import languages
 from languages import CONFIG as LNG, YANDEX_EMOTION, YANDEX_SPEAKER
@@ -45,7 +45,7 @@ class ConfigHandler(dict):
 
     def _aws_credentials(self):
         return (
-            (self.gt('aws', 'access_key_id'),   self.gt('aws', 'secret_access_key'),self.gt('aws', 'region')),
+            (self.gt('aws', 'access_key_id'),   self.gt('aws', 'secret_access_key'), self.gt('aws', 'region')),
             self.gt('aws', 'boto3')
         )
 
@@ -111,7 +111,10 @@ class ConfigHandler(dict):
 
     def _config_init(self):
         self._cfg_check(self.config_load())
-        proxy.setting(self.get('proxy', {}))
+        self.proxies_init()
+
+    def proxies_init(self):
+        proxies.configure(self.get('proxy', {}))
 
     def _cfg_check(self, to_save=False):
         for key in ['providerstt', 'providerstt']:
@@ -234,18 +237,18 @@ class ConfigHandler(dict):
         updater = ConfigUpdater(self, self._print)
         count = updater.from_ini(self.path['settings'])
         wtime = time.time() - wtime
-        self._lang_init()
+        self.lang_init()
         self._print(LNG['load_for'].format(count, utils.pretty_time(wtime)), logger.INFO)
         self._print(LNG['load'], logger.INFO, mode=2)
         return updater.save_ini
 
-    def _lang_init(self):
+    def lang_init(self):
         lang = self.gts('lang')
         deep_check = self.gts('lang_check', 0)
         err = languages.set_lang(lang, None if not deep_check else self._print)
         if err:
             self._print(LNG['err_lng'].format(lang, err), logger.ERROR)
-        self._print(LNG['lng_load_for'].format(lang, utils.pretty_time(languages.load_time())), logger.INFO)
+        self._print(LNG['lng_load_for'].format(lang, utils.pretty_time(languages.set_lang.load_time)), logger.INFO)
 
     def update_from_json(self, data: str) -> bool:
         result = self._cfg_update(ConfigUpdater(self, self._print).from_json(data))

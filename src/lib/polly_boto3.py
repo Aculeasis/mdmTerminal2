@@ -38,24 +38,25 @@ class AWS:
         return file_path
 
 
-_client = {}
-_lock = threading.Lock()
+class _SessionStorage:
+    def __init__(self):
+        self._client = {}
+        self._lock = threading.Lock()
+
+    def _create_session(self, key):
+        try:
+            boto3 = importlib.import_module('boto3')
+        except (ImportError, ModuleNotFoundError) as e:
+            raise RuntimeError('Error importing boto3: {}'.format(e))
+        session = boto3.Session(aws_access_key_id=key[0], aws_secret_access_key=key[1], region_name=key[2])
+        polly = session.client('polly')
+        self._client = {key: polly.synthesize_speech}
+
+    def __call__(self, key, **kwargs):
+        with self._lock:
+            if key not in self._client:
+                self._create_session(key)
+            return AWS(client=self._client[key], **kwargs)
 
 
-def aws_boto3(key, **kwargs):
-    global _lock
-    with _lock:
-        if key not in _client:
-            _create_session(key)
-        return AWS(client=_client[key], **kwargs)
-
-
-def _create_session(key):
-    global _client
-    try:
-        boto3 = importlib.import_module('boto3')
-    except (ImportError, ModuleNotFoundError) as e:
-        raise RuntimeError('Error importing boto3: {}'.format(e))
-    session = boto3.Session(aws_access_key_id=key[0], aws_secret_access_key=key[1], region_name=key[2])
-    polly = session.client('polly')
-    _client = {key: polly.synthesize_speech}
+aws_boto3 = _SessionStorage()
