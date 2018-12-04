@@ -267,7 +267,10 @@ def reboot_(*_):
 @mod.name(ANY, LNG['volume_name'], LNG['volume_desc'])
 @mod.phrase([LNG['volume_music'], LNG['volume_name']])
 def volume(self, trigger, phrase):
-    if not phrase.isdigit():
+    phrase = phrase.replace('%', '')
+    if not phrase:
+        phrase = None
+    elif not phrase.isdigit():
         return Next
     if trigger == LNG['volume_name']:
         self.terminal_call('volume', phrase)

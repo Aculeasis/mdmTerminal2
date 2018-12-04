@@ -241,28 +241,32 @@ class MDTerminal(threading.Thread):
             self.log(LNG['vol_not_cfg'], logger.WARN)
             self._play.say(LNG['vol_not_cfg'])
             return
-        try:
-            value = volume.set_volume(value, control)
-        except RuntimeError as e:
-            msg = LNG['vol_wrong_val'].format(value)
-            self.log('{}, {}'.format(msg, e), logger.WARN)
-            self._play.say(msg)
-            return
+        if value is not None:
+            try:
+                value = volume.set_volume(value, control)
+            except RuntimeError as e:
+                msg = LNG['vol_wrong_val'].format(value)
+                self.log('{}, {}'.format(msg, e), logger.WARN)
+                self._play.say(msg)
+                return
+        else:
+            value = volume.get_volume(control)
         self.log(LNG['vol_ok'].format(value))
         self._play.say(LNG['vol_ok'].format(value))
 
     def _set_mpd_volume(self, value):
-        try:
-            vol = int(value)
-            if vol < 0 or vol > 100:
-                raise ValueError('volume must be 0..100')
-        except (TypeError, ValueError) as e:
-            msg = LNG['vol_wrong_val'].format(value)
-            self.log('{}, {}'.format(msg, e), logger.WARN)
-            self._play.say(msg)
-            return
-        self._play.mpd.volume = vol
-        value = self._play.mpd.volume
+        if value is not None:
+            try:
+                vol = int(value)
+                if vol < 0 or vol > 100:
+                    raise ValueError('volume must be 0..100')
+            except (TypeError, ValueError) as e:
+                msg = LNG['vol_wrong_val'].format(value)
+                self.log('{}, {}'.format(msg, e), logger.WARN)
+                self._play.say(msg)
+                return
+            self._play.mpd.real_volume = vol
+        value = self._play.mpd.real_volume
         self.log(LNG['vol_mpd_ok'].format(value))
         self._play.say(LNG['vol_mpd_ok'].format(value))
 

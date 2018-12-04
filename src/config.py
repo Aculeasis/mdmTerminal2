@@ -133,7 +133,7 @@ class ConfigHandler(dict):
     def _init_volume(self):
         if self.gt('volume', 'line_out'):
             return False
-        self['volume']['line_out'] = volume.extract_volume()
+        self['volume']['line_out'] = volume.extract_volume_control()
         return len(self['volume']['line_out']) > 0
 
     def _tts_cache_path_check(self):
