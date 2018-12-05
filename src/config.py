@@ -277,20 +277,33 @@ class ConfigHandler(dict):
         return False
 
     def tts_cache_check(self):
+        min_file_size = 1024
+        max_size = self['cache'].get('tts_size', 50) * 1024 * 1024
         cache_path = self.gt('cache', 'path')
         if not os.path.isdir(cache_path):
             self._print(msg=LNG['miss_tts_cache'].format(cache_path), mode=3)
             return
-        max_size = self['cache'].get('tts_size', 50) * 1024 * 1024
         current_size = 0
-        files = []
+        files, wrong_files = [], []
         # Формируем список из пути и размера файлов, заодно считаем общий размер.
+        # Файлы по 1 KiB считаем поврежденными и удалим в любом случае
         for file in os.listdir(cache_path):
             pfile = os.path.join(cache_path, file)
             if os.path.isfile(pfile):
                 fsize = os.path.getsize(pfile)
-                current_size += fsize
-                files.append([pfile, fsize])
+                if fsize > min_file_size:
+                    current_size += fsize
+                    files.append([pfile, fsize])
+                else:
+                    wrong_files.append(pfile)
+
+        # Удаляем поврежденные файлы
+        if wrong_files:
+            for file in wrong_files:
+                os.remove(file)
+            wrong_files = [os.path.split(file)[1] for file in wrong_files]
+            self._print(LNG['delete_wrong_files'].format(', '.join(wrong_files)), logger.WARN)
+
         normal_size = not files or current_size < max_size or max_size < 0
         say = LNG['tts_cache_size'].format(
             utils.pretty_size(current_size),
@@ -304,14 +317,15 @@ class ConfigHandler(dict):
         deleted_files = 0
         # Сортируем файлы по дате последнего доступа
         files.sort(key=lambda x: os.path.getatime(x[0]))
+        deleted = []
         for file in files:
             if current_size <= new_size:
                 break
             current_size -= file[1]
-            self._print(LNG['delete_file'].format(file[0]))
             os.remove(file[0])
             deleted_files += 1
-
+            deleted.append(os.path.split(file[0])[1])
+        self._print(LNG['delete_files'].format(', '.join(deleted)))
         self._print(LNG['deleted_files'].format(deleted_files, utils.pretty_size(current_size)), logger.INFO, 3)
 
     def _make_dir(self, path: str):
