@@ -71,3 +71,20 @@ RHVOICE_SPEAKER = {
     'slt': 'slt',
     'anna' : 'Anna'
 }
+
+AWS_SPEAKER = {
+    'Joey': 'Joey',
+    'Justin': 'Justin',
+    'Matthew': 'Matthew',
+    'Ivy': 'Ivy',
+    'Joanna': 'Joanna',
+    'Kendra': 'Kendra',
+    'Kimberly': 'Kimberly',
+    'Salli': 'Salli'
+}
+
+DEFAULT_SPEAKERS = {
+    'yandex': 'alyss',
+    'rhvoice': 'slt',
+    'aws': 'Joanna'
+}

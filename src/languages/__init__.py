@@ -26,16 +26,22 @@ TERMINAL = {}
 UPDATER = {}
 
 YANDEX_EMOTION = {}
+# Спикеры валидные для данного языка и их произношение
 YANDEX_SPEAKER = {}
 RHVOICE_SPEAKER = {}
+AWS_SPEAKER = {}
+# Спикеры по умолчанию.
+DEFAULT_SPEAKERS = {}
 
 
 class _LangSetter:
     # Список заполняемых словарей
     DICTS = (
         'LANG_CODE', 'CONFIG', 'LOADER', 'LOGGER', 'MODULES', 'MODULES_MANAGER', 'MPD_CONTROL', 'PLAYER', 'SERVER',
-        'STTS', 'TERMINAL', 'UPDATER', 'YANDEX_EMOTION', 'YANDEX_SPEAKER', 'RHVOICE_SPEAKER'
+        'STTS', 'TERMINAL', 'UPDATER',
+        'YANDEX_EMOTION', 'YANDEX_SPEAKER', 'RHVOICE_SPEAKER', 'AWS_SPEAKER', 'DEFAULT_SPEAKERS'
     )
+    UNIQUE = ('RHVOICE_SPEAKER', 'AWS_SPEAKER')
     PATH = os.path.dirname(os.path.abspath(__file__))
 
     def __init__(self):
@@ -96,6 +102,8 @@ class _LangSetter:
                 continue
             if deep is not None:
                 deep.check(key, globals()[key], lib.__dict__[key])
+            if key in self.UNIQUE:
+                globals()[key].clear()
             globals()[key].update(deepcopy(lib.__dict__[key]))
         if deep is not None:
             deep.end()

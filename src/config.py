@@ -116,17 +116,19 @@ class ConfigHandler(dict):
     def proxies_init(self):
         proxies.configure(self.get('proxy', {}))
 
+    def fix_speakers(self):
+        return utils.fix_speakers(self)
+
     def _cfg_check(self, to_save=False):
         for key in ['providerstt', 'providerstt']:
             val = self.gts(key)
             if val is not None:
                 to_save |= self._cfg_dict_checker(val)
-        to_save |= self._cfg_checker('yandex', 'emotion', YANDEX_EMOTION, 'good')
-        to_save |= self._cfg_checker('yandex', 'speaker', YANDEX_SPEAKER, 'alyss')
         to_save |= self._log_file_init()
         to_save |= self._tts_cache_path_check()
         to_save |= self._init_volume()
         to_save |= self._first()
+        to_save |= self.fix_speakers()
         if to_save:
             self.config_save()
 
@@ -162,17 +164,6 @@ class ConfigHandler(dict):
             self[key] = {}
             return True
         return False
-
-    def _cfg_checker(self, subcfg: str, key: str, to: dict, def_: str):
-        to_save = self._cfg_dict_checker(subcfg)
-        if key not in self[subcfg]:
-            self[subcfg][key] = def_
-            to_save = True
-        elif self[subcfg][key] not in to:
-            self._print(LNG['err_cfg_check'].format(key, self[subcfg][key], def_), logger.ERROR)
-            self[subcfg][key] = def_
-            to_save = True
-        return to_save
 
     def save_dict(self, name: str, data: dict, pretty=False) -> bool:
         file_path = os.path.join(self.path['home'], name + '.json')
@@ -259,13 +250,16 @@ class ConfigHandler(dict):
 
     def update_from_json(self, data: str) -> dict or None:
         cu = ConfigUpdater(self, self._print)
-        result = self._cfg_update(cu.from_json(data))
-        if result:
-            self._print(LNG['cfg_up'].format(self))
+        if cu.from_json(data):
             return cu.diff
         else:
-            self._print(LNG['cfg_no_change'])
             return None
+
+    def print_cfg_change(self):
+        self._print(LNG['cfg_up'].format(self))
+
+    def print_cfg_no_change(self):
+        self._print(LNG['cfg_no_change'])
 
     def update_from_dict(self, data: dict) -> bool:
         return self._cfg_update(ConfigUpdater(self, self._print).from_dict(data))

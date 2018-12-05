@@ -22,7 +22,6 @@ LANG_CODE = {
 CONFIG = {
     # ConfigHandler
     'err_ya_key': 'Ошибка получения ключа для Yandex: {}',
-    'err_cfg_check': 'Ошибка в конфиге, {} не может быть {}. Установлено: {}',
     'err_save': 'Ошибка сохранения {}: {}',
     'miss_file': 'Файл не найден: {}',
     'err_load': 'Ошибка загрузки {}: {}',
@@ -326,4 +325,15 @@ RHVOICE_SPEAKER = {
     'aleksandr': 'Александр',
     'elena'    : 'Елена',
     'irina'    : 'Ирина'
+}
+
+AWS_SPEAKER = {
+    'Tatyana': 'Татьяна',
+    'Maxim': 'Максим',
+}
+
+DEFAULT_SPEAKERS = {
+    'yandex': 'alyss',
+    'rhvoice': 'anna',
+    'aws': 'Tatyana'
 }

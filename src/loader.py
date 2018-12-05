@@ -92,7 +92,8 @@ class Loader:
         # Reload modules if their settings could be changes
         with self._lock:
             diff = self._cfg.update_from_json(cfg)
-            if not diff:
+            if diff is None:
+                self._cfg.print_cfg_no_change()
                 return
             if is_sub_dict('settings', diff) and ('lang' in diff['settings'] or 'lang_check' in diff['settings']):
                 # re-init lang
@@ -100,6 +101,8 @@ class Loader:
                 diff['settings'].pop('lang_check', None)
                 self._cfg.lang_init()
                 if lang:
+                    # change unsupported speakers to default
+                    self._cfg.fix_speakers()
                     # reload modules
                     self._mm.reload()
             if is_sub_dict('log', diff):
@@ -117,6 +120,8 @@ class Loader:
             if is_sub_dict('settings', diff):
                 # reload terminal
                 self.call_terminal_call('reload', save_time=False)
+            self._cfg.print_cfg_change()
+            self._cfg.config_save()
 
 
 def is_sub_dict(key, data: dict):

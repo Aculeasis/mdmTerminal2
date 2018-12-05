@@ -7,7 +7,7 @@ ERROR = logging.ERROR
 
 class DeepChecker:
     # Не сравниваем эти словари, они могут быть разными
-    NO_CHECK_DICT = ('RHVOICE_SPEAKER',)
+    NO_CHECK_DICT = ('RHVOICE_SPEAKER', 'AWS_SPEAKER')
 
     def __init__(self, print_, module):
         self.__log = print_
