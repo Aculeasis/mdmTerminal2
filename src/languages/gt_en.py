@@ -13,6 +13,8 @@ LOADER = {
 }
 LOGGER = {}
 MODULES = {
+    'wiki_lang': 'en',
+
     # lock
     'lock_name': 'Блокировка',
     'lock_dsc': 'Включение/выключение блокировки терминала',

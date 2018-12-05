@@ -35,7 +35,8 @@ CONFIG = {
     'miss_tts_cache': 'Директория c tts кэшем не найдена {}',
     'tts_cache_size': 'Размер tts кэша {}: {}',
     'tts_cache_act_list': ['Ок.', 'Удаляем...'],
-    'delete_file': 'Удаляю {}',
+    'delete_wrong_files': 'Удалены поврежденные файлы: {}',
+    'delete_files': 'Удалено: {}',
     'deleted_files': 'Удалено {} файлов. Новый размер TTS кэша {}',
     'create_dir': 'Директория {} не найдена. Создаю...',
     'miss_file_fixme': 'Файл {} не найден. Это надо исправить!',
@@ -58,6 +59,7 @@ LOGGER = {'err_permission': 'Логгирование в {} невозможно
 
 MODULES = {
     'error': 'Ошибка',
+    'wiki_lang': 'ru',
 
     # lock
     'lock_name': 'Блокировка',

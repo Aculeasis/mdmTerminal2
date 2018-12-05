@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 
+import importlib
+import sys
+import threading
 from collections import OrderedDict
 
 import logger
@@ -85,16 +88,28 @@ class ModuleManager:
         self._cfg_options = ['enable', 'mode', 'hardcoded']
         # Не проверяем данные модули на конфликты
         self._no_check = ['majordomo', 'terminator']
+        self._lock = threading.Lock()
 
     def start(self):
-        import modules
-        self.all = modules.mod.get
-        self._by_f_name = {key.__name__: key for key in self.all}
-        self.by_name = {val['name']: key for key, val in self.all.items()}
-        # Загружаем настройки модулей
-        self._set_options(self.cfg.load_dict(self._cfg_name))
-        self._print_info()
-        self._conflicts_checker()
+        self.reload()
+
+    def reload(self):
+        with self._lock:
+            self._module_name, self.one_way = None, None
+            self._code = 0
+            self.debug = False
+
+            modules = importlib.import_module(self._cfg_name)
+            self.all = modules.mod.get
+            del sys.modules[self._cfg_name]
+            del modules
+
+            self._by_f_name = {key.__name__: key for key in self.all}
+            self.by_name = {val['name']: key for key, val in self.all.items()}
+            # Загружаем настройки модулей
+            self._set_options(self.cfg.load_dict(self._cfg_name))
+            self._print_info()
+            self._conflicts_checker()
 
     def save(self):
         # Сохраняем настройки модулей
@@ -262,27 +277,28 @@ class ModuleManager:
         return self._return_wrapper(None, None)
 
     def tester(self, phrase: str, call_me=None):
-        reply = Next
-        f = None
-        phrase_check = phrase.lower()
+        with self._lock:
+            reply = Next
+            f = None
+            phrase_check = phrase.lower()
 
-        if self.one_way:
-            self._code = 2
-            reply = self._call_this(self.one_way, phrase_check, phrase)
-            f = self.one_way
-        if reply is Next and call_me:
-            self._code = 1
-            reply = self._call_this(call_me, phrase_check, phrase)
-            f = call_me
+            if self.one_way:
+                self._code = 2
+                reply = self._call_this(self.one_way, phrase_check, phrase)
+                f = self.one_way
+            if reply is Next and call_me:
+                self._code = 1
+                reply = self._call_this(call_me, phrase_check, phrase)
+                f = call_me
 
-        if reply is not Next:
-            return self._return_wrapper(f, reply)
+            if reply is not Next:
+                return self._return_wrapper(f, reply)
 
-        if not phrase:
-            self._log(LNG['not_say'], logger.DEBUG)
-            return self._return_wrapper(None, None)
+            if not phrase:
+                self._log(LNG['not_say'], logger.DEBUG)
+                return self._return_wrapper(None, None)
 
-        return self._phrases_testing(phrase, phrase_check)
+            return self._phrases_testing(phrase, phrase_check)
 
     def words_by_f(self, f):
         def allow_any():

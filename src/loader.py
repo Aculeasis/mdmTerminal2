@@ -96,9 +96,12 @@ class Loader:
                 return
             if is_sub_dict('settings', diff) and ('lang' in diff['settings'] or 'lang_check' in diff['settings']):
                 # re-init lang
-                diff['settings'].pop('lang', None)
+                lang = diff['settings'].pop('lang', None)
                 diff['settings'].pop('lang_check', None)
                 self._cfg.lang_init()
+                if lang:
+                    # reload modules
+                    self._mm.reload()
             if is_sub_dict('log', diff):
                 # reload logger
                 self._logger.reload()

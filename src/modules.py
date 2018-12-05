@@ -11,7 +11,7 @@ from modules_manager import ModuleWrapper, get_mode_say, get_enable_say
 from modules_manager import NM, DM, ANY
 from modules_manager import Next, Set, Say, Ask, SayLow
 
-wikipedia.set_lang('ru')
+wikipedia.set_lang(LNG['wiki_lang'])
 mod = ModuleWrapper()
 
 
