@@ -103,6 +103,8 @@ class Loader:
                 if lang:
                     # change unsupported speakers to default
                     self._cfg.fix_speakers()
+                    # reload phrases
+                    self._stt.reload()
                     # reload modules
                     self._mm.reload()
             if is_sub_dict('log', diff):

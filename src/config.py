@@ -91,6 +91,8 @@ class ConfigHandler(dict):
 
         # ~/resources/
         self._make_dir(self.path['resources'])
+        # ~/data/
+        self._make_dir(self.path['data'])
         # ~/resources/models/
         self._make_dir(self.path['models'])
         # ~/resources/ding.wav ~/resources/dong.wav ~/resources/tts_error.mp3
@@ -166,7 +168,7 @@ class ConfigHandler(dict):
         return False
 
     def save_dict(self, name: str, data: dict, pretty=False) -> bool:
-        file_path = os.path.join(self.path['home'], name + '.json')
+        file_path = os.path.join(self.path['data'], name + '.json')
         try:
             with open(file_path, 'w') as fp:
                 json.dump(data, fp, ensure_ascii=False, indent=4 if pretty else None)
@@ -176,7 +178,7 @@ class ConfigHandler(dict):
         return True
 
     def load_dict(self, name: str) -> dict or None:
-        file_path = os.path.join(self.path['home'], name + '.json')
+        file_path = os.path.join(self.path['data'], name + '.json')
         if not os.path.isfile(file_path):
             self._print(LNG['miss_file'].format(file_path))
             return None

@@ -127,12 +127,13 @@ def get_path(home) -> dict:
         'model_supports': ['.pmdl', '.umdl'],
         # Временные файлы
         'tmp': tempfile.gettempdir(),
+        # ~/settings.ini
+        'settings': os.path.join(home, 'settings.ini'),
+        # ~/resources/
+        'resources': os.path.join(home, 'resources'),
+        # ~/data/
+        'data': os.path.join(home, 'data'),
     }
-    # ~/settings.ini
-    path['settings'] = os.path.join(path['home'], 'settings.ini')
-    # ~/resources/
-    path['resources'] = os.path.join(path['home'], 'resources')
-    # ~/resources/models/
     path['models'] = os.path.join(path['resources'], 'models')
     # ~/resources/ding.wav ~/resources/dong.wav ~/resources/tts_error.mp3
     for (key, val) in [['ding', 'ding.wav'], ['dong', 'dong.wav'], ['tts_error', 'tts_error.mp3']]:

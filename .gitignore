@@ -2,6 +2,7 @@ __pycache__
 .idea
 *.swp
 src/tts_cache
+src/data
 env
 src/settings.ini
 src/test.py

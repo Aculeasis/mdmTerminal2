@@ -190,6 +190,9 @@ class SpeechToText:
             self.log('Error get list microphones: {}'.format(e), logger.CRIT)
             self.max_mic_index = -2
 
+    def reload(self):
+        self.sys_say = Phrases(self.log, self._cfg)
+
     def start(self):
         self._work = True
         self.log('start.', logger.INFO)
@@ -465,10 +468,9 @@ class NonBlockListener:
 
 
 class Phrases:
-    NAME = 'phrases'
-
     def __init__(self, log, cfg):
-        self._phrases = cfg.load_dict(self.NAME)
+        name = 'phrases_{}'.format(LANG_CODE['ISO'])
+        self._phrases = cfg.load_dict(name)
         try:
             utils.check_phrases(self._phrases)
         except ValueError as e:
@@ -476,7 +478,7 @@ class Phrases:
             self._phrases = None
         if not self._phrases:
             self._phrases = {'hello': LNG['p_hello'], 'deaf': LNG['p_deaf'], 'ask': LNG['p_ask'], 'chance': 25}
-            cfg.save_dict(self.NAME, self._phrases, True)
+            cfg.save_dict(name, self._phrases, True)
 
     @property
     def hello(self) -> str:
