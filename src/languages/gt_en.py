@@ -1,3 +1,7 @@
+LANG_CODE = {
+    'IETF': 'en-US',
+    'ISO': 'en'
+}
 
 CONFIG = {
     'err_ya_key': 'Error getting key for Yandex: {}',
@@ -13,8 +17,6 @@ LOADER = {
 }
 LOGGER = {}
 MODULES = {
-    'wiki_lang': 'en',
-
     # lock
     'lock_name': 'Блокировка',
     'lock_dsc': 'Включение/выключение блокировки терминала',
@@ -38,10 +40,6 @@ MPD_CONTROL = {'err_mpd': 'Error connecting to the MPD server'}
 PLAYER = {}
 SERVER = {}
 STTS = {
-    'tts_lng_def': 'en-US',
-    'tts_lng_dict': {'google': 'en', 'yandex': 'en-US'},
-    'stt_lng': 'en-US',
-
     # Phrases
     'p_hello': ['Hello', 'Listening', 'In touch', 'Hi Hi'],
     'p_deaf': ['I have not heard anything', 'You did not say anything', 'Can not hear anything', 'I did not get that'],

@@ -5,13 +5,13 @@ import wikipedia
 import logger
 import utils
 from languages import MODULES as LNG
-from languages import YANDEX_SPEAKER, YANDEX_EMOTION, RHVOICE_SPEAKER
+from languages import YANDEX_SPEAKER, YANDEX_EMOTION, RHVOICE_SPEAKER, LANG_CODE
 from modules_manager import EQ
 from modules_manager import ModuleWrapper, get_mode_say, get_enable_say
 from modules_manager import NM, DM, ANY
 from modules_manager import Next, Set, Say, Ask, SayLow
 
-wikipedia.set_lang(LNG['wiki_lang'])
+wikipedia.set_lang(LANG_CODE['ISO'])
 mod = ModuleWrapper()
 
 

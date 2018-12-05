@@ -12,6 +12,7 @@ DEFAULT_LANG = 'ru'
 
 # Словари локализации, заполняются динамически
 # Могут содержать все что угодно - строки, классы, списки и т.д.
+LANG_CODE = {}
 CONFIG = {}
 LOADER = {}
 LOGGER = {}
@@ -31,8 +32,10 @@ RHVOICE_SPEAKER = {}
 
 class _LangSetter:
     # Список заполняемых словарей
-    DICTS = ('CONFIG', 'LOADER', 'LOGGER', 'MODULES', 'MODULES_MANAGER', 'MPD_CONTROL', 'PLAYER', 'SERVER', 'STTS',
-             'TERMINAL', 'UPDATER', 'YANDEX_EMOTION', 'YANDEX_SPEAKER', 'RHVOICE_SPEAKER')
+    DICTS = (
+        'LANG_CODE', 'CONFIG', 'LOADER', 'LOGGER', 'MODULES', 'MODULES_MANAGER', 'MPD_CONTROL', 'PLAYER', 'SERVER',
+        'STTS', 'TERMINAL', 'UPDATER', 'YANDEX_EMOTION', 'YANDEX_SPEAKER', 'RHVOICE_SPEAKER'
+    )
     PATH = os.path.dirname(os.path.abspath(__file__))
 
     def __init__(self):

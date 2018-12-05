@@ -14,6 +14,11 @@ class _ConfigPrettyModels:
         return 'Загружен{} {} модел{}'.format(ot, count, et)
 
 
+LANG_CODE = {
+    'IETF': 'ru-RU',
+    'ISO': 'ru'
+}
+
 CONFIG = {
     # ConfigHandler
     'err_ya_key': 'Ошибка получения ключа для Yandex: {}',
@@ -59,7 +64,6 @@ LOGGER = {'err_permission': 'Логгирование в {} невозможно
 
 MODULES = {
     'error': 'Ошибка',
-    'wiki_lang': 'ru',
 
     # lock
     'lock_name': 'Блокировка',
@@ -221,9 +225,6 @@ STTS = {
     'action_cache': '{}найдено в кэше',
     'action_gen': '{}сгенерированно {}',
     'for_time': '{} за {}{}: {}',
-    # lang для tts провайдеров
-    'tts_lng_def': 'ru-RU',
-    'tts_lng_dict': {'google': 'ru', 'yandex': 'ru-RU'},
 
     'unknown_prov': 'Неизвестный провайдер: {}',
     'err_synthesis': 'Ошибка синтеза речи от {}, ключ \'{}\'. ({})',
@@ -235,8 +236,6 @@ STTS = {
     'recognized': 'Распознано: {}{}',
     'recognized_from': 'Для распознавания используем {}',
     'err_voice_record': 'Во время записи произошел сбой, это нужно исправить',
-    # language для google и bing
-    'stt_lng': 'ru-RU',
 
     'err_unknown_prov': 'Ошибка распознавания - неизвестный провайдер {}',
     'err_stt_say': 'Произошла ошибка распознавания',

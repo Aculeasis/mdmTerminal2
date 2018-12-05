@@ -15,6 +15,7 @@ import lib.TTS as TTS
 import lib.sr_wrapper as sr
 import logger
 import utils
+from languages import LANG_CODE
 from languages import STTS as LNG
 
 
@@ -132,6 +133,7 @@ class _TTSWrapper(threading.Thread):
             sets = utils.rhvoice_rest_sets(self.cfg[prov]) if prov == 'rhvoice-rest' else {}
             try:
                 key = self.cfg.key(prov, 'apikeytts')
+                lang = LANG_CODE['ISO'] if prov == 'google' else LANG_CODE['IETF']
                 tts = TTS.GetTTS(
                     prov,
                     text=msg,
@@ -139,7 +141,7 @@ class _TTSWrapper(threading.Thread):
                     speaker=self.cfg.gt(prov, 'speaker'),
                     audio_format=format_,
                     key=key,
-                    lang=LNG['tts_lng_dict'].get(prov, LNG['tts_lng_def']),
+                    lang=lang,
                     emotion=self.cfg.gt(prov, 'emotion'),
                     url=self.cfg.gt(prov, 'server'),
                     sets=sets,
@@ -378,12 +380,13 @@ class SpeechToText:
         wtime = time.time()
         try:
             key = self._cfg.key(prov, 'apikeystt')
+            lang = LANG_CODE['IETF']
             if prov == 'google':
-                command = STT.Google(audio, lang=LNG['stt_lng']).text()
+                command = STT.Google(audio, lang=lang).text()
             elif prov == 'wit.ai':
                 command = self._recognizer.recognize_wit(audio, key=key)
             elif prov == 'microsoft':
-                command = self._recognizer.recognize_bing(audio, key=key, language=LNG['stt_lng'])
+                command = self._recognizer.recognize_bing(audio, key=key, language=lang)
             elif prov == 'pocketsphinx-rest':
                 command = STT.PocketSphinxREST(
                     audio_data=audio,
@@ -391,9 +394,9 @@ class SpeechToText:
                 ).text()
             elif prov == 'yandex':
                 if self._cfg.yandex_api(prov) == 2:
-                    command = STT.YandexCloud(audio_data=audio, key=key).text()
+                    command = STT.YandexCloud(audio_data=audio, key=key, lang=lang).text()
                 else:
-                    command = STT.Yandex(audio_data=audio, key=key).text()
+                    command = STT.Yandex(audio_data=audio, key=key, lang=lang).text()
             else:
                 self.log(LNG['err_unknown_prov'].format(prov), logger.CRIT)
                 return ''

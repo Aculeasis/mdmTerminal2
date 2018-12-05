@@ -8,12 +8,14 @@ import time
 import lib.snowboy_training as training_service
 import logger
 import player
-from snowboy import SnowBoySR, SnowBoySR2, SnowBoySR3, SnowBoy
 import stts
 import utils
+from languages import LANG_CODE
 from languages import STTS as LNG2
 from languages import TERMINAL as LNG
 from lib import volume
+from snowboy import SnowBoySR, SnowBoySR2, SnowBoySR3, SnowBoy
+
 
 class MDTerminal(threading.Thread):
     MAX_LATE = 60
@@ -199,7 +201,7 @@ class MDTerminal(threading.Thread):
 
         # Начальные параметры для API сноубоя
         params = {key: self._cfg.gt('snowboy', key) for key in ('token', 'name', 'age_group', 'gender', 'microphone')}
-        params['language'] = self._cfg.gts('lang', 'ru')
+        params['language'] = LANG_CODE['ISO']
 
         if match_count != len(models):
             msg = LNG['no_consensus'].format(pmdl_name, match_count, len(models))
