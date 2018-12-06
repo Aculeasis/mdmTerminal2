@@ -9,6 +9,7 @@ from speech_recognition import AudioData
 
 from utils import REQUEST_ERRORS, UnknownValueError
 from .proxy import proxies
+from .sr_wrapper import google_reply_parser
 from .yandex_utils import requests_post, xml_yandex, wav_to_opus
 
 __all__ = ['Yandex', 'YandexCloud', 'PocketSphinxREST']
@@ -90,29 +91,7 @@ class Google(BaseSTT):
         return audio_data.get_flac_data(self._convert_rate, self._convert_width)
 
     def _parse_response(self):
-        # ignore any blank blocks
-        actual_result = None
-        for line in self._rq.text.split('\n'):
-            if not line:
-                continue
-            try:
-                result = json.loads(line).get('result', [])
-            except json.JSONDecodeError:
-                continue
-            if result and isinstance(result[0], dict):
-                actual_result = result[0].get('alternative')
-                break
-
-        # print(actual_result)
-        if not actual_result:
-            raise UnknownValueError()
-
-        if 'confidence' in actual_result:
-            # return alternative with highest confidence score
-            self._text = max(actual_result, key=lambda alternative: alternative['confidence']).get('transcript')
-        else:
-            # when there is no confidence available, we arbitrarily choose the first hypothesis.
-            self._text = actual_result[0].get('transcript')
+        self._text = google_reply_parser(self._rq.text)
 
 
 class Yandex(BaseSTT):

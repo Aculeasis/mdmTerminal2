@@ -1,3 +1,12 @@
+# The MIT License (MIT)
+#
+# gTTS-token: Copyright (c) 2016 Boudewijn van Groos
+# https://github.com/Boudewijn26/gTTS-token
+#
+# gTTS: Copyright © 2014-2018 Pierre Nicolas Durette
+# https://github.com/pndurette/gTTS
+#
+# This code was modified by Aculeasis, 2018
 
 import calendar
 import math
