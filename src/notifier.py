@@ -41,11 +41,10 @@ class MajordomoNotifier(threading.Thread):
             try:
                 data = self._queue.get(timeout=to_sleep)
             except queue.Empty:
-                if to_sleep is not None:
-                    # Отправляем пинг на сервер мжд
-                    volume = self._get_volume()
-                    volume['uptime'] = self.uptime
-                    self._send_notify(volume)
+                # Отправляем пинг на сервер мжд
+                volume = self._get_volume()
+                volume['uptime'] = self.uptime
+                self._send_notify(volume)
                 continue
             if not isinstance(data, dict):
                 continue
