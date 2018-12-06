@@ -379,10 +379,9 @@ class SpeechToText:
         else:
             return None
 
-    def voice_recognition(self, audio, quiet: int =0) -> str or None:
+    def voice_recognition(self, audio, quiet: bool=False) -> str:
         prov = self._cfg.gts('providerstt', 'google')
-        if quiet < 2:
-            self.log(LNG['recognized_from'].format(prov), logger.DEBUG)
+        self.log(LNG['recognized_from'].format(prov), logger.DEBUG)
         wtime = time.time()
         try:
             key = self._cfg.key(prov, 'apikeystt')
@@ -414,8 +413,6 @@ class SpeechToText:
             self.log(LNG['err_stt_log'].format(e), logger.ERROR)
             return ''
         else:
-            if quiet >= 2:
-                self.log(LNG['recognized_from'].format(prov), logger.DEBUG)
             self.log(LNG['recognized_for'].format(utils.pretty_time(time.time() - wtime)), logger.DEBUG)
             return command or ''
 

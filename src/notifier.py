@@ -41,13 +41,14 @@ class MajordomoNotifier(threading.Thread):
             try:
                 data = self._queue.get(timeout=to_sleep)
             except queue.Empty:
+                if not self._allow_notify:
+                    continue
                 # Отправляем пинг на сервер мжд
-                volume = self._get_volume()
-                volume['uptime'] = self.uptime
-                self._send_notify(volume)
-                continue
-            if not isinstance(data, dict):
-                continue
+                data = self._get_volume()
+                data['uptime'] = self._uptime
+            else:
+                if not isinstance(data, dict):
+                    continue
             self._send_notify(data)
 
     @property
@@ -56,10 +57,7 @@ class MajordomoNotifier(threading.Thread):
 
     def record_callback(self, start_stop: bool):
         # Отправляет статус на сервер мжд в порядке очереди (FIFO)
-        self._queue.put_nowait({
-            'status': 'start_record' if start_stop else 'stop_record',
-            'uptime': self.uptime
-        })
+        self._callback(status='start_record' if start_stop else 'stop_record')
 
     def send(self, qry: str):
         # Прямая отправка
@@ -68,17 +66,26 @@ class MajordomoNotifier(threading.Thread):
         return self._send('command.php', {'qry': qry})
 
     @property
-    def uptime(self) -> int:
+    def _uptime(self) -> int:
         # Считаем uptime от времени загрузки, так быстрее чем каждый раз дергать его из фс.
         return int(time.time() - self._boot_time)
 
+    @property
+    def _allow_notify(self) -> bool:
+        return self._cfg['object_name'] and self._cfg['object_method'] and self.ip_set
+
+    def _callback(self, **kwargs):
+        if not self._allow_notify:
+            return
+        kwargs['uptime'] = self._uptime
+        self._queue.put_nowait(kwargs)
+
     def _send_notify(self, params: dict):
-        if self._cfg['object_name'] and self._cfg['object_method'] and self.ip_set:
-            path = 'api/method/{}.{}'.format(self._cfg['object_name'], self._cfg['object_method'])
-            try:
-                self._send(path, params)
-            except RuntimeError as e:
-                self.log(e, logger.ERROR)
+        path = 'api/method/{}.{}'.format(self._cfg['object_name'], self._cfg['object_method'])
+        try:
+            self._send(path, params)
+        except RuntimeError as e:
+            self.log(e, logger.ERROR)
 
     def _send(self, path: str, params: dict) -> str:
         terminal = self._cfg.get('terminal')
@@ -107,5 +114,5 @@ def _get_boot_time() -> int:
                 if line.startswith('btime'):
                     return int(line.split()[1])
         return int(time.time())
-    except (IOError, IndexError, TypeError):
+    except (IOError, IndexError, ValueError):
         return int(time.time())

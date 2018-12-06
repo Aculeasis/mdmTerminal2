@@ -14,7 +14,7 @@ from languages import LANG_CODE
 from languages import STTS as LNG2
 from languages import TERMINAL as LNG
 from lib import volume
-from snowboy import SnowBoySR, SnowBoySR2, SnowBoySR3, SnowBoy
+from lib.snowboy import SnowBoySR, SnowBoySR2, SnowBoySR3, SnowBoy
 
 
 class MDTerminal(threading.Thread):

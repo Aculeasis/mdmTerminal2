@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import lib.snowboydecoder as snowboydecoder
 import lib.sr_wrapper as sr
 
@@ -93,7 +91,7 @@ class SnowBoySR:
         if alarm:
             self._play.play(self._cfg.path['dong'], lvl=5)
         try:
-            return self._stt.voice_recognition(adata, 2)
+            return self._stt.voice_recognition(adata, True)
         finally:
             if alarm:
                 self._play.clear_lvl()
