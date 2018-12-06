@@ -37,12 +37,13 @@ def msg_parse(msg: str, phrase: str):
 
 
 class SnowBoySR:
-    def __init__(self, cfg, callback, interrupt_check, stt, play):
+    def __init__(self, cfg, callback, interrupt_check, stt, play, record_callback):
         self._cfg = cfg
         self._callback = callback
         self._interrupt_check = interrupt_check
         self._stt = stt
         self._play = play
+        self._record_callback = record_callback
         self._hotword_callback = play.full_quiet if self._cfg.gts('chrome_choke') else None
         self._terminate = False
 
@@ -53,6 +54,7 @@ class SnowBoySR:
                 r = sr.Recognizer(
                     self._interrupted, self._cfg.gts('sensitivity'), self._hotword_callback, self._cfg.gts('audio_gain')
                 )
+                r.set_record_callback(self._record_callback)
                 energy_threshold = self._stt.energy.correct(r, source)
                 try:
                     adata = r.listen(source, 5, self._cfg.gts('phrase_time_limit'),
@@ -104,6 +106,7 @@ class SnowBoySR2(SnowBoySR):
             self._interrupted, self._cfg.gts('sensitivity'), self._hotword_callback, self._cfg.gts('audio_gain')
         )
         r.adaptive_noising(self._play.noising)
+        r.set_record_callback(self._record_callback)
         while not self._interrupted():
             with sr.Microphone() as source:
                 try:
@@ -134,6 +137,7 @@ class SnowBoySR3(SnowBoySR2):
             self._interrupted, self._cfg.gts('sensitivity'), self._hotword_callback, self._cfg.gts('audio_gain')
         )
         r.no_energy_threshold()
+        r.set_record_callback(self._record_callback)
         while not self._interrupted():
             with sr.Microphone() as source:
                 try:

@@ -6,9 +6,11 @@ import stts
 from config import ConfigHandler
 from languages import LOADER as LNG
 from lib.proxy import proxies
+from lib.volume import get_volume
 from logger import Logger
 from modules_manager import ModuleManager
 from mpd_control import MPDControl
+from notifier import MajordomoNotifier
 from player import Player
 from server import MDTServer
 from terminal import MDTerminal
@@ -27,17 +29,24 @@ class Loader:
 
         proxies.add_logger(self._logger.add('Proxy'))
 
+        self._notifier = MajordomoNotifier(
+            cfg=self._cfg['majordomo'], log=self._logger.add('Notifier'), get_volume=self.get_volume_status
+        )
+
         self._tts = stts.TextToSpeech(cfg=self._cfg, log=self._logger.add('TTS')).tts
 
         self._play = Player(cfg=self._cfg, log=self._logger.add('Player'), tts=self._tts)
 
         self._mpd = MPDControl(cfg=self._cfg['mpd'], log=self._logger.add('MPD'), play=self._play)
 
-        self._stt = stts.SpeechToText(cfg=self._cfg, play_=self._play, log=self._logger.add('STT'), tts=self._tts)
+        self._stt = stts.SpeechToText(
+            cfg=self._cfg, play_=self._play, log=self._logger.add('STT'), tts=self._tts,
+            record_callback=self._notifier.record_callback
+        )
 
         self._mm = ModuleManager(
             log=self._logger.add_plus('MM'), cfg=self._cfg, die_in=self.die_in, say=self._play.say,
-            terminal_call=self.call_terminal_call
+            terminal_call=self.call_terminal_call, notifier=self._notifier
         )
 
         self._updater = Updater(
@@ -46,7 +55,8 @@ class Loader:
 
         self._terminal = MDTerminal(
             cfg=self._cfg, play_=self._play, stt=self._stt,
-            log=self._logger.add('Terminal'), handler=self._mm.tester, updater=self._updater
+            log=self._logger.add('Terminal'), handler=self._mm.tester, updater=self._updater,
+            record_callback=self._notifier.record_callback
         )
 
         self._server = MDTServer(
@@ -61,6 +71,7 @@ class Loader:
         self._play.say_info(LNG['hello'], 0, wait=0.5)
         self._stt.start()
         self._cfg.add_play(self._play)
+        self._notifier.start()
         self._mm.start()
         self._updater.start()
         self._terminal.start()
@@ -71,6 +82,7 @@ class Loader:
         self._server.join()
         self._terminal.join()
         self._updater.join()
+        self._notifier.join()
 
         self._play.quiet()
         self._play.kill_popen()
@@ -84,6 +96,9 @@ class Loader:
     def die_in(self, wait, reload=False):
         self.reload = reload
         self._die_in(wait)
+
+    def get_volume_status(self) -> dict:
+        return {'volume': get_volume(self._cfg.gt('volume', 'line_out', '')), 'mpd_volume': self._mpd.real_volume}
 
     def call_terminal_call(self, cmd: str, data='', lvl: int=0, save_time: bool=True):
         self._terminal.call(cmd, data, lvl, save_time)

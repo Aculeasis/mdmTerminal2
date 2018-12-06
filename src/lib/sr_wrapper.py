@@ -33,6 +33,7 @@ class Recognizer(speech_recognition.Recognizer):
         self._no_energy_threshold = False
 
         self._noising = None
+        self._record_callback = None
 
     def no_energy_threshold(self):
         self._no_energy_threshold = True
@@ -57,6 +58,9 @@ class Recognizer(speech_recognition.Recognizer):
 
     def set_interrupt(self, interrupt):
         self._interrupt_check = interrupt
+
+    def set_record_callback(self, record_callback):
+        self._record_callback = record_callback
 
     def __enter__(self):
         pass
@@ -189,7 +193,7 @@ class Recognizer(speech_recognition.Recognizer):
             snowboy_sample_rate = detector.SampleRate()
         else:
             detector, snowboy_sample_rate = None, None
-
+        send_record_starting = False
         while True:
             frames = collections.deque()
 
@@ -199,6 +203,8 @@ class Recognizer(speech_recognition.Recognizer):
                     # handle waiting too long for phrase by raising an exception
                     elapsed_time += seconds_per_buffer
                     if timeout and elapsed_time > timeout:
+                        if self._record_callback and send_record_starting:
+                            self._record_callback(False)
                         raise WaitTimeoutError("listening timed out while waiting for phrase to start")
 
                     buffer = source.stream.read(source.CHUNK)
@@ -234,6 +240,9 @@ class Recognizer(speech_recognition.Recognizer):
             # read audio input until the phrase ends
             pause_count, phrase_count = 0, 0
             phrase_start_time = elapsed_time
+            if self._record_callback and not send_record_starting:
+                send_record_starting = True
+                self._record_callback(True)
             while True:
                 # handle phrase being too long by cutting off the audio
                 elapsed_time += seconds_per_buffer
@@ -265,5 +274,6 @@ class Recognizer(speech_recognition.Recognizer):
         # obtain frame data
         for i in range(pause_count - non_speaking_buffer_count): frames.pop()  # remove extra non-speaking frames at the end
         frame_data = b"".join(frames)
-
+        if self._record_callback and send_record_starting:
+            self._record_callback(False)
         return AudioData(frame_data, source.SAMPLE_RATE, source.SAMPLE_WIDTH)

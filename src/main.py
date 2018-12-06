@@ -43,6 +43,9 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'terminal': '',
         'username': '',
         'password': '',
+        'object_name': '',
+        'object_method': '',
+        'heartbeat_timeout': 0
     },
     'mpd': {
         'control': 1,
@@ -113,7 +116,7 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'line_out': '',
     },
     'system': {
-        'ini_version': 7,
+        'ini_version': 8,
     }
 }
 

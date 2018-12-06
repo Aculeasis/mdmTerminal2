@@ -20,7 +20,7 @@ from snowboy import SnowBoySR, SnowBoySR2, SnowBoySR3, SnowBoy
 class MDTerminal(threading.Thread):
     MAX_LATE = 60
 
-    def __init__(self, cfg, play_: player.Player, stt: stts.SpeechToText, log, handler, updater):
+    def __init__(self, cfg, play_: player.Player, stt: stts.SpeechToText, log, handler, updater, record_callback):
         super().__init__(name='MDTerminal')
         self.log = log
         self._cfg = cfg
@@ -28,6 +28,7 @@ class MDTerminal(threading.Thread):
         self._stt = stt
         self._handler = handler
         self._updater = updater
+        self._record_callback = record_callback
         self._work = False
         self._snowboy = None
         self._queue = queue.Queue()
@@ -44,7 +45,9 @@ class MDTerminal(threading.Thread):
             else:
                 snowboy = SnowBoy
                 detected = self._detected
-            self._snowboy = snowboy(self._cfg, detected, self._interrupt_callback, self._stt, self._play)
+            self._snowboy = snowboy(
+                self._cfg, detected, self._interrupt_callback, self._stt, self._play, self._record_callback
+            )
         else:
             self._snowboy = None
 

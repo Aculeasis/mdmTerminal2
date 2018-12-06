@@ -174,7 +174,7 @@ class _TTSWrapper(threading.Thread):
 
 
 class SpeechToText:
-    def __init__(self, cfg, play_, log, tts):
+    def __init__(self, cfg, play_, log, tts, record_callback):
         self.log = log
         self._cfg = cfg
         self.sys_say = Phrases(log, cfg)
@@ -182,6 +182,7 @@ class SpeechToText:
         self._work = True
         self._play = play_
         self._tts = tts
+        self._record_callback = record_callback
         self.energy = utils.EnergyControl(cfg, play_)
         self._recognizer = sr.Recognizer()
         try:
@@ -299,6 +300,7 @@ class SpeechToText:
 
         # Начинаем фоновое распознавание голосом после того как запустился плей.
         listener = NonBlockListener(r=r, source=mic, phrase_time_limit=self._cfg.gts('phrase_time_limit', 15))
+        self._record_callback(True)
         if file_path:
             while listener.work() and self._play.really_busy() and \
                     time.time() - start_wait < max_play_time and self._work:
@@ -313,12 +315,13 @@ class SpeechToText:
 
         record_time = time.time() - start_wait
         listener.stop()
+        self._record_callback(False)
         return listener.audio, record_time, energy_threshold
 
     def _block_listen(self, hello, lvl, file_path, self_call=False):
         with sr.Microphone(device_index=self.get_mic_index()) as source:
             r = sr.Recognizer()
-
+            r.set_record_callback(self._record_callback)
             if self._cfg.gts('alarmtts') and not hello:
                 self._play.play(self._cfg.path['dong'], lvl, wait=0.01, blocking=2)
 
