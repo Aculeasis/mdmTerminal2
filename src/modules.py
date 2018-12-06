@@ -5,7 +5,7 @@ import wikipedia
 import logger
 import utils
 from languages import MODULES as LNG
-from languages import YANDEX_SPEAKER, YANDEX_EMOTION, RHVOICE_SPEAKER, LANG_CODE
+from languages import YANDEX_SPEAKER, YANDEX_EMOTION, RHVOICE_SPEAKER, AWS_SPEAKER, LANG_CODE
 from modules_manager import EQ
 from modules_manager import ModuleWrapper, get_mode_say, get_enable_say
 from modules_manager import NM, DM, ANY
@@ -131,7 +131,7 @@ def counter(_, __, cmd):
 @mod.phrase([[LNG['who_ph_1'], EQ], [LNG['who_ph_2'], EQ]])
 def who_am_i(self, *_):
     def get_yandex_emo():
-        return YANDEX_EMOTION.get(self.cfg['yandex'].get('emotion', 'unset'), LNG['error'])
+        return YANDEX_EMOTION.get(self.cfg.gt('yandex', 'emotion', 'unset'), LNG['error'])
 
     speakers = __tts_selector(self.cfg)
     if speakers is None:
@@ -151,22 +151,24 @@ def now_i(self, _, cmd):
         return Say(LNG['who_now_no_support'].format(prov))
 
     if cmd:
+        cmd = cmd.lower()
         if prov == 'yandex':
             for key, val in YANDEX_EMOTION.items():
-                if cmd == val:
+                if cmd == val.lower():
                     return __now_i_set_emo(self, key)
-        cmd = cmd[0].upper() + cmd[1:]
         for key, val in speakers.items():
-            if cmd == val:
+            if cmd == val.lower():
                 return __now_i_set_speaker(self, key, self.cfg[prov], speakers, prov == 'yandex')
     return Next
 
 
 def __tts_selector(cfg):
-    if cfg.gts('providertts') == 'rhvoice-rest':
+    if cfg.gts('providertts') in ('rhvoice-rest', 'rhvoice'):
         speakers = RHVOICE_SPEAKER
     elif cfg.gts('providertts') == 'yandex':
         speakers = YANDEX_SPEAKER
+    elif cfg.gts('providertts') == 'aws':
+        speakers = AWS_SPEAKER
     else:
         return None
 
