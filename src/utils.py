@@ -60,9 +60,9 @@ class FakeFP(queue.Queue):
 
 
 class EnergyControl:
-    def __init__(self, cfg, play, default=700):
+    def __init__(self, cfg, noising, default=700):
         self._cfg = cfg
-        self._noising = play.noising
+        self._noising = noising
         self._energy_previous = default
         self._energy_currently = None
         self._lock = threading.Lock()

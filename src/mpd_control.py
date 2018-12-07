@@ -7,6 +7,7 @@ import mpd
 
 import logger
 from languages import MPD_CONTROL as LNG
+from owner import Owner
 
 
 def _auto_reconnect(func):
@@ -25,12 +26,11 @@ def _auto_reconnect(func):
 class MPDControl(threading.Thread):
     START_DELAY = 6
 
-    def __init__(self, cfg: dict, log, play):
+    def __init__(self, cfg: dict, log, owner: Owner):
         super().__init__(name='MPDControl')
-        self._cfg = cfg  # ip, port, wait, quieter
-        self._last_play = play.last_activity
-        self._say = play.say
+        self._cfg = cfg  # ip, port, wait, quieter, control
         self.log = log
+        self.own = owner
         self._work = False
         self._mpd = mpd.MPDClient(use_unicode=True)
         self._resume = False
@@ -81,8 +81,9 @@ class MPDControl(threading.Thread):
             self.log('stop.', logger.INFO)
 
     def start(self):
-        self._work = True
-        super().start()
+        if self._cfg.get('control', 0):
+            self._work = True
+            super().start()
 
     def reload(self):
         self._reload = True
@@ -90,7 +91,7 @@ class MPDControl(threading.Thread):
     def _init(self):
         time.sleep(self.START_DELAY)
         if not self.connect():
-            self._say(LNG['err_mpd'], 0)
+            self.own.say(LNG['err_mpd'], 0)
             return False
         self.log('start', logger.INFO)
         return True
@@ -164,7 +165,7 @@ class MPDControl(threading.Thread):
             if self._resume:
                 self.pause(False)
             self.connect()
-        if self._resume and time.time() - self._last_play() > self._cfg['wait']:
+        if self._resume and time.time() - self.own.last_activity > self._cfg['wait']:
             self.pause(False)
 
     def _quieter(self, paused: bool):

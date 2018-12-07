@@ -7,18 +7,18 @@ import time
 
 import logger
 from languages import UPDATER as LNG
+from owner import Owner
 from utils import Popen
 
 
 class Updater(threading.Thread):
     CFG = 'update'
 
-    def __init__(self, cfg, log, terminal_call, die_in):
+    def __init__(self, cfg, log, owner: Owner):
         super().__init__(name='Updater')
         self._cfg = cfg
         self.log = log
-        self._terminal_call = terminal_call
-        self._die_in = die_in
+        self.own = owner
 
         self._lock = threading.Lock()
         self._old_hash = None
@@ -48,8 +48,8 @@ class Updater(threading.Thread):
             up = self._new_worker()
             msg = self._fallback(up, self._last['hash'])
             if msg == LNG['rollback_yes'] and self._may_restart():
-                self._die_in(7)
-            self._terminal_call('tts', msg)
+                self.own.die_in(7)
+            self.own.terminal_call('tts', msg)
 
     def run(self):
         while self._work:
@@ -88,9 +88,9 @@ class Updater(threading.Thread):
             if not msg:
                 return
             if say:
-                self._terminal_call('tts', msg)
+                self.own.terminal_call('tts', msg)
             elif self._send_notify:
-                self._terminal_call('notify', msg)
+                self.own.terminal_call('notify', msg)
 
     def _save_cfg(self):
         self._cfg.save_dict(self.CFG, self._last)
@@ -131,7 +131,7 @@ class Updater(threading.Thread):
         self.log(LNG['update_ok'], logger.INFO)
         self._old_hash = up.get_old_hash()
         if self._may_restart() and new_files:
-            self._die_in(7)
+            self.own.die_in(7)
             msg = LNG['update_ok']
         else:
             msg = '{} {}'.format(LNG['update_ok'], LNG['restart_required'])

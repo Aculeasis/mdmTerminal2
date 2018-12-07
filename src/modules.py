@@ -275,9 +275,9 @@ def volume(self, trigger, phrase):
     elif not phrase.isdigit():
         return Next
     if trigger == LNG['volume_name']:
-        self.terminal_call('volume', phrase)
+        self.own.terminal_call('volume', phrase)
     else:
-        self.terminal_call('mpd_volume', phrase)
+        self.own.terminal_call('mpd_volume', phrase)
 
 
 @mod.name(NM, LNG['mjd_name'], LNG['mjd_desc'])
@@ -287,7 +287,7 @@ def majordomo(self, _, phrase):
         self.log(LNG['mjd_no_say'], logger.DEBUG)
         return
 
-    if not self.mjd.ip_set:
+    if not self.own.mjd_ip_set:
         self.log(LNG['mjd_no_ip_log'], logger.CRIT)
         return Say(LNG['mjd_no_ip_say'].format(self.cfg.get('ip', LNG['error'])))
 
@@ -296,7 +296,7 @@ def majordomo(self, _, phrase):
         phrase = LNG['mjd_rep_say_s'] + phrase[1:]
 
     try:
-        self.log(LNG['mjd_ok'].format(self.mjd.send(phrase)), logger.DEBUG)
+        self.log(LNG['mjd_ok'].format(self.own.send_to_mjd(phrase)), logger.DEBUG)
     except RuntimeError as e:
         self.log(LNG['err_mjd'].format(e), logger.ERROR)
         return Say(LNG['err_mjd'].format(''))

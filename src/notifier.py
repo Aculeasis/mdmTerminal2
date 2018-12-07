@@ -7,18 +7,19 @@ import time
 import requests
 
 import logger
+from owner import Owner
 from utils import REQUEST_ERRORS
 
 
 class MajordomoNotifier(threading.Thread):
-    def __init__(self, cfg, log, get_volume):
+    def __init__(self, cfg, log, owner: Owner):
         super().__init__(name='Notifier')
         self._cfg = cfg
         self.log = log
-        self._get_volume = get_volume
+        self.own = owner
         self._work = False
         self._queue = queue.Queue()
-        self._boot_time = _get_boot_time()
+        self._boot_time = None
 
     def start(self):
         self._work = True
@@ -44,7 +45,7 @@ class MajordomoNotifier(threading.Thread):
                 if not self._allow_notify:
                     continue
                 # Отправляем пинг на сервер мжд
-                data = self._get_volume()
+                data = self.own.get_volume_status
                 data['uptime'] = self._uptime
             else:
                 if not isinstance(data, dict):
@@ -59,7 +60,7 @@ class MajordomoNotifier(threading.Thread):
         # Отправляет статус на сервер мжд в порядке очереди (FIFO)
         self._callback(status='start_record' if start_stop else 'stop_record')
 
-    def send(self, qry: str):
+    def send(self, qry: str) -> str:
         # Прямая отправка
         # Отправляет сообщение на сервер мжд, возвращает url запроса или кидает RuntimeError
         # На основе https://github.com/sergejey/majordomo-chromegate/blob/master/js/main.js#L196
@@ -67,6 +68,8 @@ class MajordomoNotifier(threading.Thread):
 
     @property
     def _uptime(self) -> int:
+        if self._boot_time is None:
+            self._boot_time = _get_boot_time()
         # Считаем uptime от времени загрузки, так быстрее чем каждый раз дергать его из фс.
         return int(time.time() - self._boot_time)
 

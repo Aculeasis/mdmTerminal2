@@ -17,6 +17,7 @@ import logger
 import utils
 from languages import LANG_CODE
 from languages import STTS as LNG
+from owner import Owner
 
 
 class TextToSpeech:
@@ -25,13 +26,13 @@ class TextToSpeech:
         self._cfg = cfg
 
     def tts(self, msg, realtime: bool = True):
-        wrapper = _TTSWrapper(self._cfg, self.log, msg, realtime)
+        worker = _TTSWorker(self._cfg, self.log, msg, realtime)
         if not self._cfg.get('optimistic_nonblock_tts', 0):
-            wrapper.event.wait(600)
-        return wrapper.get
+            worker.event.wait(600)
+        return worker.get
 
 
-class _TTSWrapper(threading.Thread):
+class _TTSWorker(threading.Thread):
     PROVIDERS = frozenset({'google', 'yandex', 'rhvoice-rest', 'rhvoice', 'aws'})
 
     def __init__(self, cfg, log, msg, realtime):
@@ -174,16 +175,14 @@ class _TTSWrapper(threading.Thread):
 
 
 class SpeechToText:
-    def __init__(self, cfg, play_, log, tts, record_callback):
+    def __init__(self, cfg, log, owner: Owner):
         self.log = log
         self._cfg = cfg
+        self.own = owner
         self.sys_say = Phrases(log, cfg)
         self._lock = threading.Lock()
         self._work = True
-        self._play = play_
-        self._tts = tts
-        self._record_callback = record_callback
-        self.energy = utils.EnergyControl(cfg, play_)
+        self.energy = utils.EnergyControl(cfg, owner.noising)
         self._recognizer = sr.Recognizer()
         try:
             self.max_mic_index = len(sr.Microphone().list_microphone_names()) - 1
@@ -229,7 +228,7 @@ class SpeechToText:
         if msg is None and deaf:
             say = self.sys_say.deaf
             if say:
-                self._play.say(say, blocking=120 if self._cfg.gts('blocking_listener') else 0)
+                self.own.say(say, blocking=120 if self._cfg.gts('blocking_listener') else 0)
         return msg or ''
 
     def get_mic_index(self):
@@ -248,14 +247,14 @@ class SpeechToText:
         commands = None
 
         if self._cfg.gts('alarmkwactivated'):
-            self._play.play(self._cfg.path['ding'], lvl, wait=0.01, blocking=2)
+            self.own.play(self._cfg.path['ding'], lvl, wait=0.01, blocking=2)
         else:
-            self._play.set_lvl(lvl)
-            self._play.kill_popen()
+            self.own.set_lvl(lvl)
+            self.own.kill_popen()
         self.log('audio devices: {}'.format(pyaudio.PyAudio().get_device_count() - 1), logger.DEBUG)
 
         hello = hello or self.sys_say.hello
-        file_path = self._tts(hello) if not voice and hello else None
+        file_path = self.own.tts(hello) if not voice and hello else None
 
         if self._cfg.gts('blocking_listener'):
             audio, record_time, energy_threshold = self._block_listen(hello, lvl, file_path)
@@ -264,10 +263,10 @@ class SpeechToText:
 
         self.log(LNG['record_for'].format(utils.pretty_time(record_time)), logger.INFO)
         # Выключаем монопольный режим
-        self._play.clear_lvl()
+        self.own.clear_lvl()
 
         if self._cfg.gts('alarmstt'):
-            self._play.play(self._cfg.path['dong'])
+            self.own.play(self._cfg.path['dong'])
         if audio is not None:
             commands = self.voice_recognition(audio)
 
@@ -292,21 +291,21 @@ class SpeechToText:
             energy_threshold = self.energy.correct(r, source)
 
         if self._cfg.gts('alarmtts') and not hello:
-            self._play.play(self._cfg.path['dong'], lvl)
+            self.own.play(self._cfg.path['dong'], lvl)
 
         start_wait = time.time()
         if file_path:
-            self._play.play(file_path, lvl)
+            self.own.play(file_path, lvl)
 
         # Начинаем фоновое распознавание голосом после того как запустился плей.
         listener = NonBlockListener(r=r, source=mic, phrase_time_limit=self._cfg.gts('phrase_time_limit', 15))
-        self._record_callback(True)
+        self.own.record_callback(True)
         if file_path:
-            while listener.work() and self._play.really_busy() and \
+            while listener.work() and self.own.really_busy() and \
                     time.time() - start_wait < max_play_time and self._work:
                 # Ждем пока время не выйдет, голос не распознался и файл играет
                 time.sleep(0.01)
-        self._play.quiet()
+        self.own.quiet()
 
         start_wait2 = time.time()
         while listener.work() and time.time() - start_wait2 < max_wait_time and self._work:
@@ -315,18 +314,18 @@ class SpeechToText:
 
         record_time = time.time() - start_wait
         listener.stop()
-        self._record_callback(False)
+        self.own.record_callback(False)
         return listener.audio, record_time, energy_threshold
 
     def _block_listen(self, hello, lvl, file_path, self_call=False):
         with sr.Microphone(device_index=self.get_mic_index()) as source:
             r = sr.Recognizer()
-            r.set_record_callback(self._record_callback)
+            r.set_record_callback(self.own.record_callback)
             if self._cfg.gts('alarmtts') and not hello:
-                self._play.play(self._cfg.path['dong'], lvl, wait=0.01, blocking=2)
+                self.own.play(self._cfg.path['dong'], lvl, wait=0.01, blocking=2)
 
             if file_path:
-                self._play.play(file_path, lvl, wait=0.01, blocking=120)
+                self.own.play(file_path, lvl, wait=0.01, blocking=120)
             energy_threshold = self.energy.correct(r, source)
 
             record_time = time.time()
@@ -351,18 +350,18 @@ class SpeechToText:
         try:
             return self._voice_record(hello, save_to, convert_rate, convert_width)
         finally:
-            self._play.clear_lvl()
+            self.own.clear_lvl()
             self._lock.release()
 
     def _voice_record(self, hello: str, save_to: str, convert_rate=None, convert_width=None):
         lvl = 5  # Включаем монопольный режим
 
-        file_path = self._tts(hello)()
-        self._play.say(file_path, lvl, True, is_file=True, blocking=120)
+        file_path = self.own.tts(hello)()
+        self.own.say(file_path, lvl, True, is_file=True, blocking=120)
         with sr.Microphone(device_index=self.get_mic_index()) as source:
             r = sr.Recognizer()
             r.adjust_for_ambient_noise(source)
-            self._play.play(self._cfg.path['ding'], lvl, blocking=3)
+            self.own.play(self._cfg.path['ding'], lvl, blocking=3)
 
             record_time = time.time()
             try:
@@ -409,7 +408,7 @@ class SpeechToText:
             return ''
         except (sr.RequestError, RuntimeError) as e:
             if not quiet:
-                self._play.say(LNG['err_stt_say'])
+                self.own.say(LNG['err_stt_say'])
             self.log(LNG['err_stt_log'].format(e), logger.ERROR)
             return ''
         else:
@@ -418,7 +417,7 @@ class SpeechToText:
 
     def phrase_from_files(self, files: list):
         if not files:
-            return ''
+            return '', 0
         workers = [RecognitionWorker(self.voice_recognition, file) for file in files]
         result = [worker.get for worker in workers]
         del workers
@@ -446,7 +445,7 @@ class RecognitionWorker(threading.Thread):
     def run(self):
         with wave.open(self._file_path, 'rb') as fp:
             adata = sr.AudioData(fp.readframes(fp.getnframes()), fp.getframerate(), fp.getsampwidth())
-        self._result = self._voice_recognition(adata, 1)
+        self._result = self._voice_recognition(adata, True)
 
     @property
     def get(self):

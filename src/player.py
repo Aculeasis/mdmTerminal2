@@ -10,28 +10,26 @@ import time
 import logger
 from languages import PLAYER as LNG
 from lib import linux_play
+from owner import Owner
 
 
 class Player:
     MAX_BUSY_WAIT = 300  # Макс время блокировки, потом отлуп. Поможет от возможных зависаний
 
-    def __init__(self, cfg, log, tts):
+    def __init__(self, cfg, log, owner: Owner):
         self._cfg = cfg
         self.log = log
+        self.own = owner
         # 0 - играем в фоне, до 5 снимаем блокировку автоматически. 5 - монопольный режим, нужно снять блокировку руками
         self._lvl = 0
         self._only_one = threading.Lock()
         self._work = False
         self._popen = None
         self._last_activity = time.time()
-        self._tts = tts
-
-        self.mpd = None
         self._lp_play = LowPrioritySay(self.really_busy, self.say, self.play)
 
-    def start(self, mpd):
+    def start(self):
         self._work = True
-        self.mpd = mpd
         self._lp_play.start()
         self.log('start.', logger.INFO)
 
@@ -80,7 +78,7 @@ class Player:
 
     def noising(self):
         # Плеер шумит, шумел только что или скоро начнет шуметь.
-        return self.really_busy() or self.mpd.plays
+        return self.really_busy() or self.own.mpd_plays
 
     def busy(self):
         return self.popen_work() and self._work
@@ -102,7 +100,7 @@ class Player:
         self._last_activity = time.time()
         self._lp_play.clear()
         self.kill_popen()
-        self.mpd.pause(True)
+        self.own.mpd_pause(True)
 
     def last_activity(self):
         if self.popen_work():
@@ -133,7 +131,7 @@ class Player:
             return
 
         self._last_activity = time.time() + 3
-        self.mpd.pause(True)
+        self.own.mpd_pause(True)
 
         time.sleep(0.01)
         self._play(file)
@@ -162,9 +160,9 @@ class Player:
         if alarm is None:
             alarm = self._cfg.gts('alarmtts', 0)
 
-        file = self._tts(msg) if not is_file else msg
+        file = self.own.tts(msg) if not is_file else msg
         self._last_activity = time.time() + 3
-        self.mpd.pause(True)
+        self.own.mpd_pause(True)
 
         time.sleep(0.01)
         if alarm:

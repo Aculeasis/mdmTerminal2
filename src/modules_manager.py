@@ -7,6 +7,7 @@ from collections import OrderedDict
 
 import logger
 from languages import MODULES_MANAGER as LNG
+from owner import Owner
 
 EQ = 1  # phrase equivalent
 SW = 2  # phrase startswith - by default
@@ -61,14 +62,10 @@ class SayLow:  # Говорим с низким приоритетом
 
 
 class ModuleManager:
-    def __init__(self, log, cfg, die_in, say, terminal_call, notifier):
+    def __init__(self, log, cfg, owner: Owner):
         (self._log, self._m_log) = log
         self.cfg = cfg
-        # Для отправки запросов к мжд
-        self.mjd = notifier
-        self._set_die_in = die_in
-        self._say = say
-        self.terminal_call = terminal_call
+        self.own = owner
         # Режим разработчика
         self.debug = False
         # Если установлено, будет всегда вызывать его
@@ -329,7 +326,7 @@ class ModuleManager:
             'one_way': self._set_one_way,
             'mod_mode': self._set_mod_mode,
             'mod_enable': self._set_mod_enable,
-            'die': self._set_die_in,
+            'die': self.own.die_in,
         }
         for key, val in to_set.set.items():
             if key in f_by_key:
@@ -358,7 +355,7 @@ class ModuleManager:
                 asking = f  # можно заменить на f.__name__ если передача ссылки на объект станет невозможной
             elif reply_type is SayLow:
                 for text in reply.iter():
-                    self._say(*text)
+                    self.own.say(*text)
         return result, asking
 
     def _call_func(self, f, *args):

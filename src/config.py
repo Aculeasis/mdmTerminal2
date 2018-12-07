@@ -5,22 +5,25 @@ import json
 import os
 import threading
 import time
-from lib import volume
+
+import languages
 import logger
 import utils
-from lib.proxy import proxies
+from languages import CONFIG as LNG
+from lib import volume
 from lib import yandex_utils
-import languages
-from languages import CONFIG as LNG, YANDEX_EMOTION, YANDEX_SPEAKER
+from lib.proxy import proxies
+from owner import Owner
 
 
 class ConfigHandler(dict):
-    def __init__(self, cfg: dict, path: dict):
+    def __init__(self, cfg: dict, path: dict, owner: Owner):
         super().__init__()
         self.update(cfg)
         self.path = path
-        self._play = None  # Тут будет player, потом
-        self._log = self.__print  # а тут логгер
+        self.__owner = owner
+        self.own = None
+        self._log = self.__print  # Тут будет логгер
         self._to_tts = []  # Пока player нет храним фразы тут.
         self._to_log = []  # А тут принты в лог
         self._config_init()
@@ -189,11 +192,14 @@ class ConfigHandler(dict):
             self._print(LNG['err_load'].format(file_path, str(e)), logger.ERROR)
             return None
 
-    def add_play(self, play):
-        self._play = play
+    def start(self):
+        self.own = self.__owner
         # Произносим накопленные фразы
         for (phrase, is_info) in self._to_tts:
-            self._play.say_info(phrase, lvl=0, wait=0.5) if is_info else self._play.say(phrase, lvl=0, wait=0.5)
+            if is_info:
+                self.own.say_info(phrase, lvl=0, wait=0.5)
+            else:
+                self.own.say(phrase, lvl=0, wait=0.5)
         self._to_tts.clear()
 
     def _add_log(self, log):
@@ -338,10 +344,13 @@ class ConfigHandler(dict):
             self._log(msg, lvl)
         if mode in [2, 3]:
             is_info = lvl <= logger.INFO
-            if self._play is None:
+            if self.own is None:
                 self._to_tts.append((msg, is_info))
             else:
-                self._play.say_info(msg, lvl=0) if is_info else self._play.say(msg, lvl=0)
+                if is_info:
+                    self.own.say_info(msg, lvl=0)
+                else:
+                    self.own.say(msg, lvl=0)
 
     def _first(self):
         to_save = False

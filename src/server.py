@@ -5,10 +5,11 @@ import threading
 
 import logger
 from languages import SERVER as LNG
+from owner import Owner
 
 
 class MDTServer(threading.Thread):
-    def __init__(self, cfg, log, play, terminal_call, die_in, parse_settings):
+    def __init__(self, cfg, log, owner: Owner):
         super().__init__(name='MDTServer')
         self.MDAPI = {
             'hi': self._api_voice,
@@ -30,11 +31,7 @@ class MDTServer(threading.Thread):
 
         self._cfg = cfg
         self.log = log
-        self._play = play
-        self._terminal_call = terminal_call
-        self._die_in = die_in
-        self._parse_settings = parse_settings
-
+        self.own = owner
         self.work = False
         self._socket = socket.socket()
 
@@ -59,7 +56,7 @@ class MDTServer(threading.Thread):
         except OSError as e:
             say = LNG['err_start_say'].format(LNG['err_already_use'] if e.errno == 98 else '')
             self.log(LNG['err_start'].format(ip, port, e), logger.CRIT)
-            self._play.say(say)
+            self.own.say(say)
             return False
         self._socket.listen(1)
         return True
@@ -100,7 +97,7 @@ class MDTServer(threading.Thread):
             self.log(LNG['unknown_cmd'].format(cmd[0]), logger.WARN)
 
     def _api_voice(self, cmd: str):
-        self._terminal_call('voice', cmd)
+        self.own.terminal_call('voice', cmd)
 
     def _api_home(self, cmd: str):
         self.log(LNG['no_implement'].format('home', cmd), logger.WARN)
@@ -109,16 +106,16 @@ class MDTServer(threading.Thread):
         self.log(LNG['no_implement'].format('url', cmd), logger.WARN)
 
     def _api_play(self, cmd: str):
-        self._play.mpd.play(cmd)
+        self.own.mpd_play(cmd)
 
     def _api_pause(self, _):
-        self._play.mpd.pause()
+        self.own.mpd_pause()
 
     def _api_tts(self, cmd: str):
-        self._terminal_call('tts', cmd, 0)
+        self.own.terminal_call('tts', cmd)
 
     def _api_ask(self, cmd: str):
-        self._terminal_call('ask', cmd)
+        self.own.terminal_call('ask', cmd)
 
     def _api_rtsp(self, cmd: str):
         self.log(LNG['no_implement'].format('rtsp', cmd), logger.WARN)
@@ -127,10 +124,10 @@ class MDTServer(threading.Thread):
         self.log(LNG['no_implement'].format('run', cmd), logger.WARN)
 
     def _api_settings(self, cmd: str):
-        self._parse_settings(cmd)
+        self.own.settings_from_mjd(cmd)
 
     def _api_volume(self, cmd: str):
-        self._terminal_call('volume', cmd)
+        self.own.terminal_call('volume', cmd)
 
     def _api_rec(self, cmd: str):
         param = cmd.split('_')  # должно быть вида rec_1_1, play_2_1, compile_5_1
@@ -141,9 +138,9 @@ class MDTServer(threading.Thread):
         # b = param[1]  # 1-6
         # c = param[2]  # 1-3
         if param[0] in ('play', 'rec', 'compile', 'del', 'update', 'rollback'):
-            self._terminal_call(param[0], param[1:])
+            self.own.terminal_call(param[0], param[1:])
         elif param[0] == 'save':
-            self._die_in(3, True)
+            self.own.die_in(3, True)
         else:
             self.log(LNG['unknown_rec_cmd'].format(param[0]), logger.ERROR)
 

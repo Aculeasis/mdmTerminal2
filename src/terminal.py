@@ -7,34 +7,29 @@ import time
 
 import lib.snowboy_training as training_service
 import logger
-import player
-import stts
 import utils
 from languages import LANG_CODE
 from languages import STTS as LNG2
 from languages import TERMINAL as LNG
 from lib import volume
 from lib.snowboy import SnowBoySR, SnowBoySR2, SnowBoySR3, SnowBoy
+from owner import Owner
 
 
 class MDTerminal(threading.Thread):
     MAX_LATE = 60
 
-    def __init__(self, cfg, play_: player.Player, stt: stts.SpeechToText, log, handler, updater, record_callback):
+    def __init__(self, cfg, log, owner: Owner):
         super().__init__(name='MDTerminal')
         self.log = log
         self._cfg = cfg
-        self._play = play_
-        self._stt = stt
-        self._handler = handler
-        self._updater = updater
-        self._record_callback = record_callback
+        self.own = owner
         self._work = False
         self._snowboy = None
         self._queue = queue.Queue()
 
     def _reload(self):
-        if len(self._cfg.path['models_list']) and self._stt.max_mic_index != -2:
+        if len(self._cfg.path['models_list']) and self.own.max_mic_index != -2:
             detected = self._detected_sr
             if self._cfg.gts('chrome_mode') == 1:
                 snowboy = SnowBoySR
@@ -45,9 +40,7 @@ class MDTerminal(threading.Thread):
             else:
                 snowboy = SnowBoy
                 detected = self._detected
-            self._snowboy = snowboy(
-                self._cfg, detected, self._interrupt_callback, self._stt, self._play, self._record_callback
-            )
+            self._snowboy = snowboy(self._cfg, detected, self._interrupt_callback, self.own)
         else:
             self._snowboy = None
 
@@ -97,9 +90,9 @@ class MDTerminal(threading.Thread):
             if cmd == 'reload':
                 self._reload()
             elif cmd == 'ask' and data:
-                self._detected_parse(data, self._stt.listen(data))
+                self._detected_parse(data, self.own.listen(data))
             elif cmd == 'voice' and not data:
-                self._detected_parse('', self._stt.listen(voice=True))
+                self._detected_parse('', self.own.listen(voice=True))
             elif cmd == 'rec':
                 self._rec_rec(*data)
             elif cmd == 'play':
@@ -113,11 +106,11 @@ class MDTerminal(threading.Thread):
             elif cmd == 'mpd_volume':
                 self._set_mpd_volume(data)
             elif cmd == 'tts':
-                self._play.say(data, lvl=lvl)
+                self.own.say(data, lvl=lvl)
             elif cmd == 'update':
-                self._updater.update()
+                self.own.update()
             elif cmd == 'rollback':
-                self._updater.manual_rollback()
+                self.own.manual_rollback()
             elif cmd == 'notify' and data:
                 terminal_name = self._cfg.gt('majordomo', 'terminal') or 'mdmTerminal2'
                 self._detected_parse(None, '[{}] {}'.format(terminal_name, data))
@@ -128,30 +121,29 @@ class MDTerminal(threading.Thread):
         # Записываем образец sample для модели model
         if sample not in LNG['rec_nums']:
             self.log('{}: {}'.format(LNG['err_rec_param'], sample), logger.ERROR)
-            self._play.say(LNG['err_rec_param'])
+            self.own.say(LNG['err_rec_param'])
             return
 
         hello = LNG['rec_hello'].format(LNG['rec_nums'][sample])
         save_to = os.path.join(self._cfg.path['tmp'], model + sample + '.wav')
         self.log(hello, logger.INFO)
-
-        err = self._stt.voice_record(hello=hello, save_to=save_to, convert_rate=16000, convert_width=2)
+        err = self.own.voice_record(hello=hello, save_to=save_to, convert_rate=16000, convert_width=2)
         if err is None:
             bye = LNG['rec_bye'].format(LNG['rec_nums'][sample])
-            self._play.say(bye)
+            self.own.say(bye)
             self.log(bye, logger.INFO)
         else:
             err = LNG['err_rec_save'].format(LNG['rec_nums'][sample], err)
             self.log(err, logger.ERROR)
-            self._play.say(err)
+            self.own.say(err)
 
     def _rec_play(self, model, sample):
         file_name = ''.join([model, sample, '.wav'])
         file = os.path.join(self._cfg.path['tmp'], file_name)
         if os.path.isfile(file):
-            self._play.say(file, is_file=True)
+            self.own.say(file, is_file=True)
         else:
-            self._play.say(LNG['err_play_say'].format(file_name))
+            self.own.say(LNG['err_play_say'].format(file_name))
             self.log(LNG['err_play_log'].format(file), logger.WARN)
 
     def _rec_compile(self, model, _):
@@ -161,7 +153,7 @@ class MDTerminal(threading.Thread):
             if not os.path.isfile(x):
                 miss = True
                 self.log(LNG['compile_no_file'].format(x), logger.ERROR)
-                self._play.say(LNG['compile_no_file'].format(os.path.basename(x)))
+                self.own.say(LNG['compile_no_file'].format(os.path.basename(x)))
         if not miss:
             self._compile_model(model, models)
 
@@ -177,16 +169,16 @@ class MDTerminal(threading.Thread):
             except OSError as e:
                 msg = LNG['err_del'].format(model)
                 self.log('{} [{}]: {}'.format(msg, pmdl_path, e), logger.ERROR)
-                self._play.say(msg)
+                self.own.say(msg)
             else:
                 is_del = True
                 msg = LNG['del_ok'].format(model)
                 self.log('{}: {}'.format(msg, pmdl_path), logger.INFO)
-                self._play.say(msg)
+                self.own.say(msg)
         else:
             msg = LNG['del_not_found'].format(model)
             self.log('{}: {}'.format(msg, pmdl_path), logger.WARN)
-            self._play.say(msg)
+            self.own.say(msg)
 
         # remove model record in config
         if pmdl_name in self._cfg['models']:
@@ -198,7 +190,7 @@ class MDTerminal(threading.Thread):
             self._reload()
 
     def _compile_model(self, model, models):
-        phrase, match_count = self._stt.phrase_from_files(models)
+        phrase, match_count = self.own.phrase_from_files(models)
         pmdl_name = ''.join(['model', model, self._cfg.path['model_ext']])
         pmdl_path = os.path.join(self._cfg.path['models'], pmdl_name)
 
@@ -211,7 +203,7 @@ class MDTerminal(threading.Thread):
             # Не создаем модель если не все фразы идентичны
             if self._cfg.gt('snowboy', 'clear_models') or self._cfg.gts('chrome_mode'):
                 self.log(msg, logger.ERROR)
-                self._play.say(LNG['err_no_consensus'].format(model))
+                self.own.say(LNG['err_no_consensus'].format(model))
                 return
             else:
                 self.log(msg, logger.WARN)
@@ -224,14 +216,14 @@ class MDTerminal(threading.Thread):
             snowboy = training_service.Training(*models, params=params)
         except RuntimeError as e:
             self.log(LNG['err_compile_log'].format(pmdl_path, e), logger.ERROR)
-            self._play.say(LNG['err_compile_say'].format(model))
+            self.own.say(LNG['err_compile_say'].format(model))
             return
         work_time = utils.pretty_time(time.time() - work_time)
         snowboy.save(pmdl_path)
 
         msg = ', "{}",'.format(phrase) if phrase else ''
         self.log(LNG['compile_ok_log'].format(msg, work_time, pmdl_path), logger.INFO)
-        self._play.say(LNG['compile_ok_say'].format(msg, model, work_time))
+        self.own.say(LNG['compile_ok_say'].format(msg, model, work_time))
 
         self._cfg.update_from_dict({'models': {pmdl_name: phrase}})
         self._cfg.models_load()
@@ -244,7 +236,7 @@ class MDTerminal(threading.Thread):
         control = self._cfg.gt('volume', 'line_out')
         if not control or control == volume.UNDEFINED:
             self.log(LNG['vol_not_cfg'], logger.WARN)
-            self._play.say(LNG['vol_not_cfg'])
+            self.own.say(LNG['vol_not_cfg'])
             return
         if value is not None:
             try:
@@ -252,12 +244,12 @@ class MDTerminal(threading.Thread):
             except RuntimeError as e:
                 msg = LNG['vol_wrong_val'].format(value)
                 self.log('{}, {}'.format(msg, e), logger.WARN)
-                self._play.say(msg)
+                self.own.say(msg)
                 return
         else:
             value = volume.get_volume(control)
         self.log(LNG['vol_ok'].format(value))
-        self._play.say(LNG['vol_ok'].format(value))
+        self.own.say(LNG['vol_ok'].format(value))
 
     def _set_mpd_volume(self, value):
         if value is not None:
@@ -268,19 +260,19 @@ class MDTerminal(threading.Thread):
             except (TypeError, ValueError) as e:
                 msg = LNG['vol_wrong_val'].format(value)
                 self.log('{}, {}'.format(msg, e), logger.WARN)
-                self._play.say(msg)
+                self.own.say(msg)
                 return
-            self._play.mpd.real_volume = vol
-        value = self._play.mpd.real_volume
+            self.own.mpd_real_volume = vol
+        value = self.own.mpd_real_volume
         self.log(LNG['vol_mpd_ok'].format(value))
-        self._play.say(LNG['vol_mpd_ok'].format(value))
+        self.own.say(LNG['vol_mpd_ok'].format(value))
 
     def call(self, cmd: str, data='', lvl: int=0, save_time: bool=True):
         if cmd == 'tts' and not lvl:
             if self._cfg.gts('no_background_play'):
                 lvl = 2
             else:
-                self._play.say(data, lvl=0)
+                self.own.say(data, lvl=0)
                 return
         self._queue.put_nowait((cmd, data, lvl, time.time() if save_time else 0))
 
@@ -295,9 +287,9 @@ class MDTerminal(threading.Thread):
             self.log(LNG['activate_by'].format(model_name, msg), logger.INFO)
         no_hello = self._cfg.gts('no_hello', 0)
         hello = ''
-        if phrase and self._stt.sys_say.chance and not no_hello:
+        if phrase and self.own.sys_say_chance and not no_hello:
             hello = LNG['model_listened'].format(phrase)
-        self._detected_parse(hello, self._stt.listen(hello, voice=no_hello))
+        self._detected_parse(hello, self.own.listen(hello, voice=no_hello))
 
     def _detected_sr(self, msg: str, model_name: str, model_msg: str, energy_threshold: int):
         if model_msg is None:
@@ -312,15 +304,15 @@ class MDTerminal(threading.Thread):
         if not msg:  # Пустое сообщение
             return
         if self._cfg.gts('alarmkwactivated'):
-            self._play.play(self._cfg.path['ding'])
+            self.own.play(self._cfg.path['ding'])
         self._detected_parse(False, msg)
 
     def _detected_parse(self, voice, reply):
         caller = False
         if reply or voice:
             while caller is not None:
-                reply, caller = self._handler(reply, caller)
+                reply, caller = self.own.modules_tester(reply, caller)
                 if caller:
-                    reply = self._stt.listen(reply or '', voice=not reply)
+                    reply = self.own.listen(reply or '', voice=not reply)
         if reply:
-            self._play.say(reply)
+            self.own.say(reply)

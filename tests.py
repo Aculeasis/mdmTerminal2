@@ -48,9 +48,9 @@ def tests_mono():
     cfg['log'].update({'file_lvl': 'warn', 'print_lvl': 'warn', 'file': test_log_file})
     try:
         loader = Loader(init_cfg=cfg, path=path, die_in=dummy)
-        loader.start()
+        loader.start_all_systems()
         time.sleep(10)
-        loader.stop()
+        loader.stop_all_systems()
         err = check_log(test_log_file)
     finally:
         for target in [test_settings, test_log_file]:
