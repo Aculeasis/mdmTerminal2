@@ -98,10 +98,10 @@ class Owner:
         self._notifier.callback(status='start_talking' if start_stop else 'stop_talking')
 
     def mpd_status_callback(self, status: str):
-        self._notifier.callback(status='mpd_{}'.format(status))
+        self._notifier.callback(status='mpd_{}'.format(status if status is not None else 'error'))
 
     def mpd_volume_callback(self, volume: int):
-        self._notifier.callback(mpd_volume=volume)
+        self._notifier.callback(mpd_volume=volume if volume is not None else -1)
 
     def volume_callback(self, volume: int):
         self._notifier.callback(volume=volume)
@@ -128,7 +128,9 @@ class Owner:
 
     @property
     def get_volume_status(self) -> dict:
-        return {'volume': get_volume(self._cfg.gt('volume', 'line_out', '')), 'mpd_volume': self._mpd.real_volume}
+        volume = get_volume(self._cfg.gt('volume', 'line_out', ''))
+        mpd_volume = self._mpd.real_volume
+        return {'volume': volume, 'mpd_volume': mpd_volume if mpd_volume is not None else -1}
 
     def terminal_call(self, cmd: str, data='', lvl: int=0, save_time: bool=True):
         self._terminal.call(cmd, data, lvl, save_time)
