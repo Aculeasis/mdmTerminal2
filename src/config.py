@@ -170,6 +170,13 @@ class ConfigHandler(dict):
             return True
         return False
 
+    def _get_allow_models(self) -> list:
+        allow = self.gt('models', 'allow')
+        if not allow:
+            return []
+        allow = [model.strip() for model in allow.split(',')]
+        return [model for model in allow if model]
+
     def save_dict(self, name: str, data: dict, pretty=False) -> bool:
         file_path = os.path.join(self.path['data'], name + '.json')
         try:
@@ -227,11 +234,13 @@ class ConfigHandler(dict):
             return
 
         count = 0
+        allow = self._get_allow_models()
         for file in os.listdir(self.path['models']):
             full_path = os.path.join(self.path['models'], file)
             if os.path.isfile(full_path) and os.path.splitext(file)[1] in self.path['model_supports']:
-                self.path['models_list'].append(full_path)
-                count += 1
+                if not allow or file in allow:
+                    self.path['models_list'].append(full_path)
+                    count += 1
 
         self._print(LNG['models_count_call'].format(count), logger.INFO, 3)
 

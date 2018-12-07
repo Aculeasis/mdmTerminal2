@@ -125,6 +125,7 @@ class Owner:
         # Reload modules if their settings could be changes
         with self._lock:
             diff = self._cfg.update_from_json(cfg)
+            reload_terminal = False
             if diff is None:
                 self._cfg.print_cfg_no_change()
                 return
@@ -140,6 +141,10 @@ class Owner:
                     self._stt.reload()
                     # reload modules
                     self._mm.reload()
+            if is_sub_dict('models', diff) and 'allow' in diff['models']:
+                # reload models. Reload terminal - later
+                self._cfg.models_load()
+                reload_terminal = True
             if is_sub_dict('log', diff):
                 # reload logger
                 self._logger.reload()
@@ -152,7 +157,7 @@ class Owner:
             if is_sub_dict('mpd', diff):
                 # reconnect to mpd
                 self._mpd.reload()
-            if is_sub_dict('settings', diff):
+            if is_sub_dict('settings', diff) or reload_terminal:
                 # reload terminal
                 self.terminal_call('reload', save_time=False)
             self._cfg.print_cfg_change()

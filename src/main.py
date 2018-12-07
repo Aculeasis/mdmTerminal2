@@ -90,7 +90,9 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'tts_size': 100,
         'path': '',
     },
-    'models': {},
+    'models': {
+        'allow': ''
+    },
     'proxy': {
         'enable': 0,
         'monkey_patching': 1,
@@ -116,7 +118,7 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'line_out': '',
     },
     'system': {
-        'ini_version': 8,
+        'ini_version': 9,
     }
 }
 
