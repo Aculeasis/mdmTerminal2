@@ -39,13 +39,21 @@ class StreamPlayer(threading.Thread):
         self._popen.close()
 
 
-class Popen:
-    def __init__(self, cmd):
+class Popen(threading.Thread):
+    def __init__(self, cmd, callback):
         self._one = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
         self.poll = self._one.poll
         self.write = self._one.stdin.write
         self.kill = self._one.kill
         self.wait = self._one.wait
+        if callback:
+            super().__init__()
+            self._callback = callback
+            self.start()
+
+    def run(self):
+        self.wait()
+        self._callback(False)
 
     def close(self):
         try:
@@ -58,13 +66,22 @@ class Popen:
             pass
 
 
-class DoublePopen:
+class DoublePopen(threading.Thread):
     # Я не нашел простой плеер для опуса, так что будем коннектить два субпроцесса
     # В первом декоред opus -> wav, во втором aplay
-    def __init__(self, cmd1, cmd2):
+    # FIXME: opusdec зомбируется, но потом помирает. Может его килять принудительно?
+    def __init__(self, cmd1, cmd2, callback):
         self._one = subprocess.Popen(cmd1, stdin=subprocess.PIPE, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
         self._two = subprocess.Popen(cmd2, stdin=self._one.stdout, stderr=subprocess.PIPE)
         self.write = self._one.stdin.write
+        if callback:
+            super().__init__()
+            self._callback = callback
+            self.start()
+
+    def run(self):
+        self._two.wait()
+        self._callback(False)
 
     def poll(self):
         if self._one.poll() is None or self._two.poll() is None:
@@ -93,8 +110,8 @@ class DoublePopen:
                 pass
 
 
-def _select_popen(cmd1, cmd2):
-    return Popen(cmd2) if cmd1 is None else DoublePopen(cmd1, cmd2)
+def _select_popen(cmd1, cmd2, callback):
+    return Popen(cmd2, callback) if cmd1 is None else DoublePopen(cmd1, cmd2, callback)
 
 
 def _get_cmd2(ext, path):
@@ -109,7 +126,7 @@ def _get_cmd1(path):
     return cmd
 
 
-def get_popen(ext, fp_or_file, stream):
+def get_popen(ext, fp_or_file, stream, callback):
     file_path = '-' if stream else fp_or_file
     if ext == '.opus':
         cmd1 = _get_cmd1(file_path)
@@ -117,4 +134,7 @@ def get_popen(ext, fp_or_file, stream):
     else:
         cmd1 = None
         cmd2 = _get_cmd2(ext, file_path)
-    return StreamPlayer(_select_popen(cmd1, cmd2), fp_or_file) if stream else _select_popen(cmd1, cmd2)
+    if stream:
+        return StreamPlayer(_select_popen(cmd1, cmd2, callback), fp_or_file)
+    else:
+        return _select_popen(cmd1, cmd2, callback)

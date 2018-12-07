@@ -39,6 +39,9 @@ class MPDControl(threading.Thread):
         self._reload = False
         self._old_volume = None
 
+        self._saved_volume = None
+        self._saved_status = None
+
     def connect(self):
         if self.is_conn:
             self._disconnect()
@@ -147,16 +150,15 @@ class MPDControl(threading.Thread):
         self._mpd_set_volume(vol)
 
     def run(self):
-        ping = 0
         if not self._init():
             self._work = False
+        else:
+            self._saved_volume = self._mpd_get_volume()
+            self._saved_status = self._mpd_get_status()
         while self._work:
-            ping += 1
-            time.sleep(0.5)
+            time.sleep(0.9)
             self._resume_check()
-            if ping > 20:
-                ping = 0
-                self._mpd_ping()
+            self._callbacks_event()
         self._disconnect()
 
     def _resume_check(self):
@@ -185,6 +187,17 @@ class MPDControl(threading.Thread):
             self._mpd_pause(1 if paused else 0)
             self._resume = paused
 
+    def _callbacks_event(self):
+        if self._old_volume is None:
+            volume = self._mpd_get_volume()
+            if volume != self._saved_volume:
+                self.own.mpd_volume_callback(volume)
+                self._saved_volume = volume
+        status = self._mpd_get_status()
+        if status != self._saved_status:
+            self.own.mpd_status_callback(status)
+            self._saved_status = status
+
     @_auto_reconnect
     def _mpd_pause(self, pause=None):
         if pause is not None:
@@ -209,9 +222,12 @@ class MPDControl(threading.Thread):
         except (ValueError, TypeError):
             return None
 
+    def _mpd_is_play(self) -> bool:
+        return self._mpd_get_status() == 'play'
+
     @_auto_reconnect
-    def _mpd_is_play(self):
-        return self._mpd.status().get('state', 'stop') == 'play'
+    def _mpd_get_status(self):
+        return self._mpd.status().get('state', 'stop')
 
     @_auto_reconnect
     def _mpd_ping(self):

@@ -92,7 +92,19 @@ class Owner:
         return self._tts.tts(msg, realtime)
 
     def record_callback(self, start_stop: bool):
-        self._notifier.record_callback(start_stop)
+        self._notifier.callback(status='start_record' if start_stop else 'stop_record')
+
+    def say_callback(self, start_stop: bool):
+        self._notifier.callback(status='start_talking' if start_stop else 'stop_talking')
+
+    def mpd_status_callback(self, status: str):
+        self._notifier.callback(status='mpd_{}'.format(status))
+
+    def mpd_volume_callback(self, volume: int):
+        self._notifier.callback(mpd_volume=volume)
+
+    def volume_callback(self, volume: int):
+        self._notifier.callback(volume=volume)
 
     def send_to_mjd(self, qry: str) -> str:
         return self._notifier.send(qry)

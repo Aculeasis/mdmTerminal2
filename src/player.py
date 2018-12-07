@@ -156,7 +156,7 @@ class Player:
         lvl, blocking = self._no_background_play(lvl, blocking)
         if not self.set_lvl(lvl):
             return
-
+        self.own.say_callback(True)
         if alarm is None:
             alarm = self._cfg.gts('alarmtts', 0)
 
@@ -168,7 +168,7 @@ class Player:
         if alarm:
             self._play(self._cfg.path['dong'])
             self._wait_popen()
-        self._play(file)
+        self._play(file, self.own.say_callback)
         if blocking:
             self._wait_popen(blocking)
         self._only_one.release()
@@ -177,7 +177,7 @@ class Player:
         if wait:
             time.sleep(wait)
 
-    def _play(self, obj):
+    def _play(self, obj, callback=None):
         if isinstance(obj, str):
             (path, stream, ext) = obj, None, None
         elif callable(obj):
@@ -194,10 +194,10 @@ class Player:
             return self.log(LNG['unknown_type'].format(ext), logger.CRIT)
         if stream is None:
             self.log(LNG['play'].format(path, logger.DEBUG))
-            self._popen = linux_play.get_popen(ext, path, False)
+            self._popen = linux_play.get_popen(ext, path, False, callback)
         else:
             self.log(LNG['stream'].format(path, logger.DEBUG))
-            self._popen = linux_play.get_popen(ext, stream, True)
+            self._popen = linux_play.get_popen(ext, stream, True, callback)
 
 
 class LowPrioritySay(threading.Thread):

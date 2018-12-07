@@ -57,8 +57,7 @@ class MajordomoNotifier(threading.Thread):
         return True if self._cfg.get('ip') else False
 
     def record_callback(self, start_stop: bool):
-        # Отправляет статус на сервер мжд в порядке очереди (FIFO)
-        self._callback(status='start_record' if start_stop else 'stop_record')
+        self.callback(status='start_record' if start_stop else 'stop_record')
 
     def send(self, qry: str) -> str:
         # Прямая отправка
@@ -77,7 +76,8 @@ class MajordomoNotifier(threading.Thread):
     def _allow_notify(self) -> bool:
         return self._cfg['object_name'] and self._cfg['object_method'] and self.ip_set
 
-    def _callback(self, **kwargs):
+    def callback(self, **kwargs):
+        # Отправляет статус на сервер мжд в порядке очереди (FIFO)
         if not self._allow_notify:
             return
         kwargs['uptime'] = self._uptime

@@ -295,7 +295,7 @@ class SpeechToText:
 
         start_wait = time.time()
         if file_path:
-            self.own.play(file_path, lvl)
+            self.own.say(file_path, lvl, alarm=False, is_file=True)
 
         # Начинаем фоновое распознавание голосом после того как запустился плей.
         listener = NonBlockListener(r=r, source=mic, phrase_time_limit=self._cfg.gts('phrase_time_limit', 15))
@@ -325,7 +325,7 @@ class SpeechToText:
                 self.own.play(self._cfg.path['dong'], lvl, wait=0.01, blocking=2)
 
             if file_path:
-                self.own.play(file_path, lvl, wait=0.01, blocking=120)
+                self.own.say(file_path, lvl, alarm=False, wait=0.01, is_file=True, blocking=120)
             energy_threshold = self.energy.correct(r, source)
 
             record_time = time.time()
