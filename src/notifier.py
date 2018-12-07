@@ -56,9 +56,6 @@ class MajordomoNotifier(threading.Thread):
     def ip_set(self) -> bool:
         return True if self._cfg.get('ip') else False
 
-    def record_callback(self, start_stop: bool):
-        self.callback(status='start_record' if start_stop else 'stop_record')
-
     def send(self, qry: str) -> str:
         # Прямая отправка
         # Отправляет сообщение на сервер мжд, возвращает url запроса или кидает RuntimeError
