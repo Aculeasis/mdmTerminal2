@@ -25,10 +25,8 @@ class BaseSTT:
         self._url = url
         self._convert_rate = convert_rate
         self._convert_width = convert_width
-        self._audio = self._get_audio(audio_data)
-        self._headers = {'Transfer-Encoding': 'chunked'}
-        if isinstance(headers, dict):
-            self._headers.update(headers)
+        self._bytes_io = BytesIO(self._get_audio(audio_data))
+        self._headers = headers
         self._params = kwargs
 
         self._send(proxy_key)
@@ -39,12 +37,11 @@ class BaseSTT:
         return audio_data.get_wav_data(self._convert_rate, self._convert_width)
 
     def _chunks(self):
-        with BytesIO(self._audio) as fp:
-            while True:
+        chunk = True
+        with self._bytes_io as fp:
+            while chunk:
                 chunk = fp.read(self.BUFF_SIZE)
                 yield chunk
-                if not chunk:
-                    break
 
     def _send(self, proxy_key):
         try:
