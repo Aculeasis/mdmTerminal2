@@ -265,7 +265,6 @@ class MDTerminal(threading.Thread):
                 self.own.say(msg)
                 return
             self.own.mpd_real_volume = vol
-            self.own.mpd_volume_callback(vol)
         value = self.own.mpd_real_volume
         self.log(LNG['vol_mpd_ok'].format(value))
         self.own.say(LNG['vol_mpd_ok'].format(value))

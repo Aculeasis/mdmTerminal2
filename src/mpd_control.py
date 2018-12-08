@@ -40,7 +40,7 @@ class MPDControl(threading.Thread):
         self._old_volume = None
 
         self._saved_volume = None
-        self._saved_status = None
+        self._saved_state = None
 
     def connect(self):
         if self.is_conn:
@@ -152,9 +152,6 @@ class MPDControl(threading.Thread):
     def run(self):
         if not self._init():
             self._work = False
-        else:
-            self._saved_volume = self._mpd_get_volume()
-            self._saved_status = self._mpd_get_status()
         while self._work:
             time.sleep(0.9)
             self._resume_check()
@@ -188,15 +185,18 @@ class MPDControl(threading.Thread):
             self._resume = paused
 
     def _callbacks_event(self):
+        status = self._mpd_get_status()
+        if not status:
+            return
         if self._old_volume is None:
-            volume = self._mpd_get_volume()
+            volume = str_to_int(status.get('volume', -1))
             if volume != self._saved_volume:
                 self.own.mpd_volume_callback(volume)
                 self._saved_volume = volume
-        status = self._mpd_get_status()
-        if status != self._saved_status:
-            self.own.mpd_status_callback(status)
-            self._saved_status = status
+        state = status.get('state', 'stop')
+        if state != self._saved_state:
+            self.own.mpd_status_callback(state)
+            self._saved_state = state
 
     @_auto_reconnect
     def _mpd_pause(self, pause=None):
@@ -217,18 +217,26 @@ class MPDControl(threading.Thread):
 
     @_auto_reconnect
     def _mpd_get_volume(self):
-        try:
-            return int(self._mpd.status().get('volume', -1))
-        except (ValueError, TypeError):
-            return None
+        return str_to_int(self._mpd.status().get('volume', -1))
 
     def _mpd_is_play(self) -> bool:
-        return self._mpd_get_status() == 'play'
+        return self._mpd_get_state() == 'play'
 
     @_auto_reconnect
-    def _mpd_get_status(self):
+    def _mpd_get_state(self):
         return self._mpd.status().get('state', 'stop')
+
+    @_auto_reconnect
+    def _mpd_get_status(self) -> dict:
+        return self._mpd.status()
 
     @_auto_reconnect
     def _mpd_ping(self):
         self._mpd.ping()
+
+
+def str_to_int(val: str) -> int or None:
+    try:
+        return int(val)
+    except (ValueError, TypeError):
+        return None
