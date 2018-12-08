@@ -319,8 +319,7 @@ class SpeechToText:
 
     def _block_listen(self, hello, lvl, file_path, self_call=False):
         with sr.Microphone(device_index=self.get_mic_index()) as source:
-            r = sr.Recognizer()
-            r.set_record_callback(self.own.record_callback)
+            r = sr.Recognizer(record_callback=self.own.record_callback)
             if self._cfg.gts('alarmtts') and not hello:
                 self.own.play(self._cfg.path['dong'], lvl, wait=0.01, blocking=2)
 

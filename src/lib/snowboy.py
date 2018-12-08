@@ -48,10 +48,7 @@ class SnowBoySR:
         self._terminate = False
         while not self._interrupted():
             with sr.Microphone() as source:
-                r = sr.Recognizer(
-                    self._interrupted, self._cfg.gts('sensitivity'), self._hotword_callback, self._cfg.gts('audio_gain')
-                )
-                r.set_record_callback(self.own.record_callback)
+                r = self._get_recognizer()
                 energy_threshold = self.own.energy_correct(r, source)
                 try:
                     adata = r.listen(source, 5, self._cfg.gts('phrase_time_limit'),
@@ -67,6 +64,16 @@ class SnowBoySR:
 
     def terminate(self):
         self._terminate = True
+
+    def _get_recognizer(self, noising=None):
+        return sr.Recognizer(
+            self._cfg.gts('sensitivity'),
+            self._cfg.gts('audio_gain'),
+            self._hotword_callback,
+            self._interrupted,
+            self.own.record_callback,
+            noising
+        )
 
     def _adata_parse(self, adata, model, energy_threshold):
         model_name, phrase, model_msg = self._cfg.model_info_by_id(model)
@@ -99,11 +106,7 @@ class SnowBoySR:
 class SnowBoySR2(SnowBoySR):
     def start(self):
         self._terminate = False
-        r = sr.Recognizer(
-            self._interrupted, self._cfg.gts('sensitivity'), self._hotword_callback, self._cfg.gts('audio_gain')
-        )
-        r.adaptive_noising(self.own.noising)
-        r.set_record_callback(self.own.record_callback)
+        r = self._get_recognizer(self.own.noising)
         while not self._interrupted():
             with sr.Microphone() as source:
                 try:
@@ -130,11 +133,8 @@ class SnowBoySR2(SnowBoySR):
 class SnowBoySR3(SnowBoySR2):
     def start(self):
         self._terminate = False
-        r = sr.Recognizer(
-            self._interrupted, self._cfg.gts('sensitivity'), self._hotword_callback, self._cfg.gts('audio_gain')
-        )
+        r = self._get_recognizer()
         r.no_energy_threshold()
-        r.set_record_callback(self.own.record_callback)
         while not self._interrupted():
             with sr.Microphone() as source:
                 try:

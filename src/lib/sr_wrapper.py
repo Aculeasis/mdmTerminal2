@@ -49,7 +49,10 @@ class Interrupted(Exception):
 
 
 class Recognizer(speech_recognition.Recognizer):
-    def __init__(self, interrupt_check=None, sensitivity=0.45, hotword_callback=None, audio_gain=1.0):
+    def __init__(self,
+                 sensitivity=0.45, audio_gain=1.0,
+                 hotword_callback=None, interrupt_check=None, record_callback=None, noising=None
+                 ):
         super().__init__()
         self._snowboy_result = 0
         self._interrupt_check = interrupt_check
@@ -58,16 +61,13 @@ class Recognizer(speech_recognition.Recognizer):
         self._audio_gain = audio_gain
         self._no_energy_threshold = False
 
-        self._noising = None
-        self._record_callback = None
+        self._noising = noising
+        self._record_callback = record_callback
 
     def no_energy_threshold(self):
         self._no_energy_threshold = True
 
-    def adaptive_noising(self, noising):
-        self._noising = noising
-
-    def calc_noise(self, buffer, sample_width, seconds_per_buffer):
+    def _calc_noise(self, buffer, sample_width, seconds_per_buffer):
         energy = audioop.rms(buffer, sample_width)  # energy of the audio signal
 
         # dynamically adjust the energy threshold using asymmetric weighted average
@@ -78,15 +78,6 @@ class Recognizer(speech_recognition.Recognizer):
     @property
     def get_model(self):
         return self._snowboy_result
-
-    def set_sensitivity(self, sensitivity):
-        self._sensitivity = sensitivity
-
-    def set_interrupt(self, interrupt):
-        self._interrupt_check = interrupt
-
-    def set_record_callback(self, record_callback):
-        self._record_callback = record_callback
 
     def __enter__(self):
         pass
@@ -170,7 +161,7 @@ class Recognizer(speech_recognition.Recognizer):
                 start_time = time.time()
 
             if self._noising and not self._noising():
-                self.calc_noise(buffer, source.SAMPLE_WIDTH, seconds_per_buffer)
+                self._calc_noise(buffer, source.SAMPLE_WIDTH, seconds_per_buffer)
 
         self._snowboy_result = snowboy_result
         if self._hotword_callback:
