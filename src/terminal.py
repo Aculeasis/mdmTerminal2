@@ -281,6 +281,7 @@ class MDTerminal(threading.Thread):
     def _detected(self, model: int=0):
         if self._snowboy is not None:
             self._snowboy.terminate()
+        self.own.voice_activated_callback()
         phrase = ''
         if not model:
             self.log(LNG['err_call2'], logger.CRIT)

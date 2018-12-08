@@ -91,6 +91,9 @@ class Owner:
     def tts(self, msg, realtime: bool = True):
         return self._tts.tts(msg, realtime)
 
+    def voice_activated_callback(self):
+        self._notifier.callback(status='voice_activated')
+
     def record_callback(self, start_stop: bool):
         self._notifier.callback(status='start_record' if start_stop else 'stop_record')
 
