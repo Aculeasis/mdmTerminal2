@@ -79,6 +79,8 @@ class MPDControl(threading.Thread):
         if self._work:
             self.log('stopping...', logger.DEBUG)
             self._resume_check()
+            if self._old_volume:
+                self._mpd_set_volume(self._old_volume)
             self._work = False
             super().join(timeout)
             self.log('stop.', logger.INFO)
@@ -177,9 +179,16 @@ class MPDControl(threading.Thread):
                     self._old_volume = old_volume
             else:
                 if self._old_volume is not None:
-                    self.volume = self._old_volume
-                    self._old_volume = None
-                self._resume = False
+                    volume = self.volume
+                    inc = int((self._old_volume - volume) / 4)
+                    volume += inc if inc > 10 else 10
+                    if volume >= self._old_volume:
+                        volume = self._old_volume
+                        self._old_volume = None
+                        self._resume = False
+                    self.volume = volume
+                else:
+                    self._resume = False
         else:
             self._mpd_pause(1 if paused else 0)
             self._resume = paused
