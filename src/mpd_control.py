@@ -41,6 +41,7 @@ class MPDControl(threading.Thread):
         self._old_volume = None
         self._resume = False
         self._be_resumed = False
+        self._resume_time = None
 
         self._saved_volume = None
         self._saved_state = None
@@ -131,6 +132,7 @@ class MPDControl(threading.Thread):
         with self._lock:
             self._resume = True
             self._be_resumed = False
+            self._resume_time = None
             if 101 > self._cfg['quieter'] > 0:
                 volume = self.volume
                 if volume <= self._cfg['quieter']:
@@ -226,6 +228,10 @@ class MPDControl(threading.Thread):
             self._force_resume()
             self.connect()
         if self._resume and self._be_resumed:
+            if not self._resume_time and self._cfg['wait_resume'] > 0:
+                self._resume_time = time.time() + self._cfg['wait_resume']
+            if self._resume_time and time.time() < self._resume_time:
+                return
             self._stop_paused()
 
     def _callbacks_event(self):

@@ -55,6 +55,7 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'pause': 1,
         'smoothly': 0,
         'quieter': 0,
+        'wait_resume': 5,
     },
     'log': {
         'file_lvl' : 'debug',
@@ -120,7 +121,7 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'line_out': '',
     },
     'system': {
-        'ini_version': 11,
+        'ini_version': 12,
     }
 }
 
