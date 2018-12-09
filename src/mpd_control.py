@@ -42,6 +42,7 @@ class MPDControl(threading.Thread):
         self._old_volume = None
         self._resume = False
         self._be_resumed = False
+        self._is_auto_paused = False
         self._resume_time = None
 
         self._saved_volume = None
@@ -127,15 +128,15 @@ class MPDControl(threading.Thread):
             self._force_resume()
             self._mpd_pause()
         elif paused:
-            if self._mpd_is_play() or self._be_resumed:
+            if not self._cfg['pause']:
+                return
+            self._is_auto_paused = self._is_auto_paused or self._mpd_is_play()
+            if self._is_auto_paused:
                 self._start_paused()
         else:
             self._be_resumed = True
 
     def _start_paused(self):
-        if not self._cfg['pause']:
-            return
-
         self._resume = True
         self._be_resumed = False
         self._resume_time = None
@@ -173,6 +174,10 @@ class MPDControl(threading.Thread):
 
         self._resume = False
         self._be_resumed = False
+        if not self._is_auto_paused:
+            self._old_volume = None
+            return
+        self._is_auto_paused = False
         if self._old_volume is not None:
             self._mpd_set_volume(self._old_volume)
             self._old_volume = None
@@ -192,6 +197,7 @@ class MPDControl(threading.Thread):
             self._old_volume = None
             self._resume = False
             self._be_resumed = False
+            self._is_auto_paused = False
         self.volume = volume
 
     @property
