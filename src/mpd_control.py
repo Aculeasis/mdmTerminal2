@@ -44,6 +44,8 @@ class MPDControl(threading.Thread):
         self._be_resumed = False
         self._is_auto_paused = False
         self._resume_time = None
+        self._previus_volume = None
+        self._check_un_pause = False
 
         self._saved_volume = None
         self._saved_state = None
@@ -140,27 +142,37 @@ class MPDControl(threading.Thread):
         self._resume = True
         self._be_resumed = False
         self._resume_time = None
+        self._previus_volume = None
         if 101 > self._cfg['quieter'] > 0:
             volume = self.volume
             if volume <= self._cfg['quieter']:
                 return
             if self._old_volume is None:
                 self._old_volume = volume
-            self.volume = self._cfg['quieter']
+            self.volume, self._previus_volume = self._cfg['quieter'], self._cfg['quieter']
+            self._check_un_pause = False
         elif self._cfg['smoothly']:
             if self._old_volume is None:
                 self._old_volume = self.volume
+            self.volume, self._previus_volume = 0, 0
+            self._check_un_pause = True
             self._mpd_pause(True)
-            self.volume = 0
         else:
             self._old_volume = None
+            self._check_un_pause = True
             self._mpd_pause(True)
 
     def _stop_paused(self):
         if not self._cfg['pause']:
             return
-        if self._mpd_get_state() == 'pause':
-            self._mpd_pause(False)
+
+        is_paused = self._mpd_get_state() == 'pause'
+        if is_paused == self._check_un_pause:
+            if self._check_un_pause:
+                self._check_un_pause = False
+                self._mpd_pause(False)
+        else:
+            return self._stop_resume()
         if self._cfg['smoothly']:
             self._smoothly_up()
         else:
@@ -184,21 +196,27 @@ class MPDControl(threading.Thread):
         if self._mpd_get_state() == 'pause':
             self._mpd_pause(False)
 
+    def _stop_resume(self):
+        # Что-то пошло не так
+        self._old_volume = None
+        self._resume = False
+        self._be_resumed = False
+        self._is_auto_paused = False
+
     def _smoothly_up(self):
         # Медленно повышаем громкость
         if self._old_volume is None:
-            self._force_resume()
+            return self._force_resume()
 
         volume = self.volume
+        if volume != self._previus_volume:
+            return self._stop_resume()
         inc = int((self._old_volume - volume) / 4)
         volume += inc if inc > 10 else 10
         if volume >= self._old_volume:
-            volume = self._old_volume
-            self._old_volume = None
-            self._resume = False
-            self._be_resumed = False
-            self._is_auto_paused = False
-        self.volume = volume
+            self._force_resume()
+        else:
+            self.volume, self._previus_volume = volume, volume
 
     @property
     def real_volume(self):
