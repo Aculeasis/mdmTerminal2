@@ -292,7 +292,7 @@ class MDTerminal(threading.Thread):
         hello = ''
         if phrase and self.own.sys_say_chance and not no_hello:
             hello = LNG['model_listened'].format(phrase)
-        self._detected_parse(hello, self.own.listen(hello, voice=no_hello))
+        self._speech_recognized_success(hello, self.own.listen(hello, voice=no_hello))
 
     def _detected_sr(self, msg: str, model_name: str, model_msg: str, energy_threshold: int):
         if model_msg is None:
@@ -306,9 +306,14 @@ class MDTerminal(threading.Thread):
         self.log(LNG['activate_by'].format(model_name, model_msg), logger.INFO)
         if not msg:  # Пустое сообщение
             return
-        if self._cfg.gts('alarmkwactivated'):
-            self.own.play(self._cfg.path['ding'])
-        self._detected_parse(False, msg)
+        self._speech_recognized_success(False, msg)
+
+    def _speech_recognized_success(self, voice, reply):
+        if voice or reply:
+            self.own.speech_recognized_success_callback()
+            if self._cfg.gts('alarm_recognized'):
+                self.own.play(self._cfg.path['ding'])
+            self._detected_parse(voice, reply)
 
     def _detected_parse(self, voice, reply):
         caller = False

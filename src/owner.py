@@ -94,6 +94,9 @@ class Owner:
     def voice_activated_callback(self):
         self._notifier.callback(status='voice_activated')
 
+    def speech_recognized_success_callback(self):
+        self._notifier.callback(status='speech_recognized_success')
+
     def record_callback(self, start_stop: bool):
         self._notifier.callback(status='start_record' if start_stop else 'stop_record')
 

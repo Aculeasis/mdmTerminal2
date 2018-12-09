@@ -19,6 +19,7 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'alarmkwactivated': 1,
         'alarmtts'        : 1,
         'alarmstt'        : 1,
+        'alarm_recognized': 0,
         'first_love'      : 1,
         'last_love'       : 0,
         'mic_index'   : -1,
@@ -118,7 +119,7 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'line_out': '',
     },
     'system': {
-        'ini_version': 9,
+        'ini_version': 10,
     }
 }
 
