@@ -19,6 +19,7 @@ from updater import Updater
 
 class Loader(Owner):
     def __init__(self, init_cfg: dict, path: dict, die_in):
+        super().__init__()
         self._die_in = die_in
         self.reload = False
         self._lock = threading.Lock()

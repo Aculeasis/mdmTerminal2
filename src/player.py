@@ -25,7 +25,6 @@ class Player:
         self._only_one = threading.Lock()
         self._work = False
         self._popen = None
-        self._last_activity = time.time()
         self._lp_play = LowPrioritySay(self.really_busy, self.say, self.play)
 
     def start(self):
@@ -45,8 +44,6 @@ class Player:
             count += 1
         self.quiet()
         self.kill_popen()
-
-        self._last_activity = 0  # Отжим паузы
 
         self.log('stop.', logger.INFO)
 
@@ -97,15 +94,8 @@ class Player:
 
     def full_quiet(self):
         # Глушим все что можно
-        self._last_activity = time.time()
         self._lp_play.clear()
         self.kill_popen()
-        self.own.mpd_pause(True)
-
-    def last_activity(self):
-        if self.popen_work():
-            self._last_activity = time.time()
-        return self._last_activity
 
     def popen_work(self):
         return self._popen is not None and self._popen.poll() is None
@@ -130,16 +120,12 @@ class Player:
         if not self.set_lvl(lvl):
             return
 
-        self._last_activity = time.time() + 3
-        self.own.mpd_pause(True)
-
         time.sleep(0.01)
         self._play(file)
         if blocking:
             self._wait_popen(blocking)
         self._only_one.release()
 
-        self._last_activity = time.time() + wait
         if wait:
             time.sleep(wait)
 
@@ -161,8 +147,6 @@ class Player:
             alarm = self._cfg.gts('alarmtts', 0)
 
         file = self.own.tts(msg) if not is_file else msg
-        self._last_activity = time.time() + 3
-        self.own.mpd_pause(True)
 
         time.sleep(0.01)
         if alarm:
@@ -173,7 +157,6 @@ class Player:
             self._wait_popen(blocking)
         self._only_one.release()
 
-        self._last_activity = time.time() + wait
         if wait:
             time.sleep(wait)
 

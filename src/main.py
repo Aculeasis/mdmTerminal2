@@ -52,7 +52,8 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'control': 1,
         'ip': '127.0.0.1',
         'port': 6600,
-        'wait': 13,
+        'pause': 1,
+        'smoothly': 0,
         'quieter': 0,
     },
     'log': {
@@ -119,7 +120,7 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'line_out': '',
     },
     'system': {
-        'ini_version': 10,
+        'ini_version': 11,
     }
 }
 

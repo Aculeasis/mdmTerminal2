@@ -2,6 +2,14 @@ from lib.volume import get_volume
 
 
 class Owner:
+    def __init__(self):
+        self._record_active = False
+        self._say_active = False
+
+    def _resume_mpd(self):
+        if not (self._record_active or self._say_active):
+            self.mpd_pause(False)
+
     def say(self, msg: str, lvl: int=2, alarm=None, wait=0, is_file: bool = False, blocking: int=0):
         self._play.say(msg, lvl, alarm, wait, is_file, blocking)
 
@@ -31,10 +39,6 @@ class Owner:
 
     def kill_popen(self):
         self._play.kill_popen()
-
-    @property
-    def last_activity(self) -> float:
-        return self._play.last_activity()
 
     def listen(self, hello: str = '', deaf: bool = True, voice: bool = False) -> str:
         return self._stt.listen(hello, deaf, voice)
@@ -92,15 +96,26 @@ class Owner:
         return self._tts.tts(msg, realtime)
 
     def voice_activated_callback(self):
+        self.mpd_pause(True)
         self._notifier.callback(status='voice_activated')
 
     def speech_recognized_success_callback(self):
         self._notifier.callback(status='speech_recognized_success')
 
     def record_callback(self, start_stop: bool):
+        self._record_active = start_stop
+        if start_stop:
+            self.mpd_pause(True)
+        else:
+            self._resume_mpd()
         self._notifier.callback(status='start_record' if start_stop else 'stop_record')
 
     def say_callback(self, start_stop: bool):
+        self._say_active = start_stop
+        if start_stop:
+            self.mpd_pause(True)
+        else:
+            self._resume_mpd()
         self._notifier.callback(status='start_talking' if start_stop else 'stop_talking')
 
     def mpd_status_callback(self, status: str):
