@@ -312,7 +312,7 @@ class MDTerminal(threading.Thread):
         if voice or reply:
             self.own.speech_recognized_success_callback()
             if self._cfg.gts('alarm_recognized'):
-                self.own.play(self._cfg.path['ding'])
+                self.own.play(self._cfg.path['bimp'])
             self._detected_parse(voice, reply)
 
     def _detected_parse(self, voice, reply):

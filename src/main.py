@@ -144,7 +144,8 @@ def get_path(home) -> dict:
     }
     path['models'] = os.path.join(path['resources'], 'models')
     # ~/resources/ding.wav ~/resources/dong.wav ~/resources/tts_error.mp3
-    for (key, val) in [['ding', 'ding.wav'], ['dong', 'dong.wav'], ['tts_error', 'tts_error.mp3']]:
+    audio = (('ding', 'ding.wav'), ('dong', 'dong.wav'), ('bimp', 'bimp.mp3'), ('tts_error', 'tts_error.mp3'))
+    for (key, val) in audio:
         path[key] = os.path.join(path['resources'], val)
     return path
 
