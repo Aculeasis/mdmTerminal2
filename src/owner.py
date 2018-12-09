@@ -1,4 +1,5 @@
 from lib.volume import get_volume
+from utils import timed_cache
 
 
 class Owner:
@@ -34,6 +35,7 @@ class Owner:
     def really_busy(self) -> bool:
         return self._play.really_busy()
 
+    @timed_cache(lifetime=0.009)
     def noising(self) -> bool:
         return self._play.noising()
 
