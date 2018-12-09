@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import queue
 import threading
 import time
 
@@ -36,7 +37,7 @@ class MPDControl(threading.Thread):
         self.is_conn = False
         self._errors = 0
         self._reload = False
-        self._lock = threading.Lock()
+        self._queue = queue.Queue()
 
         self._old_volume = None
         self._resume = False
@@ -82,7 +83,6 @@ class MPDControl(threading.Thread):
     def join(self, timeout=None):
         if self._work:
             self.log('stopping...', logger.DEBUG)
-            self._force_resume()
             self._work = False
             super().join(timeout)
             self.log('stop.', logger.INFO)
@@ -106,6 +106,9 @@ class MPDControl(threading.Thread):
     def play(self, uri):
         if not self.allow():
             return
+        self._queue.put_nowait(('play', uri))
+
+    def _play(self, uri):
         self._force_resume()
         self._mpd_add(uri)
 
@@ -117,11 +120,14 @@ class MPDControl(threading.Thread):
     def pause(self, paused=None):
         if not self.allow():
             return
+        self._queue.put_nowait(('pause', paused))
+
+    def _pause(self, paused=False):
         if paused is None:
             self._force_resume()
             self._mpd_pause()
         elif paused:
-            if self._mpd_is_play():
+            if self._mpd_is_play() or self._be_resumed:
                 self._start_paused()
         else:
             self._be_resumed = True
@@ -129,25 +135,25 @@ class MPDControl(threading.Thread):
     def _start_paused(self):
         if not self._cfg['pause']:
             return
-        with self._lock:
-            self._resume = True
-            self._be_resumed = False
-            self._resume_time = None
-            if 101 > self._cfg['quieter'] > 0:
-                volume = self.volume
-                if volume <= self._cfg['quieter']:
-                    return
-                if self._old_volume is None:
-                    self._old_volume = volume
-                self.volume = self._cfg['quieter']
-            elif self._cfg['smoothly']:
-                if self._old_volume is None:
-                    self._old_volume = self.volume
-                self._mpd_pause(True)
-                self.volume = 0
-            else:
-                self._old_volume = None
-                self._mpd_pause(True)
+
+        self._resume = True
+        self._be_resumed = False
+        self._resume_time = None
+        if 101 > self._cfg['quieter'] > 0:
+            volume = self.volume
+            if volume <= self._cfg['quieter']:
+                return
+            if self._old_volume is None:
+                self._old_volume = volume
+            self.volume = self._cfg['quieter']
+        elif self._cfg['smoothly']:
+            if self._old_volume is None:
+                self._old_volume = self.volume
+            self._mpd_pause(True)
+            self.volume = 0
+        else:
+            self._old_volume = None
+            self._mpd_pause(True)
 
     def _stop_paused(self):
         if not self._cfg['pause']:
@@ -159,32 +165,34 @@ class MPDControl(threading.Thread):
         else:
             self._force_resume()
 
-    def _force_resume(self):
+    def _force_resume(self, always=False):
+        if not (self.allow() or always):
+            return
         if not (self._resume and self._cfg['pause']):
             return
-        with self._lock:
-            self._resume = False
-            self._be_resumed = False
-            if self._old_volume is not None:
-                self.volume = self._old_volume
-                self._old_volume = None
-            if self._mpd_get_state() == 'pause':
-                self._mpd_pause(False)
+
+        self._resume = False
+        self._be_resumed = False
+        if self._old_volume is not None:
+            self._mpd_set_volume(self._old_volume)
+            self._old_volume = None
+        if self._mpd_get_state() == 'pause':
+            self._mpd_pause(False)
 
     def _smoothly_up(self):
         # Медленно повышаем громкость
         if self._old_volume is None:
             self._force_resume()
-        with self._lock:
-            volume = self.volume
-            inc = int((self._old_volume - volume) / 4)
-            volume += inc if inc > 10 else 10
-            if volume >= self._old_volume:
-                volume = self._old_volume
-                self._old_volume = None
-                self._resume = False
-                self._be_resumed = False
-            self.volume = volume
+
+        volume = self.volume
+        inc = int((self._old_volume - volume) / 4)
+        volume += inc if inc > 10 else 10
+        if volume >= self._old_volume:
+            volume = self._old_volume
+            self._old_volume = None
+            self._resume = False
+            self._be_resumed = False
+        self.volume = volume
 
     @property
     def real_volume(self):
@@ -216,10 +224,20 @@ class MPDControl(threading.Thread):
     def run(self):
         if not self._init():
             self._work = False
+            return
         while self._work:
-            time.sleep(0.9)
+            try:
+                cmd = self._queue.get(timeout=0.9)
+            except queue.Empty:
+                pass
+            else:
+                if cmd[0] == 'pause':
+                    self._pause(cmd[1])
+                elif cmd[0] == 'play':
+                    self._play(cmd[1])
             self._resume_check()
             self._callbacks_event()
+        self._force_resume(True)
         self._disconnect()
 
     def _resume_check(self):
