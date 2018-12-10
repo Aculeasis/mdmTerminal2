@@ -12,7 +12,7 @@ from languages import LANG_CODE
 from languages import STTS as LNG2
 from languages import TERMINAL as LNG
 from lib import volume
-from lib.snowboy import SnowBoySR, SnowBoySR2, SnowBoySR3, SnowBoy
+from lib.snowboy import SnowBoySR, SnowBoySR2, SnowBoySR3, SnowBoySR4, SnowBoy
 from owner import Owner
 
 
@@ -37,6 +37,8 @@ class MDTerminal(threading.Thread):
                 snowboy = SnowBoySR2
             elif self._cfg.gts('chrome_mode') == 3:
                 snowboy = SnowBoySR3
+            elif self._cfg.gts('chrome_mode') == 4:
+                snowboy = SnowBoySR4
             else:
                 snowboy = SnowBoy
                 detected = self._detected

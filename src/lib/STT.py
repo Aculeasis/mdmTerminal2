@@ -27,7 +27,7 @@ class BaseSTT:
         self._headers = headers
         self._params = kwargs
 
-        if ext in streaming_converter.CMD:
+        if ext in streaming_converter.CMD or not isinstance(audio_data, AudioData):
             self._data = streaming_converter.AudioConverter(audio_data, ext, convert_rate, convert_width)
         elif ext == 'wav':
             self._data = BytesIO(audio_data.get_wav_data(convert_rate, convert_width))

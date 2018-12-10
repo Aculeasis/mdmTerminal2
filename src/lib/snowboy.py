@@ -144,3 +144,24 @@ class SnowBoySR3(SnowBoySR2):
                     continue
             if r.get_model > 0:
                 self._adata_parse(adata, r.get_model, None)
+
+
+class SnowBoySR4(SnowBoySR2):
+    def start(self):
+        self._terminate = False
+        r = self._get_recognizer()
+        r.no_energy_threshold()
+        while not self._interrupted():
+            with sr.Microphone() as source:
+                try:
+                    vr = r.listen2(source, 5, self._cfg.gts('phrase_time_limit'),
+                                   (self._cfg.path['home'], self._cfg.path['models_list']),
+                                   self.own.voice_recognition
+                                   )
+                except (sr.WaitTimeoutError, sr.Interrupted):
+                    continue
+            if r.get_model > 0:
+                self._adata_parse(vr, r.get_model, None)
+
+    def _get_text(self, adata):
+            return adata.text

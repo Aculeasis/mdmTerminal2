@@ -377,7 +377,7 @@ class SpeechToText:
         else:
             return None
 
-    def voice_recognition(self, audio, quiet: bool=False) -> str:
+    def voice_recognition(self, audio, quiet: bool=False, fusion=None) -> str:
         prov = self._cfg.gts('providerstt', 'google')
         self.log(LNG['recognized_from'].format(prov), logger.DEBUG)
         wtime = time.time()
@@ -411,6 +411,8 @@ class SpeechToText:
             self.log(LNG['err_stt_log'].format(e), logger.ERROR)
             return ''
         else:
+            if fusion:
+                wtime = fusion()
             self.log(LNG['recognized_for'].format(utils.pretty_time(time.time() - wtime)), logger.DEBUG)
             return command or ''
 

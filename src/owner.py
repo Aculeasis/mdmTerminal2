@@ -46,8 +46,8 @@ class Owner:
     def voice_record(self, hello: str, save_to: str, convert_rate=None, convert_width=None):
         return self._stt.voice_record(hello, save_to, convert_rate, convert_width)
 
-    def voice_recognition(self, audio, quiet: bool=False) -> str:
-        return self._stt.voice_recognition(audio, quiet)
+    def voice_recognition(self, audio, quiet: bool=False, fusion=None) -> str:
+        return self._stt.voice_recognition(audio, quiet, fusion)
 
     def energy_correct(self, r, source):
         return self._stt.energy.correct(r, source)

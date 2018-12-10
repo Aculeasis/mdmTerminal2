@@ -29,6 +29,7 @@ import collections
 import json
 import math
 import os
+import threading
 import time
 
 import speech_recognition
@@ -167,7 +168,7 @@ class Recognizer(speech_recognition.Recognizer):
         self._snowboy_result = snowboy_result
         if self._hotword_callback:
             self._hotword_callback()
-        return b"".join(frames), elapsed_time if elapsed_time < 5 else 5.0
+        return frames, elapsed_time if elapsed_time < 5 else 5.0
 
     # part of https://github.com/Uberi/speech_recognition/blob/master/speech_recognition/__init__.py#L616
     def listen(self, source, timeout=None, phrase_time_limit=None, snowboy_configuration=None):
@@ -184,12 +185,12 @@ class Recognizer(speech_recognition.Recognizer):
 
         This operation will always complete within ``timeout + phrase_timeout`` seconds if both are numbers, either by returning the audio data, or by raising a ``speech_recognition.WaitTimeoutError`` exception.
         """
-        def speech_detect(resampling_state):
+        def speech_detect(resampling_state_):
             # return True if snowboy detect speech
-            resampled_buffer, resampling_state = audioop.ratecv(buffer, source.SAMPLE_WIDTH, 1,
-                                                                source.SAMPLE_RATE,
-                                                                snowboy_sample_rate, resampling_state)
-            return detector.RunDetection(resampled_buffer) >= 0, resampling_state
+            resampled_buffer, resampling_state_ = audioop.ratecv(buffer, source.SAMPLE_WIDTH, 1,
+                                                                 source.SAMPLE_RATE,
+                                                                 snowboy_sample_rate, resampling_state_)
+            return detector.RunDetection(resampled_buffer) >= 0, resampling_state_
 
         assert isinstance(source, AudioSource), "Source must be an audio source"
         assert source.stream is not None, "Audio source must be entered before listening, see documentation for ``AudioSource``; are you using ``source`` outside of a ``with`` statement?"
@@ -253,7 +254,7 @@ class Recognizer(speech_recognition.Recognizer):
                 snowboy_configuration = None
                 elapsed_time += delta_time
                 if len(buffer) == 0: break  # reached end of the stream
-                frames.append(buffer)
+                frames.append(b''.join(buffer))
 
             # read audio input until the phrase ends
             pause_count, phrase_count = 0, 0
@@ -295,6 +296,183 @@ class Recognizer(speech_recognition.Recognizer):
         if self._record_callback and send_record_starting:
             self._record_callback(False)
         return AudioData(frame_data, source.SAMPLE_RATE, source.SAMPLE_WIDTH)
+
+    def listen2(self, source, timeout, phrase_time_limit, snowboy_configuration, recognition):
+
+        def speech_detect(resampling_state_):
+            # return True if snowboy detect speech
+            resampled_buffer, resampling_state_ = audioop.ratecv(buffer, source.SAMPLE_WIDTH, 1,
+                                                                 source.SAMPLE_RATE,
+                                                                 snowboy_sample_rate, resampling_state_)
+            return detector.RunDetection(resampled_buffer) >= 0, resampling_state_
+
+        assert isinstance(source, AudioSource), "Source must be an audio source"
+        assert source.stream is not None, "Audio source must be entered before listening, see documentation for ``AudioSource``; are you using ``source`` outside of a ``with`` statement?"
+        assert self.pause_threshold >= self.non_speaking_duration >= 0
+
+        seconds_per_buffer = float(source.CHUNK) / source.SAMPLE_RATE
+        # number of buffers of non-speaking audio during a phrase, before the phrase should be considered complete
+        pause_buffer_count = int(math.ceil(self.pause_threshold / seconds_per_buffer))
+        # minimum number of buffers of speaking audio before we consider the speaking audio a phrase
+        phrase_buffer_count = int(math.ceil(self.phrase_threshold / seconds_per_buffer))
+
+        # read audio input for phrases until there is a phrase that is long enough
+        elapsed_time = 0  # number of seconds of audio read
+        buffer = b""  # an empty buffer means that the stream has ended and there is no data left to read
+        resampling_state = None
+        # Use snowboy to words detecting instead of energy_threshold
+        detector = detector = self._get_detector(*snowboy_configuration)
+        snowboy_sample_rate = detector.SampleRate()
+        send_record_starting = False
+        voice_recognition = StreamRecognition(recognition)
+        while True:
+            if snowboy_configuration is None:
+                # store audio input until the phrase starts
+                while True:
+                    # handle waiting too long for phrase by raising an exception
+                    elapsed_time += seconds_per_buffer
+                    if timeout and elapsed_time > timeout:
+                        if self._record_callback and send_record_starting:
+                            self._record_callback(False)
+                        if voice_recognition:
+                            voice_recognition.work = False
+                            if voice_recognition.ready:
+                                voice_recognition.write(b'')
+                        raise WaitTimeoutError("listening timed out while waiting for phrase to start")
+
+                    buffer = source.stream.read(source.CHUNK)
+                    if len(buffer) == 0: break  # reached end of the stream
+                    voice_recognition.write(buffer)
+
+                    # detect whether speaking has started on audio input
+                    speech, resampling_state = speech_detect(resampling_state)
+                    if speech:
+                        break
+            else:
+                # read audio input until the hotword is said
+                snowboy_location, snowboy_hot_word_files = snowboy_configuration
+                buffer, delta_time = self.snowboy_wait_for_hot_word(snowboy_location, snowboy_hot_word_files, source)
+                # Иначе он залипает на распознавании ключевых слов
+                snowboy_configuration = None
+                voice_recognition.init(buffer, None, source.SAMPLE_RATE, source.SAMPLE_WIDTH)
+                elapsed_time += delta_time
+                if len(buffer) == 0:
+                    break  # reached end of the stream
+
+
+            # read audio input until the phrase ends
+            pause_count, phrase_count = 0, 0
+            phrase_start_time = elapsed_time
+            if self._record_callback and not send_record_starting:
+                send_record_starting = True
+                self._record_callback(True)
+            while True:
+                # handle phrase being too long by cutting off the audio
+                elapsed_time += seconds_per_buffer
+                if phrase_time_limit and elapsed_time - phrase_start_time > phrase_time_limit:
+                    break
+
+                buffer = source.stream.read(source.CHUNK)
+                if len(buffer) == 0:
+                    break  # reached end of the stream
+                voice_recognition.write(buffer)
+                phrase_count += 1
+
+                speech, resampling_state = speech_detect(resampling_state)
+                if speech:
+                    pause_count = 0
+                else:
+                    pause_count += 1
+                if pause_count > pause_buffer_count:  # end of the phrase
+                    break
+
+            # check how long the detected phrase is, and retry listening if the phrase is too short
+            phrase_count -= pause_count  # exclude the buffers for the pause before the phrase
+            if phrase_count >= phrase_buffer_count or len(buffer) == 0:
+                break  # phrase is long enough or we've reached the end of the stream, so stop listening
+
+        # obtain frame data
+        if self._record_callback and send_record_starting:
+            self._record_callback(False)
+
+        if voice_recognition.ready:
+            if not voice_recognition.is_ok:
+                voice_recognition.write(b'')
+                voice_recognition.work = False
+                raise Interrupted('None')
+        else:
+            raise Interrupted('None')
+        voice_recognition.write(b'')
+        voice_recognition.time_up()
+        return voice_recognition
+
+
+class StreamRecognition(threading.Thread):
+    def __init__(self, voice_recognition):
+        super().__init__()
+        self._time = TimeFusion()
+        self._voice_recognition = voice_recognition
+        self._pipe = None
+        self.sample_rate = None
+        self.sample_width = None
+        self.work = True
+        self._text = ''
+        self._written = False
+        self._block = threading.Event()
+        self.__event = threading.Event()
+
+    @property
+    def ready(self):
+        return self._pipe is not None
+
+    @property
+    def is_ok(self):
+        return self._written and self.ready
+
+    def time_up(self):
+        self._time.up()
+
+    def init(self, iterable=(), maxlen=None, sample_rate=None, sample_width=None):
+        self._pipe = collections.deque(iterable, maxlen)
+        self.sample_rate = sample_rate
+        self.sample_width = sample_width
+        self.start()
+
+    def read(self):
+        while True:
+            self.__event.wait(1)
+            try:
+                return self._pipe.popleft()
+            except IndexError:
+                self.__event.clear()
+                continue
+
+    def write(self, data):
+        self._written = True
+        self._pipe.append(data)
+        self.__event.set()
+
+    @property
+    def text(self):
+        self._block.wait()
+        return self._text
+
+    def run(self):
+        try:
+            self._text = self._voice_recognition(self, True, self._time)
+        finally:
+            self._block.set()
+
+
+class TimeFusion:
+    def __init__(self):
+        self._time = time.time()
+
+    def __call__(self, *args, **kwargs):
+        return self._time
+
+    def up(self):
+        self._time = time.time()
 
 
 def google_reply_parser(text: str) -> str:
