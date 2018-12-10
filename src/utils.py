@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-import functools
 import os
 import queue
 import signal
@@ -209,25 +208,3 @@ def check_phrases(phrases):
         raise ValueError('chance must be int type, not a {}'.format(type(phrases.get('chance'))))
     if phrases['chance'] < 0:
         raise ValueError('chance must be 0 or greater, not a {}'.format(phrases['chance']))
-
-
-def timed_cache(**timedelta_kwargs):
-    # https://gist.github.com/Morreski/c1d08a3afa4040815eafd3891e16b945
-    def _wrapper(f):
-        maxsize = timedelta_kwargs.pop('maxsize', 128)
-        typed = timedelta_kwargs.pop('typed', False)
-        update_delta = timedelta_kwargs.pop('lifetime', 1.0)
-        next_update = time.time() - update_delta
-        # Apply @lru_cache to f
-        f = functools.lru_cache(maxsize=maxsize, typed=typed)(f)
-
-        @functools.wraps(f)
-        def _wrapped(*args, **kwargs):
-            nonlocal next_update
-            now = time.time()
-            if now >= next_update:
-                f.cache_clear()
-                next_update = now + update_delta
-            return f(*args, **kwargs)
-        return _wrapped
-    return _wrapper
