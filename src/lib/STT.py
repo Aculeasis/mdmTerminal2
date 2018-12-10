@@ -7,38 +7,42 @@ from io import BytesIO
 import requests
 from speech_recognition import AudioData
 
+import lib.streaming_converter as streaming_converter
 from utils import REQUEST_ERRORS, UnknownValueError
 from .proxy import proxies
 from .sr_wrapper import google_reply_parser
-from .yandex_utils import requests_post, xml_yandex, wav_to_opus
+from .yandex_utils import requests_post, xml_yandex
 
-__all__ = ['Yandex', 'YandexCloud', 'PocketSphinxREST']
+__all__ = ['Yandex', 'YandexCloud', 'Google', 'PocketSphinxREST']
 
 
 class BaseSTT:
-    BUFF_SIZE = 1024
+    BUFF_SIZE = 1024 * 4
 
-    def __init__(self, url, audio_data: AudioData,
+    def __init__(self, url, audio_data: AudioData, ext,
                  headers=None, convert_rate=None, convert_width=None, proxy_key=None, **kwargs):
         self._text = None
         self._rq = None
         self._url = url
-        self._convert_rate = convert_rate
-        self._convert_width = convert_width
-        self._bytes_io = BytesIO(self._get_audio(audio_data))
         self._headers = headers
         self._params = kwargs
+
+        if ext in streaming_converter.CMD:
+            self._data = streaming_converter.AudioConverter(audio_data, ext, convert_rate, convert_width)
+        elif ext == 'wav':
+            self._data = BytesIO(audio_data.get_wav_data(convert_rate, convert_width))
+        elif ext == 'pcm':
+            self._data = BytesIO(audio_data.get_raw_data(convert_rate, convert_width))
+        else:
+            raise RuntimeError('Unknown format: {}'.format(ext))
 
         self._send(proxy_key)
         self._reply_check()
         self._parse_response()
 
-    def _get_audio(self, audio_data: AudioData):
-        return audio_data.get_wav_data(self._convert_rate, self._convert_width)
-
     def _chunks(self):
         chunk = True
-        with self._bytes_io as fp:
+        with self._data as fp:
             while chunk:
                 chunk = fp.read(self.BUFF_SIZE)
                 yield chunk
@@ -74,6 +78,7 @@ class Google(BaseSTT):
     URL = 'http://www.google.com/speech-api/v2/recognize'
 
     def __init__(self, audio_data: AudioData, key=None, lang='ru-RU'):
+        ext = 'flac'
         rate = 16000
         width = 2
         headers = {'Content-Type': 'audio/x-flac; rate={}'.format(rate)}
@@ -82,10 +87,7 @@ class Google(BaseSTT):
             'lang': lang,
             'key': key or 'AIzaSyBOti4mM-6x9WDnZIjIeyEU21OpBXqWBgw',
         }
-        super().__init__(self.URL, audio_data, headers, rate, width, 'stt_google', **kwargs)
-
-    def _get_audio(self, audio_data: AudioData):
-        return audio_data.get_flac_data(self._convert_rate, self._convert_width)
+        super().__init__(self.URL, audio_data, ext, headers, rate, width, 'stt_google', **kwargs)
 
     def _parse_response(self):
         self._text = google_reply_parser(self._rq.text)
@@ -98,6 +100,7 @@ class Yandex(BaseSTT):
     def __init__(self, audio_data: AudioData, key, lang='ru-RU'):
         if not key:
             raise RuntimeError('API-Key unset')
+        ext = 'pcm'
         rate = 16000
         width = 2
         headers = {'Content-Type': 'audio/x-pcm;bit={};rate={}'.format(width*8, rate)}
@@ -108,10 +111,7 @@ class Yandex(BaseSTT):
             'lang': lang,
             'disableAntimat': 'true'
         }
-        super().__init__(self.URL, audio_data, headers, rate, width, 'stt_yandex', **kwargs)
-
-    def _get_audio(self, audio_data: AudioData):
-        return audio_data.get_raw_data(self._convert_rate, self._convert_width)
+        super().__init__(self.URL, audio_data, ext, headers, rate, width, 'stt_yandex', **kwargs)
 
     def _parse_response(self):
         self._text = xml_yandex(self._rq.text)
@@ -124,6 +124,7 @@ class YandexCloud(BaseSTT):
     def __init__(self, audio_data: AudioData, key, lang='ru-RU'):
         if not isinstance(key, (tuple, list)) or len(key) < 2:
             raise RuntimeError('Wrong Yandex APIv2 key')
+        ext = 'opus'
         rate = 16000
         width = 2
         headers = {'Authorization': 'Bearer {}'.format(key[1])}
@@ -133,10 +134,7 @@ class YandexCloud(BaseSTT):
             'profanityFilter': 'false',
             'folderId': key[0]
         }
-        super().__init__(self.URL, audio_data, headers, rate, width, 'stt_yandex', **kwargs)
-
-    def _get_audio(self, audio_data: AudioData):
-        return wav_to_opus(audio_data.get_wav_data(self._convert_rate, self._convert_width))
+        super().__init__(self.URL, audio_data, ext, headers, rate, width, 'stt_yandex', **kwargs)
 
     def _send(self, proxy_key):
         self._text = requests_post(
@@ -158,7 +156,7 @@ class PocketSphinxREST(BaseSTT):
     # https://github.com/Aculeasis/pocketsphinx-rest
     def __init__(self, audio_data: AudioData, url='http://127.0.0.1:8085'):
         url = '{}/stt'.format(url)
-        super().__init__(url, audio_data, {'Content-Type': 'audio/wav'}, 16000, 2, 'stt_pocketsphinx-rest')
+        super().__init__(url, audio_data, 'wav', {'Content-Type': 'audio/wav'}, 16000, 2, 'stt_pocketsphinx-rest')
 
     def _parse_response(self):
         try:

@@ -42,6 +42,7 @@ AudioSource = speech_recognition.AudioSource
 UnknownValueError = speech_recognition.UnknownValueError
 RequestError = speech_recognition.RequestError
 WaitTimeoutError = speech_recognition.WaitTimeoutError
+get_flac_converter = speech_recognition.get_flac_converter
 
 
 class Interrupted(Exception):
