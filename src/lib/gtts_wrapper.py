@@ -141,7 +141,7 @@ def write_to_fp(self, fp):
             log.debug("status-%i: %s", idx, r.status_code)
 
             r.raise_for_status()
-        except requests.exceptions.HTTPError as e:
+        except requests.exceptions.HTTPError:
             # Request successful, bad response
             raise gTTSError(tts=self, response=r)
         except requests.exceptions.RequestException as e:  # pragma: no cover

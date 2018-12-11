@@ -54,7 +54,7 @@ class MajordomoNotifier(threading.Thread):
 
     @property
     def ip_set(self) -> bool:
-        return True if self._cfg.get('ip') else False
+        return True if self._cfg['ip'] else False
 
     def send(self, qry: str) -> str:
         # Прямая отправка
@@ -71,7 +71,7 @@ class MajordomoNotifier(threading.Thread):
 
     @property
     def _allow_notify(self) -> bool:
-        return self._cfg['object_name'] and self._cfg['object_method'] and self.ip_set
+        return self._cfg['object_name'] and self._cfg['object_method'] and self._cfg['ip']
 
     def callback(self, **kwargs):
         # Отправляет статус на сервер мжд в порядке очереди (FIFO)
@@ -88,10 +88,10 @@ class MajordomoNotifier(threading.Thread):
             self.log(e, logger.ERROR)
 
     def _send(self, path: str, params: dict) -> str:
-        terminal = self._cfg.get('terminal')
-        username = self._cfg.get('username')
-        password = self._cfg.get('password')
-        url = 'http://{}/{}'.format(self._cfg.get('ip', ''), path)
+        terminal = self._cfg['terminal']
+        username = self._cfg['username']
+        password = self._cfg['password']
+        url = 'http://{}/{}'.format(self._cfg['ip'], path)
 
         auth = (username, password) if username and password else None
         if terminal:

@@ -133,7 +133,7 @@ class Recognizer(speech_recognition.Recognizer):
         frames = collections.deque(maxlen=five_seconds_buffer_count)
         # use 0.5 seconds buffer for snowboy
         snowboy_buffer = collections.deque(maxlen=int(math.ceil(0.5 / seconds_per_buffer)))
-        start_time = time.time()
+        start_time = time.time() + 0.05
         snowboy_result = 0
         while True:
             elapsed_time += seconds_per_buffer
@@ -146,10 +146,9 @@ class Recognizer(speech_recognition.Recognizer):
             resampled_buffer, resampling_state = audioop.ratecv(buffer, source.SAMPLE_WIDTH, 1, source.SAMPLE_RATE,
                                                                 snowboy_sample_rate, resampling_state)
             snowboy_buffer.append(resampled_buffer)
-            if time.time() - start_time > 0.05:
+            if time.time() > start_time:
                 # run Snowboy on the resampled audio
                 snowboy_result = detector.RunDetection(b''.join(snowboy_buffer))
-                snowboy_buffer.clear()
                 if snowboy_result > 0:
                     # wake word found
                     break
@@ -160,7 +159,8 @@ class Recognizer(speech_recognition.Recognizer):
                     raise Interrupted('Interrupted')
                 if elapsed_time > 60:
                     raise Interrupted("listening timed out while waiting for hotword to be said")
-                start_time = time.time()
+                snowboy_buffer.clear()
+                start_time = time.time() + 0.05
 
             if self._noising and not self._noising():
                 self._calc_noise(buffer, source.SAMPLE_WIDTH, seconds_per_buffer)
@@ -395,15 +395,14 @@ class Recognizer(speech_recognition.Recognizer):
         if self._record_callback and send_record_starting:
             self._record_callback(False)
 
+        voice_recognition.time_up()
         if voice_recognition.ready:
+            voice_recognition.write(b'')
             if not voice_recognition.is_ok:
-                voice_recognition.write(b'')
                 voice_recognition.work = False
                 raise Interrupted('None')
         else:
             raise Interrupted('None')
-        voice_recognition.write(b'')
-        voice_recognition.time_up()
         return voice_recognition
 
 
@@ -440,7 +439,7 @@ class StreamRecognition(threading.Thread):
 
     def read(self):
         while True:
-            self.__event.wait(1)
+            self.__event.wait(0.5)
             try:
                 return self._pipe.popleft()
             except IndexError:
@@ -458,6 +457,7 @@ class StreamRecognition(threading.Thread):
         return self._text
 
     def run(self):
+        self.time_up()
         try:
             self._text = self._voice_recognition(self, True, self._time)
         finally:
@@ -466,7 +466,7 @@ class StreamRecognition(threading.Thread):
 
 class TimeFusion:
     def __init__(self):
-        self._time = time.time()
+        self._time = 0
 
     def __call__(self, *args, **kwargs):
         return self._time

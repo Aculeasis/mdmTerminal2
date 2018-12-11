@@ -90,7 +90,6 @@ class ConfigHandler(dict):
 
     def configure(self, log):
         self._add_log(log)
-        self._print(msg='CFG: {}'.format(self))
 
         # ~/resources/
         self._make_dir(self.path['resources'])
@@ -273,7 +272,7 @@ class ConfigHandler(dict):
             return None
 
     def print_cfg_change(self):
-        self._print(LNG['cfg_up'].format(self))
+        self._print(LNG['cfg_up'])
 
     def print_cfg_no_change(self):
         self._print(LNG['cfg_no_change'])
