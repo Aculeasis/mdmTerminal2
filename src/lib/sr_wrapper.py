@@ -334,10 +334,7 @@ class Recognizer(speech_recognition.Recognizer):
                     if timeout and elapsed_time > timeout:
                         if self._record_callback and send_record_starting:
                             self._record_callback(False)
-                        if voice_recognition:
-                            voice_recognition.work = False
-                            if voice_recognition.ready:
-                                voice_recognition.write(b'')
+                        voice_recognition.terminate()
                         raise WaitTimeoutError("listening timed out while waiting for phrase to start")
 
                     buffer = source.stream.read(source.CHUNK)
@@ -395,13 +392,13 @@ class Recognizer(speech_recognition.Recognizer):
         if self._record_callback and send_record_starting:
             self._record_callback(False)
 
-        voice_recognition.time_up()
+        voice_recognition.end()
         if voice_recognition.ready:
-            voice_recognition.write(b'')
             if not voice_recognition.is_ok:
                 voice_recognition.work = False
                 raise Interrupted('None')
         else:
+            voice_recognition.work = False
             raise Interrupted('None')
         return voice_recognition
 
@@ -430,6 +427,16 @@ class StreamRecognition(threading.Thread):
 
     def time_up(self):
         self._time.up()
+
+    def end(self):
+        self.time_up()
+        if self.ready:
+            self._pipe.append(b'')
+            self.__event.set()
+
+    def terminate(self):
+        self.work = False
+        self.end()
 
     def init(self, iterable=(), maxlen=None, sample_rate=None, sample_width=None):
         self._pipe = collections.deque(iterable, maxlen)
