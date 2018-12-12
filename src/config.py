@@ -478,6 +478,9 @@ class ConfigUpdater:
             val = val.lower()
         source_type = type(cfg.get(key, ''))
         try:
+            if val is None and self._source == 2:
+                # ignore None (null) from server
+                raise ValueError('Ignore \'NoneType\'')
             tmp = source_type(val) if source_type != bool else utils.bool_cast(val)
         except (ValueError, TypeError) as e:
             self._log(LNG['wrong_type_val'].format(key, val, type(val), cfg.get(key, 'Unset'), e), logger.ERROR)
