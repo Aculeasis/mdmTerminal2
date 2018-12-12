@@ -254,3 +254,18 @@ def state_cache(interval):
             return state
         return _wrapped
     return _wrapper
+
+
+def bool_cast(value) -> bool:
+    """Интерпретируем что угодно как bool или кидаем ValueError"""
+    if isinstance(value, str):
+        value = value.lower()
+        if value in ('on', '1', 'true', 'yes', 'enable'):
+            return True
+        elif value in ('off', '0', 'false', 'no', 'disable'):
+            return False
+    elif isinstance(value, bool):
+        return value
+    elif isinstance(value, int) and value in (1, 0):
+        return bool(value)
+    raise ValueError('Wrong type or value')

@@ -290,7 +290,7 @@ class MDTerminal(threading.Thread):
         else:
             model_name, phrase, msg = self._cfg.model_info_by_id(model)
             self.log(LNG['activate_by'].format(model_name, msg), logger.INFO)
-        no_hello = self._cfg.gts('no_hello', 0)
+        no_hello = self._cfg.gts('no_hello')
         hello = ''
         if phrase and self.own.sys_say_chance and not no_hello:
             hello = LNG['model_listened'].format(phrase)

@@ -27,7 +27,7 @@ class TextToSpeech:
 
     def tts(self, msg, realtime: bool = True):
         worker = _TTSWorker(self._cfg, self.log, msg, realtime)
-        if not self._cfg.get('optimistic_nonblock_tts', 0):
+        if not self._cfg.get('optimistic_nonblock_tts'):
             worker.event.wait(600)
         return worker.get
 

@@ -91,7 +91,7 @@ class MPDControl(threading.Thread):
             self.log('stop.', logger.INFO)
 
     def start(self):
-        if self._cfg.get('control', 0):
+        if self._cfg.get('control'):
             self._work = True
             super().start()
 

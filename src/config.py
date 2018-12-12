@@ -216,7 +216,7 @@ class ConfigHandler(dict):
     def config_save(self):
         wtime = time.time()
 
-        config = configparser.ConfigParser()
+        config = ConfigParserOnOff()
         for key, val in self.items():
             if isinstance(val, dict):
                 config[key] = val
@@ -258,7 +258,7 @@ class ConfigHandler(dict):
 
     def lang_init(self):
         lang = self.gts('lang')
-        deep_check = self.gts('lang_check', 0)
+        deep_check = self.gts('lang_check')
         err = languages.set_lang(lang, None if not deep_check else self._print)
         if err:
             self._print(LNG['err_lng'].format(lang, err), logger.ERROR)
@@ -476,10 +476,11 @@ class ConfigUpdater:
     def _parse_param_element(self, cfg: dict, cfg_diff: dict, key, val, external):
         if external and isinstance(val, str) and key not in self.NOT_LOWER:
             val = val.lower()
+        source_type = type(cfg.get(key, ''))
         try:
-            tmp = type(cfg.get(key, ''))(val)
+            tmp = source_type(val) if source_type != bool else utils.bool_cast(val)
         except (ValueError, TypeError) as e:
-            self._log(LNG['wrong_type_val'].format(key, val, type(val), cfg.get(key, 'None'), e), logger.ERROR)
+            self._log(LNG['wrong_type_val'].format(key, val, type(val), cfg.get(key, 'Unset'), e), logger.ERROR)
         else:
             if key not in cfg or tmp != cfg[key]:
                 cfg_diff[key] = tmp
@@ -591,3 +592,40 @@ class ConfigUpdater:
     @property
     def diff(self):
         return self._new_cfg
+
+
+class ConfigParserOnOff(configparser.ConfigParser):
+    """bool (True/False) -> (on/off)"""
+    def read_dict(self, dictionary, source='<dict>'):
+        """Read configuration from a dictionary.
+
+        Keys are section names, values are dictionaries with keys and values
+        that should be present in the section. If the used dictionary type
+        preserves order, sections and their keys will be added in order.
+
+        All types held in the dictionary are converted to strings during
+        reading, including section names, option names and keys.
+
+        Optional second argument is the `source' specifying the name of the
+        dictionary being read.
+        """
+        elements_added = set()
+        for section, keys in dictionary.items():
+            section = str(section)
+            try:
+                self.add_section(section)
+            except (configparser.DuplicateSectionError, ValueError):
+                if self._strict and section in elements_added:
+                    raise
+            elements_added.add(section)
+            for key, value in keys.items():
+                key = self.optionxform(str(key))
+                if value is not None:
+                    if isinstance(value, bool):
+                        value = 'on' if value else 'off'
+                    else:
+                        value = str(value)
+                if self._strict and (section, key) in elements_added:
+                    raise configparser.DuplicateOptionError(section, key, source)
+                elements_added.add((section, key))
+                self.set(section, key, value)

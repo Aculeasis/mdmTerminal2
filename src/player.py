@@ -144,7 +144,7 @@ class Player:
             return
         self.own.say_callback(True)
         if alarm is None:
-            alarm = self._cfg.gts('alarmtts', 0)
+            alarm = self._cfg.gts('alarmtts')
 
         file = self.own.tts(msg) if not is_file else msg
 

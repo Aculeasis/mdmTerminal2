@@ -96,7 +96,7 @@ class _Proxies:
             self._proxy_raw.clear()
             self._params.clear()
 
-            self._monkey_patching = cfg.pop('monkey_patching', 1)
+            self._monkey_patching = cfg.pop('monkey_patching', True)
 
             for key, val in cfg.items():
                 if key in PARAMS:
