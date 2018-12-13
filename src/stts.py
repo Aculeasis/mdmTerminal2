@@ -134,7 +134,12 @@ class _TTSWorker(threading.Thread):
             sets = utils.rhvoice_rest_sets(self.cfg[prov]) if prov == 'rhvoice-rest' else {}
             try:
                 key = self.cfg.key(prov, 'apikeytts')
-                lang = LANG_CODE['ISO'] if prov == 'google' else LANG_CODE['IETF']
+                if prov == 'google':
+                    lang = LANG_CODE['ISO']
+                elif prov == 'aws':
+                    lang = LANG_CODE['aws']
+                else:
+                    lang = LANG_CODE['IETF']
                 tts = TTS.GetTTS(
                     prov,
                     text=msg,

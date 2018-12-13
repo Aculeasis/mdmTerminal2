@@ -1,22 +1,7 @@
-class _ConfigPrettyModels:
-    @classmethod
-    def format(cls, count):
-        ot = 'о'
-        if count == 1:
-            et = 'ь'
-            ot = 'а'
-        elif count in [2, 3, 4]:
-            et = 'и'
-        else:
-            et = 'ей'
-        pretty = ['ноль', 'одна', 'две', 'три', 'четыре', 'пять', 'шесть']
-        count = pretty[count] if count < 7 else count
-        return 'Загружен{} {} модел{}'.format(ot, count, et)
-
-
 LANG_CODE = {
-    'IETF': 'ru-RU',
-    'ISO': 'ru',
+    'IETF': 'uk-UK',
+    'ISO': 'uk',
+    # Полли не поддерживает украинский
     'aws': 'ru-RU',
 }
 
@@ -29,7 +14,7 @@ CONFIG = {
     'save_for': 'Конфигурация сохранена за {}',
     'save': 'Конфигурация сохранена!',
     'miss_models': 'Директория с моделями не найдена {}',
-    'models_count_call': _ConfigPrettyModels,
+    'models_count_call': 'Загружено {} моделей',
     'miss_settings': 'Файл настроек не найден по пути {}. Для первого запуска это нормально',
     'load_for': 'Загружено {} опций за {}',
     'lng_load_for': 'Локализация {} загружена за {}',
@@ -307,34 +292,33 @@ UPDATER = {
 }
 
 YANDEX_EMOTION = {
-    'good'    : 'добрая',
-    'neutral' : 'нейтральная',
-    'evil'    : 'злая',
+    'good'    : 'добра',
+    'neutral' : 'нейтральна',
+    'evil'    : 'зла',
 }
 
 YANDEX_SPEAKER = {
     'jane'  : 'Джейн',
     'oksana': 'Оксана',
-    'alyss' : 'Алиса',
+    'alyss' : 'Аліса',
     'omazh' : 'Омар',  # я это не выговорю
     'zahar' : 'Захар',
     'ermil' : 'Саня'  # и это
 }
 
 RHVOICE_SPEAKER = {
-    'anna'     : 'Аня',
-    'aleksandr': 'Александр',
-    'elena'    : 'Елена',
-    'irina'    : 'Ирина'
+    'anna' : 'Аня',
+    'anatol': 'Анатол',
+    'natalia': 'Наталя'
 }
 
 AWS_SPEAKER = {
-    'Tatyana': 'Татьяна',
+    'Tatyana': 'Тетяна',
     'Maxim': 'Максим',
 }
 
 DEFAULT_SPEAKERS = {
     'yandex': 'alyss',
-    'rhvoice': 'anna',
+    'rhvoice': 'natalia',
     'aws': 'Tatyana'
 }

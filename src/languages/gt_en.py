@@ -1,6 +1,7 @@
 LANG_CODE = {
     'IETF': 'en-US',
-    'ISO': 'en'
+    'ISO': 'en',
+    'aws': 'en-US',
 }
 
 CONFIG = {
