@@ -9,7 +9,7 @@ import time
 import languages
 import logger
 import utils
-from languages import CONFIG as LNG
+from languages import CONFIG as LNG, LANG_CODE
 from lib import volume
 from lib import yandex_utils
 from lib.proxy import proxies
@@ -48,9 +48,22 @@ class ConfigHandler(dict):
 
     def _aws_credentials(self):
         return (
-            (self.gt('aws', 'access_key_id'),   self.gt('aws', 'secret_access_key'), self.gt('aws', 'region')),
+            (self.gt('aws', 'access_key_id'), self.gt('aws', 'secret_access_key'), self.gt('aws', 'region')),
             self.gt('aws', 'boto3')
         )
+
+    @staticmethod
+    def language_name() -> str:
+        return languages.set_lang.language_name
+
+    @staticmethod
+    def tts_lang(provider: str) -> str:
+        if provider == 'google':
+            return LANG_CODE['ISO']
+        elif provider == 'aws':
+            return LANG_CODE['aws']
+        else:
+            return LANG_CODE['IETF']
 
     def yandex_api(self, prov):
         if prov == 'yandex':
@@ -373,15 +386,18 @@ class ConfigHandler(dict):
 class ConfigUpdater:
     SETTINGS = 'settings'
     PROVIDERS_KEYS = ('providertts', 'providerstt')
-    NOT_LOWER = {'apikeytts', 'apikeystt'}
-    # Автоматически переносим ключи в подсекции из settings.
-    # Ключ: (новая секция, новое имя ключа)
-    KEY_MOVE = {
+    # Не переводим значение ключей в нижний регистр даже если они от сервера
+    NOT_LOWER = {
+        'apikeytts', 'apikeystt',
+        'speaker',
+        'access_key_id', 'secret_access_key',
+        'object_name', 'object_method', 'terminal', 'username', 'password'
+    }
+    # Автоматически переносим ключи от сервера в подсекции из settings.
+    # Ключ: (новая секция, новое имя ключа (пустое - без изменений))
+    KEY_FROM_SERVER_MOVE = {
         'ip_server': ('majordomo', 'ip'),
         'linkedroom': ('majordomo', ''),
-    }
-    # Только то что приходит от сервера
-    KEY_FROM_SERVER_MOVE = {
         'token': ('snowboy', ''),
         'clear_models': ('snowboy', ''),
     }
@@ -495,7 +511,7 @@ class ConfigUpdater:
             return
         data = cfg[self.SETTINGS]
         for key in [x for x in data.keys() if isinstance(x, str)]:
-            for mover in (self._api_key_move, self._key_move, self._key_move_server):
+            for mover in (self._api_key_move, self._key_move_server):
                 if key not in data:  # элемент мог быть удален мовером
                     break
                 mover(data, key, data[key], cfg)
@@ -514,10 +530,6 @@ class ConfigUpdater:
                     self._save_me = True
                 # Удаляем api-ключ из settings
                 data.pop(api_key)
-
-    def _key_move(self, data: dict, key: str, val, cfg: dict):
-        if self._source:
-            self._key_move_from(data, key, val, self.KEY_MOVE, cfg)
 
     def _key_move_server(self, data: dict, key: str, val, cfg: dict):
         if self._source == 2:

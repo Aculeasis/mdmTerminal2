@@ -52,6 +52,10 @@ class _LangSetter:
         self._load_error(DEFAULT_LANG, self.__call__(DEFAULT_LANG))
 
     @property
+    def language_name(self):
+        return self._lang
+
+    @property
     def load_time(self):
         try:
             return self._load_time

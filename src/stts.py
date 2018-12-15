@@ -134,12 +134,6 @@ class _TTSWorker(threading.Thread):
             sets = utils.rhvoice_rest_sets(self.cfg[prov]) if prov == 'rhvoice-rest' else {}
             try:
                 key = self.cfg.key(prov, 'apikeytts')
-                if prov == 'google':
-                    lang = LANG_CODE['ISO']
-                elif prov == 'aws':
-                    lang = LANG_CODE['aws']
-                else:
-                    lang = LANG_CODE['IETF']
                 tts = TTS.GetTTS(
                     prov,
                     text=msg,
@@ -147,7 +141,7 @@ class _TTSWorker(threading.Thread):
                     speaker=self.cfg.gt(prov, 'speaker'),
                     audio_format=format_,
                     key=key,
-                    lang=lang,
+                    lang=self.cfg.tts_lang(),
                     emotion=self.cfg.gt(prov, 'emotion'),
                     url=self.cfg.gt(prov, 'server'),
                     sets=sets,
@@ -474,7 +468,7 @@ class NonBlockListener:
 
 class Phrases:
     def __init__(self, log, cfg):
-        name = 'phrases_{}'.format(LANG_CODE['ISO'])
+        name = 'phrases_{}'.format(cfg.language_name())
         self._phrases = cfg.load_dict(name)
         try:
             utils.check_phrases(self._phrases)
