@@ -141,7 +141,7 @@ class _TTSWorker(threading.Thread):
                     speaker=self.cfg.gt(prov, 'speaker'),
                     audio_format=format_,
                     key=key,
-                    lang=self.cfg.tts_lang(),
+                    lang=self.cfg.tts_lang(prov),
                     emotion=self.cfg.gt(prov, 'emotion'),
                     url=self.cfg.gt(prov, 'server'),
                     sets=sets,
