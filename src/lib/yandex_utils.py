@@ -5,8 +5,9 @@ import time
 
 import requests
 
-from utils import REQUEST_ERRORS, UnknownValueError
+from utils import REQUEST_ERRORS
 from .proxy import proxies
+from .sr_wrapper import UnknownValueError
 
 
 class Keystore:

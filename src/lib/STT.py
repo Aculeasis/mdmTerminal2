@@ -5,15 +5,14 @@ import time
 from io import BytesIO
 
 import requests
-from speech_recognition import AudioData
 
 import lib.streaming_converter as streaming_converter
-from utils import REQUEST_ERRORS, UnknownValueError
+from utils import REQUEST_ERRORS
 from .proxy import proxies
-from .sr_wrapper import google_reply_parser
+from .sr_wrapper import google_reply_parser, UnknownValueError, Recognizer, AudioData, StreamRecognition, RequestError
 from .yandex_utils import requests_post, xml_yandex
 
-__all__ = ['Yandex', 'YandexCloud', 'Google', 'PocketSphinxREST']
+__all__ = ['support', 'GetSTT', 'RequestError']
 
 
 class BaseSTT:
@@ -77,7 +76,7 @@ class BaseSTT:
 class Google(BaseSTT):
     URL = 'http://www.google.com/speech-api/v2/recognize'
 
-    def __init__(self, audio_data: AudioData, key=None, lang='ru-RU'):
+    def __init__(self, audio_data: AudioData, key=None, lang='ru-RU', **_):
         ext = 'flac'
         rate = 16000
         width = 2
@@ -97,7 +96,7 @@ class Yandex(BaseSTT):
     # https://tech.yandex.ru/speechkit/cloud/doc/guide/common/speechkit-common-asr-http-request-docpage/
     URL = 'https://asr.yandex.net/asr_xml'
 
-    def __init__(self, audio_data: AudioData, key, lang='ru-RU'):
+    def __init__(self, audio_data: AudioData, key, lang='ru-RU', **_):
         if not key:
             raise RuntimeError('API-Key unset')
         ext = 'pcm'
@@ -121,7 +120,7 @@ class YandexCloud(BaseSTT):
     # https://cloud.yandex.ru/docs/speechkit/stt/request
     URL = 'https://stt.api.cloud.yandex.net/speech/v1/stt:recognize'
 
-    def __init__(self, audio_data: AudioData, key, lang='ru-RU'):
+    def __init__(self, audio_data: AudioData, key, lang='ru-RU', **_):
         if not isinstance(key, (tuple, list)) or len(key) < 2:
             raise RuntimeError('Wrong Yandex APIv2 key')
         ext = 'opus'
@@ -154,7 +153,7 @@ class YandexCloud(BaseSTT):
 
 class PocketSphinxREST(BaseSTT):
     # https://github.com/Aculeasis/pocketsphinx-rest
-    def __init__(self, audio_data: AudioData, url='http://127.0.0.1:8085'):
+    def __init__(self, audio_data: AudioData, url='http://127.0.0.1:8085', **_):
         url = '{}/stt'.format(url)
         super().__init__(url, audio_data, 'wav', {'Content-Type': 'audio/wav'}, 16000, 2, 'stt_pocketsphinx-rest')
 
@@ -167,3 +166,42 @@ class PocketSphinxREST(BaseSTT):
         if 'code' not in result or 'text' not in result or result['code']:
             raise RuntimeError('Response error: {}: {}'.format(result.get('code', 'None'), result.get('text', 'None')))
         self._text = result['text']
+
+
+def wit_ai(audio_data, key, **_):
+    sr = Recognizer()
+    if isinstance(audio_data, StreamRecognition):
+        audio_data = audio_data.get_audio_data()
+    return sr.recognize_wit(audio_data, key)
+
+
+def microsoft(audio_data, key, lang, **_):
+    sr = Recognizer()
+    if isinstance(audio_data, StreamRecognition):
+        audio_data = audio_data.get_audio_data()
+    return sr.recognize_bing(audio_data, key, lang)
+
+
+def yandex(yandex_api, **kwargs):
+    if yandex_api == 2:
+        return YandexCloud(**kwargs)
+    else:
+        return Yandex(**kwargs)
+
+
+PROVIDERS = {
+    'google': Google, 'yandex': yandex, 'pocketsphinx-rest': PocketSphinxREST, 'wit.ai': wit_ai, 'microsoft': microsoft
+}
+
+
+def support(name):
+    return name in PROVIDERS
+
+
+def GetSTT(name, **kwargs):
+    if not support(name):
+        raise RuntimeError('STT {} not found'.format(name))
+    if name in {'wit.ai', 'microsoft'}:
+        return PROVIDERS[name](**kwargs)
+    else:
+        return PROVIDERS[name](**kwargs).text()

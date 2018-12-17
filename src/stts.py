@@ -180,7 +180,6 @@ class SpeechToText:
         self._lock = threading.Lock()
         self._work = True
         self.energy = utils.EnergyControl(cfg, owner.noising)
-        self._recognizer = sr.Recognizer()
         try:
             self.max_mic_index = len(sr.Microphone().list_microphone_names()) - 1
         except OSError as e:
@@ -375,43 +374,32 @@ class SpeechToText:
             return None
 
     def voice_recognition(self, audio, quiet: bool=False, fusion=None) -> str:
-        prov = self._cfg.gts('providerstt', 'google')
+        prov = self._cfg.gts('providerstt', 'unset')
+        if not STT.support(prov):
+            self.log(LNG['err_unknown_prov'].format(prov), logger.CRIT)
+            return ''
         self.log(LNG['recognized_from'].format(prov), logger.DEBUG)
         wtime = time.time()
         try:
-            key = self._cfg.key(prov, 'apikeystt')
-            lang = LANG_CODE['IETF']
-            if prov == 'google':
-                command = STT.Google(audio, lang=lang).text()
-            elif prov == 'wit.ai':
-                command = self._recognizer.recognize_wit(audio, key=key)
-            elif prov == 'microsoft':
-                command = self._recognizer.recognize_bing(audio, key=key, language=lang)
-            elif prov == 'pocketsphinx-rest':
-                command = STT.PocketSphinxREST(
-                    audio_data=audio,
-                    url=self._cfg.gt(prov, 'server', 'http://127.0.0.1:8085')
-                ).text()
-            elif prov == 'yandex':
-                if self._cfg.yandex_api(prov) == 2:
-                    command = STT.YandexCloud(audio_data=audio, key=key, lang=lang).text()
-                else:
-                    command = STT.Yandex(audio_data=audio, key=key, lang=lang).text()
-            else:
-                self.log(LNG['err_unknown_prov'].format(prov), logger.CRIT)
-                return ''
-        except (sr.UnknownValueError, STT.UnknownValueError):
-            return ''
-        except (sr.RequestError, RuntimeError) as e:
+            command = STT.GetSTT(
+                prov,
+                audio_data=audio,
+                key=self._cfg.key(prov, 'apikeystt'),
+                lang=LANG_CODE['IETF'],
+                url=self._cfg.gt(prov, 'server'),
+                yandex_api=self._cfg.yandex_api(prov)
+            )
+        except STT.UnknownValueError:
+            command = ''
+        except (STT.RequestError, RuntimeError) as e:
             if not quiet:
                 self.own.say(LNG['err_stt_say'])
             self.log(LNG['err_stt_log'].format(e), logger.ERROR)
             return ''
-        else:
-            if fusion:
-                wtime = fusion()
-            self.log(LNG['recognized_for'].format(utils.pretty_time(time.time() - wtime)), logger.DEBUG)
-            return command or ''
+        if fusion:
+            wtime = fusion()
+        self.log(LNG['recognized_for'].format(utils.pretty_time(time.time() - wtime)), logger.DEBUG)
+        return command or ''
 
     def phrase_from_files(self, files: list):
         if not files:

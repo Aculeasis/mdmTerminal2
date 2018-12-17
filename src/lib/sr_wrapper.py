@@ -87,13 +87,6 @@ class Recognizer(speech_recognition.Recognizer):
     def __exit__(self, exc_type, exc_value, traceback):
         pass
 
-    def recognize_google(self, audio_data, key=None, language="en-US", show_all=False):
-        proxies.monkey_patching_enable('stt_google')
-        try:
-            return super().recognize_google(audio_data, key, language, show_all)
-        finally:
-            proxies.monkey_patching_disable()
-
     def recognize_wit(self, audio_data, key, show_all=False):
         proxies.monkey_patching_enable('stt_wit.ai')
         try:
@@ -469,6 +462,14 @@ class StreamRecognition(threading.Thread):
             self._text = self._voice_recognition(self, True, self._time)
         finally:
             self._block.set()
+
+    def get_audio_data(self):
+        frames = collections.deque()
+        chunk = True
+        while chunk:
+            chunk = self.read()
+            frames.append(chunk)
+        return AudioData(frame_data=b''.join(frames), sample_rate=self.sample_rate, sample_width=self.sample_width)
 
 
 class TimeFusion:
