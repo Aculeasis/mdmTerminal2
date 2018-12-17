@@ -1,5 +1,7 @@
 
+import hashlib
 import subprocess
+import time
 from shlex import quote
 
 import requests
@@ -159,6 +161,41 @@ class AWS(BaseTTS):
         self._data = self._rq.iter_content
 
 
+class Azure(AWS):
+    # https://docs.microsoft.com/en-us/azure/cognitive-services/Speech-Service/rest-apis
+    URL = 'https://{}.tts.speech.microsoft.com/cognitiveservices/v1'
+    MAX_CHARS = 1000
+
+    # noinspection PyMissingConstructor
+    def __init__(self, text, buff_size, speaker, key, lang, *_, **__):
+        if len(key) != 2:
+            raise RuntimeError('Wrong key')
+
+        self._data = None
+        self._rq = None
+        self._body = [
+            "<speak version='1.0' xml:lang='{lang}'><voice xml:lang='{lang}'"
+            "    name='Microsoft Server Speech Text to Speech Voice ({lang}, {speaker})'>",
+            "        {text}",
+            "</voice></speak>"
+        ]
+        self._body = '\n'.join(self._body).format(lang=lang, speaker=speaker, text=text).encode()
+        self._headers = {
+            'X-Microsoft-OutputFormat': 'audio-24khz-160kbitrate-mono-mp3',
+            'Content-Type': 'application/ssml+xml',
+            'Authorization': 'Bearer {}'.format(key[0]),
+            'User-Agent': hashlib.sha1(str(time.time()).encode()).hexdigest()[:32]
+        }
+        self._url = self.URL.format(key[1])
+        self._buff_size = buff_size
+
+        if len(self._body) >= self.MAX_CHARS:
+            raise RuntimeError('Number of characters must be less than {}'.format(self.MAX_CHARS))
+
+        self._request('tts_azure')
+        self._reply_check()
+
+
 class RHVoiceREST(BaseTTS):
     def __init__(self, text, buff_size, speaker, audio_format, url, sets, *_, **__):
         super().__init__('{}/say'.format(url or 'http://127.0.0.1:8080'), 'tts_rhvoice-rest', buff_size=buff_size,
@@ -214,7 +251,9 @@ def yandex(yandex_api, **kwargs):
         return Yandex(**kwargs)
 
 
-PROVIDERS = {'google': Google, 'yandex': yandex, 'aws': aws, 'rhvoice-rest': RHVoiceREST, 'rhvoice': RHVoice}
+PROVIDERS = {
+    'google': Google, 'yandex': yandex, 'aws': aws, 'azure': Azure, 'rhvoice-rest': RHVoiceREST, 'rhvoice': RHVoice
+}
 
 
 def support(name):

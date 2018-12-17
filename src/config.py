@@ -11,7 +11,7 @@ import logger
 import utils
 from languages import CONFIG as LNG, LANG_CODE
 from lib import volume
-from lib import yandex_utils
+from lib import keys_utils
 from lib.proxy import proxies
 from owner import Owner
 
@@ -27,7 +27,7 @@ class ConfigHandler(dict):
         self._to_tts = []  # Пока player нет храним фразы тут.
         self._to_log = []  # А тут принты в лог
         self._config_init()
-        self._yandex_keys = yandex_utils.Keystore()
+        self._keystore = keys_utils.Keystore()
 
     def __print(self, msg, lvl):
         self._to_log.append((msg, lvl))
@@ -36,12 +36,14 @@ class ConfigHandler(dict):
         if prov == 'aws':
             return self._aws_credentials()
         key_ = self.gt(prov, api_key)
+        if prov == 'azure':
+            return self._keystore.azure(key_, self.gt('azure', 'region'))
         api = self.yandex_api(prov)
         if api == 2 or (prov == 'yandex' and not key_):
             # Будем брать ключ у транслита для старой версии
             # и (folderId, aim) для новой через oauth
             try:
-                key_ = self._yandex_keys.get(key_, api)
+                key_ = self._keystore.yandex(key_, api)
             except RuntimeError as e:
                 raise RuntimeError(LNG['err_ya_key'].format(e))
         return key_
@@ -389,7 +391,7 @@ class ConfigUpdater:
     # Не переводим значение ключей в нижний регистр даже если они от сервера
     NOT_LOWER = {
         'apikeytts', 'apikeystt',
-        'speaker',
+        'speaker', 'gender',
         'access_key_id', 'secret_access_key',
         'object_name', 'object_method', 'terminal', 'username', 'password'
     }

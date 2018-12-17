@@ -88,6 +88,10 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
     'pocketsphinx-rest': {
         'server': 'http://127.0.0.1:8085',
     },
+    'azure': {
+        'speaker': 'EkaterinaRUS',
+        'region': 'westus',
+    },
     'cache': {
         'tts_priority': 'yandex',
         'tts_size': 100,
@@ -121,7 +125,7 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'line_out': '',
     },
     'system': {
-        'ini_version': 13,
+        'ini_version': 14,
     }
 }
 

@@ -12,13 +12,16 @@ PROXIES = {
     'tts_yandex': ('yandex_tts', 'yandex'),
     'tts_aws': ('aws',),
     'tts_rhvoice-rest': ('rhvoice-rest',),
+    'tts_azure': ('azure_tts', 'azure'),
     'stt_google': ('google_stt', 'google'),
     'stt_yandex': ('yandex_stt', 'yandex'),
     'stt_pocketsphinx-rest': ('pocketsphinx-rest',),
     'stt_wit.ai': ('wit.ai',),
     'stt_microsoft': ('microsoft',),
+    'stt_azure': ('azure_stt', 'azure'),
     'token_google': ('google_token', 'google_tts', 'google'),
     'key_yandex': ('yandex_token', 'yandex'),
+    'token_azure': ('azure_token', 'azure'),
     'snowboy_training': ('snowboy',),
 }
 PARAMS = frozenset(['enable'] + [_val_ for _key_ in PROXIES for _val_ in PROXIES[_key_]])

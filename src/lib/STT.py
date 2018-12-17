@@ -10,7 +10,7 @@ import lib.streaming_converter as streaming_converter
 from utils import REQUEST_ERRORS
 from .proxy import proxies
 from .sr_wrapper import google_reply_parser, UnknownValueError, Recognizer, AudioData, StreamRecognition, RequestError
-from .yandex_utils import requests_post, xml_yandex
+from .keys_utils import requests_post, xml_yandex
 
 __all__ = ['support', 'GetSTT', 'RequestError']
 
@@ -176,6 +176,51 @@ class WitAI(BaseSTT):
             raise UnknownValueError(e)
 
 
+class Azure(BaseSTT):
+    # https://docs.microsoft.com/en-us/azure/cognitive-services/Speech-Service/rest-apis
+    URL = 'https://{}.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1'
+
+    def __init__(self, audio_data, key, lang, **_):
+        if len(key) != 2:
+            raise RuntimeError('Wrong key')
+
+        ext = 'wav'
+        rate = 16000
+        width = 2
+        url = self.URL.format(key[1])
+        headers = {
+            'Authorization': 'Bearer {}'.format(key[0]),
+            'Content-type': 'audio/{}; codec=audio/pcm; samplerate={}'.format(ext, rate),
+            'Accept': 'application/json'
+        }
+        kwargs = {
+            'language': lang,
+            'format': 'simple',
+            'profanity': 'raw',
+        }
+        super().__init__(url, audio_data, ext, headers, rate, width, 'stt_azure', **kwargs)
+
+    def _parse_response(self):
+        try:
+            result = json.loads(self._rq.text)
+            if not isinstance(result, dict):
+                result = {}
+        except (json.JSONDecodeError, ValueError) as e:
+            raise RuntimeError(e)
+
+        status = result.get('RecognitionStatus')
+        text = result.get('DisplayText')
+        if status is None:
+            raise RuntimeError('Wrong reply - \'RecognitionStatus\' missing')
+        if status == 'NoMatch':
+            raise UnknownValueError()
+        if status != 'Success':
+            raise RuntimeError('Recognition error: {}'.format(status))
+        if text is None:
+            raise RuntimeError('Wrong reply - \'DisplayText\' missing')
+        self._text = text
+
+
 class PocketSphinxREST(BaseSTT):
     # https://github.com/Aculeasis/pocketsphinx-rest
     def __init__(self, audio_data: AudioData, url='http://127.0.0.1:8085', **_):
@@ -208,7 +253,8 @@ def yandex(yandex_api, **kwargs):
 
 
 PROVIDERS = {
-    'google': Google, 'yandex': yandex, 'pocketsphinx-rest': PocketSphinxREST, 'wit.ai': WitAI, 'microsoft': microsoft
+    'google': Google, 'yandex': yandex, 'pocketsphinx-rest': PocketSphinxREST, 'wit.ai': WitAI, 'microsoft': microsoft,
+    'azure': Azure
 }
 
 
