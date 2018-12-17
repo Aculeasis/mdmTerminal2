@@ -391,7 +391,7 @@ class ConfigUpdater:
     # Не переводим значение ключей в нижний регистр даже если они от сервера
     NOT_LOWER = {
         'apikeytts', 'apikeystt',
-        'speaker', 'gender',
+        'speaker',
         'access_key_id', 'secret_access_key',
         'object_name', 'object_method', 'terminal', 'username', 'password'
     }
