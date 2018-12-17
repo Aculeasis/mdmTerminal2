@@ -140,9 +140,7 @@ class ConfigHandler(dict):
 
     def _cfg_check(self, to_save=False):
         for key in ['providerstt', 'providerstt']:
-            val = self.gts(key)
-            if val is not None:
-                to_save |= self._cfg_dict_checker(val)
+            to_save |= self._cfg_dict_checker(self.gts(key))
         to_save |= self._log_file_init()
         to_save |= self._tts_cache_path_check()
         to_save |= self._init_volume()
@@ -448,15 +446,55 @@ class ConfigUpdater:
         except (json.decoder.JSONDecodeError, TypeError, AttributeError) as err:
             self._log(LNG['wrong_json'].format(data, err), logger.ERROR)
             return
-        self._parser(self._dict_normalization(data))
+        self._parser(self._voice_assistant_mapping(data))
 
-    def _dict_normalization(self, data: dict) -> dict:
+    def _voice_assistant_mapping(self, data: dict) -> dict:
+        """
+        Преобразуем [section_key] в [section][key], только если секция существует в основном конфиге.
+        Также перемешаем все ключи без секции в settings.
+        """
+        # Если [settings] существует, он должен быть словарем
+        if not isinstance(data.get(self.SETTINGS, {}), dict):
+            del data[self.SETTINGS]
+
+        # Странные параметры
+        # volume_line_out определяется автоматически, а в ассистенте его даже не настроить.
+        for key in ('id', 'version', 'id_terminal', 'volume_line_out'):
+            data.pop(key, None)
+        remove_this = []
+        # Все существующие секции
+        sections = {key for key in self._cfg if isinstance(self._cfg[key], dict)}
+        for key in [key for key in data if isinstance(key, str) and not isinstance(data[key], dict)]:
+            try:
+                section, new_key = key.split('_', 1)
+            except ValueError:
+                continue
+            if not new_key or not section or section not in sections:
+                continue
+            if not isinstance(data.get(section, {}), dict):
+                self._log('Conflict found, section and key name match: \'{}\''.format(section), logger.ERROR)
+                continue
+
+            remove_this.append(key)
+            if data[key] is None:
+                self._log('Ignore \'NoneType\'. Key: {}'.format(key), logger.WARN)
+                continue
+
+            data[section] = data.get(section, {})
+            data[section][new_key] = data[key]
+
+            # Удаляем конфликтный мусор
+            if new_key in data:
+                remove_this.append(new_key)
+
+        for key in remove_this:
+            data.pop(key, None)
+
+        # Перемещаем ключи в settings
         settings = {key: data.pop(key) for key in [x for x in data.keys()] if not isinstance(data[key], dict)}
         if settings:
-            if self.SETTINGS not in data:
-                data[self.SETTINGS] = settings
-            else:
-                data[self.SETTINGS].update(settings)
+            data[self.SETTINGS] = data.get(self.SETTINGS, {})
+            data[self.SETTINGS].update(settings)
         return data
 
     def _parser(self, data: dict):
@@ -522,6 +560,8 @@ class ConfigUpdater:
         key = key.lower()
         if isinstance(val, str) and key in self.PROVIDERS_KEYS:
             val = val.lower()
+            if not val:
+                val = 'unset'
             api_key = 'apikey{}'.format(key[-3:])  # apikeytts or apikeystt
             if api_key in data:
                 if cfg.get(val, {}).get(api_key) != data[api_key]:
