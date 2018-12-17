@@ -151,6 +151,31 @@ class YandexCloud(BaseSTT):
         pass
 
 
+class WitAI(BaseSTT):
+    # https://wit.ai/docs/http/20170307#post__speech_link
+    URL = 'https://api.wit.ai/speech'
+
+    def __init__(self, audio_data, key, **_):
+        ext = 'wav'
+        rate = 16000
+        width = 2
+        headers = {
+            'Authorization': 'Bearer {}'.format(key),
+            'Content-Type': 'audio/wav'
+        }
+        # API version
+        kwargs = {'v': '20170307'}
+        super().__init__(self.URL, audio_data, ext, headers, rate, width, 'stt_wit.ai', **kwargs)
+
+    def _parse_response(self):
+        try:
+            self._text = json.loads(self._rq.text)['_text']
+        except (json.JSONDecodeError, ValueError) as e:
+            raise RuntimeError(e)
+        except KeyError as e:
+            raise UnknownValueError(e)
+
+
 class PocketSphinxREST(BaseSTT):
     # https://github.com/Aculeasis/pocketsphinx-rest
     def __init__(self, audio_data: AudioData, url='http://127.0.0.1:8085', **_):
@@ -168,13 +193,6 @@ class PocketSphinxREST(BaseSTT):
         self._text = result['text']
 
 
-def wit_ai(audio_data, key, **_):
-    sr = Recognizer()
-    if isinstance(audio_data, StreamRecognition):
-        audio_data = audio_data.get_audio_data()
-    return sr.recognize_wit(audio_data, key)
-
-
 def microsoft(audio_data, key, lang, **_):
     sr = Recognizer()
     if isinstance(audio_data, StreamRecognition):
@@ -190,7 +208,7 @@ def yandex(yandex_api, **kwargs):
 
 
 PROVIDERS = {
-    'google': Google, 'yandex': yandex, 'pocketsphinx-rest': PocketSphinxREST, 'wit.ai': wit_ai, 'microsoft': microsoft
+    'google': Google, 'yandex': yandex, 'pocketsphinx-rest': PocketSphinxREST, 'wit.ai': WitAI, 'microsoft': microsoft
 }
 
 
@@ -201,7 +219,7 @@ def support(name):
 def GetSTT(name, **kwargs):
     if not support(name):
         raise RuntimeError('STT {} not found'.format(name))
-    if name in {'wit.ai', 'microsoft'}:
+    if name == 'microsoft':
         return PROVIDERS[name](**kwargs)
     else:
         return PROVIDERS[name](**kwargs).text()

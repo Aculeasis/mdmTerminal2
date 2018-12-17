@@ -87,13 +87,6 @@ class Recognizer(speech_recognition.Recognizer):
     def __exit__(self, exc_type, exc_value, traceback):
         pass
 
-    def recognize_wit(self, audio_data, key, show_all=False):
-        proxies.monkey_patching_enable('stt_wit.ai')
-        try:
-            return super().recognize_wit(audio_data, key, show_all)
-        finally:
-            proxies.monkey_patching_disable()
-
     def recognize_bing(self, audio_data, key, language="en-US", show_all=False):
         proxies.monkey_patching_enable('stt_microsoft')
         try:
