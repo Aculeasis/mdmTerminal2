@@ -1,4 +1,5 @@
 from lib.volume import get_volume
+from utils import state_cache
 
 
 class Owner:
@@ -34,6 +35,7 @@ class Owner:
     def really_busy(self) -> bool:
         return self._play.really_busy()
 
+    @state_cache(interval=0.008)
     def noising(self) -> bool:
         return self._play.noising()
 
