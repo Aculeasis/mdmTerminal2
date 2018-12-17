@@ -22,100 +22,104 @@ from owner import Owner
 
 class TextToSpeech:
     def __init__(self, cfg, log):
-        self.log = log
+        self._log = log
         self._cfg = cfg
 
     def tts(self, msg, realtime: bool = True):
-        worker = _TTSWorker(self._cfg, self.log, msg, realtime)
-        if not self._cfg.get('optimistic_nonblock_tts'):
-            worker.event.wait(600)
-        return worker.get
+        return _TTSWorker(self._cfg, self._log, msg, realtime).get
 
 
 class _TTSWorker(threading.Thread):
-    PROVIDERS = frozenset({'google', 'yandex', 'rhvoice-rest', 'rhvoice', 'aws'})
+    WAIT = 600
 
     def __init__(self, cfg, log, msg, realtime):
-        super().__init__()
+        super().__init__(name='TTSWorker')
         self.cfg = cfg
         self.log = log
-        self.msg = msg if isinstance(msg, str) else str(msg)
-        self.realtime = realtime
-        self.file_path = None
-        self._stream = None
-        self._ext = None
-        self.event = threading.Event()
-        self.work_time = None
+        self._msg = msg if isinstance(msg, str) else str(msg)
+        self._realtime = realtime
+        self._event = threading.Event()
         self._buff_size = 1024
-        self.start_time = time.time()
+
+        self._file_path, self._stream, self._ext = None, None, None
+
+        self._work_time = None
+        self._start_time = time.time()
         self.start()
 
+        if not self.cfg.get('optimistic_nonblock_tts'):
+            self._wait()
+
     def get(self):
-        self.event.wait(600)
+        self._wait()
         self._unlock()
-        return self.file_path, self._stream, self._ext
+        return self._file_path, self._stream, self._ext
 
     def run(self):
-        wtime = time.time()
-        sha1 = hashlib.sha1(self.msg.encode()).hexdigest()
-        provider = self.cfg.gts('providertts', 'google')
+        provider = self.cfg.gts('providertts')
+        if not TTS.support(provider):
+            self.log(LNG['unknown_prov'].format(provider), logger.CRIT)
+            self._file_path = self.cfg.path['tts_error']
+            return self._unlock()
+        msg = LNG['for_time'].format(*self._generating(provider), self._file_path)
+        self.log(msg, logger.DEBUG if self._realtime else logger.INFO)
+
+    def _generating(self, provider):
+        sha1 = hashlib.sha1(self._msg.encode()).hexdigest()
         ext = 'mp3' if self.cfg.yandex_api(provider) != 2 else 'opus'
         find_part = ''.join(('_', sha1, '.'))
         rname = find_part + ext
-        if self.realtime:
-            self.log('say \'{}\''.format(self.msg), logger.INFO)
-            msg_gen = ''
-        else:
-            msg_gen = '\'{}\' '.format(self.msg)
-        use_cache = self.cfg['cache'].get('tts_size', 50) > 0
+        use_cache = self.cfg.gt('cache', 'tts_size', 50) > 0
+        msg_gen = '\'{}\' '.format(self._msg)
 
-        self.file_path = self._find_in_cache(provider, find_part, ext) if use_cache else None
-        if self.file_path:
+        if self._realtime:
+            self.log('say {}'.format(msg_gen), logger.INFO)
+            msg_gen = ''
+
+        if use_cache and self._found_in_cache(provider, find_part, ext):
             self._unlock()
-            work_time = time.time() - wtime
+            work_time = time.time() - self._start_time
             action = LNG['action_cache'].format(msg_gen)
             time_diff = ''
         else:
             if not use_cache and provider in ('rhvoice-rest', 'rhvoice'):
-                format_ = 'wav'
-                self._buff_size = 1024 * 4
-            else:
-                format_ = ext
-            self.file_path = os.path.join(self.cfg.gt('cache', 'path'), provider + rname) if use_cache else \
-                '<{}><{}>'.format(sha1, format_)
-            self._tts_gen(self.file_path if use_cache else None, format_, self.msg)
+                ext = 'wav'
+                self._buff_size *= 4
+            self._file_path = os.path.join(self.cfg.gt('cache', 'path'), provider + rname) if use_cache else \
+                '<{}><{}>'.format(sha1, ext)
+            self._tts_gen(provider, self._file_path if use_cache else None, ext, self._msg)
             self._unlock()
-            work_time = time.time() - wtime
+            work_time = time.time() - self._start_time
             action = LNG['action_gen'].format(msg_gen, provider)
-            reply = utils.pretty_time(self.work_time) if self.work_time is not None else 'NaN'
-            diff = utils.pretty_time(work_time - self.work_time) if self.work_time is not None else 'NaN'
+            reply = utils.pretty_time(self._work_time)
+            diff = utils.pretty_time(work_time - self._work_time)
             time_diff = ' [reply:{}, diff:{}]'.format(reply, diff)
-        self.log(
-            LNG['for_time'].format(action, utils.pretty_time(work_time), time_diff, self.file_path),
-            logger.DEBUG if self.realtime else logger.INFO
-        )
+        return action, utils.pretty_time(work_time), time_diff
 
     def _unlock(self):
-        if self.work_time is None:
-            self.work_time = time.time() - self.start_time
-        self.event.set()
+        if self._work_time is None:
+            self._work_time = time.time() - self._start_time
+        self._event.set()
 
-    def _find_in_cache(self, prov: str, rname: str, ext: str):
-        prov_priority = self.cfg['cache'].get('tts_priority', '')
-        file = None
-        if prov_priority in self.PROVIDERS:  # Приоритет
-            file = self._file_check(prov_priority, rname, ext)
+    def _wait(self):
+        self._event.wait(self.WAIT)
 
-        if not file and prov_priority != prov:  # Обычная, второй раз не чекаем
-            file = self._file_check(prov, rname, ext)
+    def _found_in_cache(self, prov: str, rname: str, ext: str):
+        prov_priority = self.cfg.gt('cache', 'tts_priority', '')
+        self._file_path = None
+        if TTS.support(prov_priority):  # Приоритет
+            self._file_path = self._file_check(prov_priority, rname, ext)
 
-        if not file and prov_priority == '*':  # Ищем всех
-            for key in self.PROVIDERS:
+        if not self._file_path and prov_priority != prov:  # Обычная, второй раз не чекаем
+            self._file_path = self._file_check(prov, rname, ext)
+
+        if not self._file_path and prov_priority == '*':  # Ищем всех
+            for key in TTS.PROVIDERS:
                 if key != prov:
-                    file = self._file_check(key, rname, ext)
-                if file:
+                    self._file_path = self._file_check(key, rname, ext)
+                if self._file_path:
                     break
-        return file
+        return self._file_path
 
     def _file_check(self, prov, rname, ext):
         if prov == 'yandex':
@@ -123,38 +127,33 @@ class _TTSWorker(threading.Thread):
                 file = os.path.join(self.cfg.gt('cache', 'path'), prov + rname + ext_)
                 if os.path.isfile(file):
                     return file
-            return ''
+            return None
         file = os.path.join(self.cfg.gt('cache', 'path'), prov + rname + ext)
-        return file if os.path.isfile(file) else ''
+        return file if os.path.isfile(file) else None
 
-    def _tts_gen(self, file, format_, msg: str):
-        prov = self.cfg.gts('providertts', 'unset')
+    def _tts_gen(self, provider, file, format_, msg: str):
         key = None
-        if TTS.support(prov):
-            sets = utils.rhvoice_rest_sets(self.cfg[prov]) if prov == 'rhvoice-rest' else {}
-            try:
-                key = self.cfg.key(prov, 'apikeytts')
-                tts = TTS.GetTTS(
-                    prov,
-                    text=msg,
-                    buff_size=self._buff_size,
-                    speaker=self.cfg.gt(prov, 'speaker'),
-                    audio_format=format_,
-                    key=key,
-                    lang=self.cfg.tts_lang(prov),
-                    emotion=self.cfg.gt(prov, 'emotion'),
-                    url=self.cfg.gt(prov, 'server'),
-                    sets=sets,
-                    yandex_api=self.cfg.yandex_api(prov)
-                )
-            except(RuntimeError, TTS.gTTSError, ValueError) as e:
-                self._synthesis_error(prov, key, e)
-                self.file_path = self.cfg.path['tts_error']
-                return
-        else:
-            self.log(LNG['unknown_prov'].format(prov), logger.CRIT)
-            self.file_path = self.cfg.path['tts_error']
+        sets = utils.rhvoice_rest_sets(self.cfg[provider]) if provider == 'rhvoice-rest' else {}
+        try:
+            key = self.cfg.key(provider, 'apikeytts')
+            tts = TTS.GetTTS(
+                provider,
+                text=msg,
+                buff_size=self._buff_size,
+                speaker=self.cfg.gt(provider, 'speaker'),
+                audio_format=format_,
+                key=key,
+                lang=self.cfg.tts_lang(provider),
+                emotion=self.cfg.gt(provider, 'emotion'),
+                url=self.cfg.gt(provider, 'server'),
+                sets=sets,
+                yandex_api=self.cfg.yandex_api(provider)
+            )
+        except(RuntimeError, TTS.gTTSError, ValueError) as e:
+            self._synthesis_error(provider, key, e)
+            self._file_path = self.cfg.path['tts_error']
             return
+
         self._stream = utils.FakeFP()
         write_to = [self._stream]
         if file:
@@ -164,10 +163,9 @@ class _TTSWorker(threading.Thread):
         try:
             tts.stream_to_fps(write_to)
         except (RuntimeError, TTS.gTTSError, ValueError) as e:
-            self._synthesis_error(prov, key, e)
+            self._synthesis_error(provider, key, e)
         for fp in write_to:
             fp.close()
-        return
 
     def _synthesis_error(self, prov, key, e):
         self.log(LNG['err_synthesis'].format(prov, key, e), logger.CRIT)

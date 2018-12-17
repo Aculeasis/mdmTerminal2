@@ -10,7 +10,7 @@ from .polly_boto3 import aws_boto3
 from .polly_signing import signing as polly_signing
 from .proxy import proxies
 
-__all__ = ['support', 'GetTTS', 'Google', 'Yandex', 'AWS', 'YandexCloud', 'RHVoiceREST', 'RHVoice', 'gTTSError']
+__all__ = ['support', 'GetTTS', 'gTTSError']
 
 
 class BaseTTS:
@@ -214,14 +214,14 @@ def yandex(yandex_api, **kwargs):
         return Yandex(**kwargs)
 
 
-_CALL_BY_NAME = {'google': Google, 'yandex': yandex, 'aws': aws, 'rhvoice-rest': RHVoiceREST, 'rhvoice': RHVoice}
+PROVIDERS = {'google': Google, 'yandex': yandex, 'aws': aws, 'rhvoice-rest': RHVoiceREST, 'rhvoice': RHVoice}
 
 
 def support(name):
-    return name in _CALL_BY_NAME
+    return name in PROVIDERS
 
 
 def GetTTS(name, **kwargs):
     if not support(name):
         raise RuntimeError('TTS {} not found'.format(name))
-    return _CALL_BY_NAME[name](**kwargs)
+    return PROVIDERS[name](**kwargs)
