@@ -76,7 +76,10 @@ class ModuleManager:
         self._by_f_name = None
         # Для поиска по имени (['name'])
         self.by_name = None
+        # код вызова
         self._code = 0
+        # Название модели которым был активирован терминал или None
+        self.model = None
         # Имя модуля (.__name__) который вызван в данный момент.
         self._module_name = None
         # Без расширения
@@ -272,8 +275,9 @@ class ModuleManager:
                 return self._return_wrapper(f, reply)
         return self._return_wrapper(None, None)
 
-    def tester(self, phrase: str, call_me=None):
+    def tester(self, phrase: str, call_me=None, model=None):
         with self._lock:
+            self.model = model
             reply = Next
             f = None
             phrase_check = phrase.lower()

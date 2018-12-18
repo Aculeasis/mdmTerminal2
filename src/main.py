@@ -100,6 +100,7 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
     'models': {
         'allow': ''
     },
+    'persons': {},
     'proxy': {
         'enable': 0,
         'monkey_patching': True,
@@ -125,7 +126,7 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'line_out': '',
     },
     'system': {
-        'ini_version': 14,
+        'ini_version': 15,
     }
 }
 

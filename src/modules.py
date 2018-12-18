@@ -295,8 +295,9 @@ def majordomo(self, _, phrase):
     if phrase.startswith(LNG['mjd_rep_say'], 0, LNG['mjd_rep_say_len']):
         phrase = LNG['mjd_rep_say_s'] + phrase[1:]
 
+    username = self.cfg.gt('persons', self.model) if self.model else None
     try:
-        self.log(LNG['mjd_ok'].format(self.own.send_to_mjd(phrase)), logger.DEBUG)
+        self.log(LNG['mjd_ok'].format(self.own.send_to_mjd(phrase, username)), logger.DEBUG)
     except RuntimeError as e:
         self.log(LNG['err_mjd'].format(e), logger.ERROR)
         return Say(LNG['err_mjd'].format(''))

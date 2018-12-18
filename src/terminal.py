@@ -148,7 +148,9 @@ class MDTerminal(threading.Thread):
             self.own.say(LNG['err_play_say'].format(file_name))
             self.log(LNG['err_play_log'].format(file), logger.WARN)
 
-    def _rec_compile(self, model, _):
+    def _rec_compile(self, model, username):
+        if len(username) < 2:
+            username = None
         models = [os.path.join(self._cfg.path['tmp'], ''.join([model, x, '.wav'])) for x in ['1', '2', '3']]
         miss = False
         for x in models:
@@ -157,10 +159,11 @@ class MDTerminal(threading.Thread):
                 self.log(LNG['compile_no_file'].format(x), logger.ERROR)
                 self.own.say(LNG['compile_no_file'].format(os.path.basename(x)))
         if not miss:
-            self._compile_model(model, models)
+            self._compile_model(model, models, username)
 
     def _rec_del(self, model, _):
         is_del = False
+        to_save = False
         pmdl_name = ''.join(['model', model, self._cfg.path['model_ext']])
         pmdl_path = os.path.join(self._cfg.path['models'], pmdl_name)
 
@@ -183,15 +186,16 @@ class MDTerminal(threading.Thread):
             self.own.say(msg)
 
         # remove model record in config
-        if pmdl_name in self._cfg['models']:
-            del self._cfg['models'][pmdl_name]
-            self._cfg.config_save()
+        to_save |= self._cfg['models'].pop(pmdl_name, None) is not None
+        to_save |= self._cfg['persons'].pop(pmdl_name, None) is not None
 
+        if to_save:
+            self._cfg.config_save()
         if is_del:
             self._cfg.models_load()
             self._reload()
 
-    def _compile_model(self, model, models):
+    def _compile_model(self, model, models, username):
         phrase, match_count = self.own.phrase_from_files(models)
         pmdl_name = ''.join(['model', model, self._cfg.path['model_ext']])
         pmdl_path = os.path.join(self._cfg.path['models'], pmdl_name)
@@ -226,8 +230,10 @@ class MDTerminal(threading.Thread):
         msg = ', "{}",'.format(phrase) if phrase else ''
         self.log(LNG['compile_ok_log'].format(msg, work_time, pmdl_path), logger.INFO)
         self.own.say(LNG['compile_ok_say'].format(msg, model, work_time))
-
-        self._cfg.update_from_dict({'models': {pmdl_name: phrase}})
+        model_data = {'models': {pmdl_name: phrase}}
+        if username:
+            model_data['persons'][pmdl_name] = username
+        self._cfg.update_from_dict(model_data)
         self._cfg.models_load()
         self._reload()
         # Удаляем временные файлы
@@ -287,6 +293,7 @@ class MDTerminal(threading.Thread):
         phrase = ''
         if not model:
             self.log(LNG['err_call2'], logger.CRIT)
+            model_name = None
         else:
             model_name, phrase, msg = self._cfg.model_info_by_id(model)
             self.log(LNG['activate_by'].format(model_name, msg), logger.INFO)
@@ -294,7 +301,7 @@ class MDTerminal(threading.Thread):
         hello = ''
         if phrase and self.own.sys_say_chance and not no_hello:
             hello = LNG['model_listened'].format(phrase)
-        self._speech_recognized_success(hello, self.own.listen(hello, voice=no_hello))
+        self._speech_recognized_success(hello, self.own.listen(hello, voice=no_hello), model_name)
 
     def _detected_sr(self, msg: str, model_name: str, model_msg: str, energy_threshold: int):
         if model_msg is None:
@@ -308,20 +315,20 @@ class MDTerminal(threading.Thread):
         self.log(LNG['activate_by'].format(model_name, model_msg), logger.INFO)
         if not msg:  # Пустое сообщение
             return
-        self._speech_recognized_success(False, msg)
+        self._speech_recognized_success(False, msg, model_name)
 
-    def _speech_recognized_success(self, voice, reply):
+    def _speech_recognized_success(self, voice, reply, model):
         if voice or reply:
             self.own.speech_recognized_success_callback()
             if self._cfg.gts('alarm_recognized'):
                 self.own.play(self._cfg.path['bimp'])
-            self._detected_parse(voice, reply)
+            self._detected_parse(voice, reply, model)
 
-    def _detected_parse(self, voice, reply):
+    def _detected_parse(self, voice, reply, model=None):
         caller = False
         if reply or voice:
             while caller is not None:
-                reply, caller = self.own.modules_tester(reply, caller)
+                reply, caller = self.own.modules_tester(reply, caller, model)
                 if caller:
                     reply = self.own.listen(reply or '', voice=not reply)
         if reply:

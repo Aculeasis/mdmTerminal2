@@ -129,8 +129,8 @@ class Owner:
     def volume_callback(self, volume: int):
         self._notifier.callback(volume=volume)
 
-    def send_to_mjd(self, qry: str) -> str:
-        return self._notifier.send(qry)
+    def send_to_mjd(self, qry: str, username=None) -> str:
+        return self._notifier.send(qry, username)
 
     @property
     def mjd_ip_set(self) -> bool:
@@ -142,8 +142,8 @@ class Owner:
     def manual_rollback(self):
         self._updater.manual_rollback()
 
-    def modules_tester(self, phrase: str, call_me=None):
-        return self._mm.tester(phrase, call_me)
+    def modules_tester(self, phrase: str, call_me=None, model=None):
+        return self._mm.tester(phrase, call_me, model)
 
     def die_in(self, wait, reload=False):
         self.reload = reload

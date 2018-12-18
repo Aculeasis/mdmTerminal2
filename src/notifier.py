@@ -56,11 +56,11 @@ class MajordomoNotifier(threading.Thread):
     def ip_set(self) -> bool:
         return True if self._cfg['ip'] else False
 
-    def send(self, qry: str) -> str:
+    def send(self, qry: str, user=None) -> str:
         # Прямая отправка
         # Отправляет сообщение на сервер мжд, возвращает url запроса или кидает RuntimeError
         # На основе https://github.com/sergejey/majordomo-chromegate/blob/master/js/main.js#L196
-        return self._send('command.php', {'qry': qry})
+        return self._send('command.php', {'qry': qry}, user)
 
     @property
     def _uptime(self) -> int:
@@ -87,17 +87,18 @@ class MajordomoNotifier(threading.Thread):
         except RuntimeError as e:
             self.log(e, logger.ERROR)
 
-    def _send(self, path: str, params: dict) -> str:
+    def _send(self, path: str, params: dict, user=None) -> str:
         terminal = self._cfg['terminal']
         username = self._cfg['username']
         password = self._cfg['password']
+        calling_user = user or username
         url = 'http://{}/{}'.format(self._cfg['ip'], path)
 
         auth = (username, password) if username and password else None
         if terminal:
             params['terminal'] = terminal
-        if username:
-            params['username'] = username
+        if calling_user:
+            params['username'] = calling_user
         try:
             reply = requests.get(url, params=params, auth=auth, timeout=30)
         except REQUEST_ERRORS as e:
