@@ -232,7 +232,7 @@ class MDTerminal(threading.Thread):
         self.own.say(LNG['compile_ok_say'].format(msg, model, work_time))
         model_data = {'models': {pmdl_name: phrase}}
         if username:
-            model_data['persons'][pmdl_name] = username
+            model_data['persons'] = {pmdl_name: username}
         self._cfg.update_from_dict(model_data)
         self._cfg.models_load()
         self._reload()
