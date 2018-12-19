@@ -59,7 +59,10 @@ class AudioConverter(threading.Thread):
                 chunk, state = audioop.ratecv(
                     chunk, self._sample_width, 1, self._adata.sample_rate, self._sample_rate, state
                 )
-            self._processing(chunk)
+            try:
+                self._processing(chunk)
+            except BrokenPipeError:
+                break
 
     def _run_adata(self):
         with BytesIO(self._adata.get_raw_data(self._sample_rate, self._sample_width)) as fp:
@@ -86,9 +89,15 @@ class AudioConverter(threading.Thread):
 
     def _end_processing(self):
         if self._wave:
-            self._wave.close()
+            try:
+                self._wave.close()
+            except BrokenPipeError:
+                pass
         if self._popen:
-            self._popen.stdin.close()
+            try:
+                self._popen.stdin.close()
+            except BrokenPipeError:
+                pass
             try:
                 self._popen.wait(self.POPEN_TIMEOUT)
             except subprocess.TimeoutExpired:
