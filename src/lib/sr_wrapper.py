@@ -50,6 +50,43 @@ class Interrupted(Exception):
     pass
 
 
+class SnowboyDetector:
+    # sample duration in ms
+    DURATION = 150
+
+    def __init__(self, resource_path, snowboy_hot_word_files, sensitivity, audio_gain, width, rate):
+        self._detector = snowboydetect.SnowboyDetect(
+            resource_filename=os.path.join(resource_path, 'resources', 'common.res').encode(),
+            model_str=",".join(snowboy_hot_word_files).encode()
+        )
+        self._detector.SetAudioGain(audio_gain)
+        self._detector.SetSensitivity(','.join([str(sensitivity)] * len(snowboy_hot_word_files)).encode())
+
+        self._resample_rate = self._detector.SampleRate()
+        self._rate = rate
+        self._width = width
+        self._resample_state = None
+        self._buffer = b''
+        self._sample_size = int(width * (self._resample_rate * self.DURATION / 1000))
+        self._current_state = -2
+
+    def detect(self, buffer: bytes) -> int:
+        self._buffer += self._resampler(buffer)
+        if len(self._buffer) >= self._sample_size:
+            self._current_state = self._detector.RunDetection(self._buffer)
+            self._buffer = b''
+        return self._current_state
+
+    def is_speech(self, buffer: bytes) -> bool:
+        return self.detect(buffer) >= 0
+
+    def _resampler(self, buffer: bytes) -> bytes:
+        buffer, self._resample_state = audioop.ratecv(
+            buffer, self._width, 1, self._rate, self._resample_rate, self._resample_state
+        )
+        return buffer
+
+
 class Recognizer(speech_recognition.Recognizer):
     def __init__(self,
                  sensitivity=0.45, audio_gain=1.0,
@@ -94,33 +131,21 @@ class Recognizer(speech_recognition.Recognizer):
         finally:
             proxies.monkey_patching_disable()
 
-    def _get_detector(self, snowboy_location, snowboy_hot_word_files):
-        detector = snowboydetect.SnowboyDetect(
-            resource_filename=os.path.join(snowboy_location, "resources", "common.res").encode(),
-            model_str=",".join(snowboy_hot_word_files).encode()
-        )
-        detector.SetAudioGain(self._audio_gain)
-        detector.SetSensitivity(",".join([str(self._sensitivity)] * len(snowboy_hot_word_files)).encode())
-        return detector
-
     # part of https://github.com/Uberi/speech_recognition/blob/master/speech_recognition/__init__.py#L574
     def snowboy_wait_for_hot_word(self, snowboy_location, snowboy_hot_word_files, source, timeout=None):
         self._snowboy_result = 0
 
-        detector = self._get_detector(snowboy_location, snowboy_hot_word_files)
-        snowboy_sample_rate = detector.SampleRate()
-
         elapsed_time = 0
         seconds_per_buffer = float(source.CHUNK) / source.SAMPLE_RATE
-        resampling_state = None
-
         # buffers capable of holding 5 seconds of original and resampled audio
         five_seconds_buffer_count = int(math.ceil(5 / seconds_per_buffer))
         frames = collections.deque(maxlen=five_seconds_buffer_count)
-        # use 0.5 seconds buffer for snowboy
-        snowboy_buffer = collections.deque(maxlen=int(math.ceil(0.5 / seconds_per_buffer)))
-        start_time = time.time() + 0.05
+        start_time = time.time() + 0.2
         snowboy_result = 0
+        snowboy = SnowboyDetector(
+            snowboy_location, snowboy_hot_word_files, self._sensitivity, self._audio_gain,
+            source.SAMPLE_WIDTH, source.SAMPLE_RATE
+        )
         while True:
             elapsed_time += seconds_per_buffer
 
@@ -128,25 +153,19 @@ class Recognizer(speech_recognition.Recognizer):
             if not buffer:
                 break  # reached end of the stream
             frames.append(buffer)
-            # resample audio to the required sample rate
-            resampled_buffer, resampling_state = audioop.ratecv(buffer, source.SAMPLE_WIDTH, 1, source.SAMPLE_RATE,
-                                                                snowboy_sample_rate, resampling_state)
-            snowboy_buffer.append(resampled_buffer)
-            if time.time() > start_time:
-                # run Snowboy on the resampled audio
-                snowboy_result = detector.RunDetection(b''.join(snowboy_buffer))
-                if snowboy_result > 0:
-                    # wake word found
-                    break
-                elif snowboy_result == -1:
-                    raise RuntimeError("Error initializing streams or reading audio data")
+            snowboy_result = snowboy.detect(buffer)
+            if snowboy_result > 0:
+                # wake word found
+                break
+            elif snowboy_result == -1:
+                raise RuntimeError("Error initializing streams or reading audio data")
 
+            if time.time() > start_time:
                 if self._interrupt_check and self._interrupt_check():
                     raise Interrupted('Interrupted')
                 if elapsed_time > 60:
                     raise Interrupted("listening timed out while waiting for hotword to be said")
-                snowboy_buffer.clear()
-                start_time = time.time() + 0.05
+                start_time = time.time() + 0.2
 
             if self._noising and not self._noising():
                 self._calc_noise(buffer, source.SAMPLE_WIDTH, seconds_per_buffer)
@@ -171,13 +190,6 @@ class Recognizer(speech_recognition.Recognizer):
 
         This operation will always complete within ``timeout + phrase_timeout`` seconds if both are numbers, either by returning the audio data, or by raising a ``speech_recognition.WaitTimeoutError`` exception.
         """
-        def speech_detect(resampling_state_):
-            # return True if snowboy detect speech
-            resampled_buffer, resampling_state_ = audioop.ratecv(buffer, source.SAMPLE_WIDTH, 1,
-                                                                 source.SAMPLE_RATE,
-                                                                 snowboy_sample_rate, resampling_state_)
-            return detector.RunDetection(resampled_buffer) >= 0, resampling_state_
-
         assert isinstance(source, AudioSource), "Source must be an audio source"
         assert source.stream is not None, "Audio source must be entered before listening, see documentation for ``AudioSource``; are you using ``source`` outside of a ``with`` statement?"
         assert self.pause_threshold >= self.non_speaking_duration >= 0
@@ -191,13 +203,14 @@ class Recognizer(speech_recognition.Recognizer):
         elapsed_time = 0  # number of seconds of audio read
         buffer = b""  # an empty buffer means that the stream has ended and there is no data left to read
         energy = 0
-        resampling_state = None
         if self._no_energy_threshold and snowboy_configuration:
             # Use snowboy to words detecting instead of energy_threshold
-            detector = detector = self._get_detector(*snowboy_configuration)
-            snowboy_sample_rate = detector.SampleRate()
+            detector = SnowboyDetector(
+                snowboy_configuration[0], snowboy_configuration[1], self._sensitivity, self._audio_gain,
+                source.SAMPLE_WIDTH, source.SAMPLE_RATE
+            )
         else:
-            detector, snowboy_sample_rate = None, None
+            detector = None
         send_record_starting = False
         while True:
             frames = collections.deque()
@@ -223,7 +236,7 @@ class Recognizer(speech_recognition.Recognizer):
                         energy = audioop.rms(buffer, source.SAMPLE_WIDTH)  # energy of the audio signal
                         speech = energy > self.energy_threshold
                     else:
-                        speech, resampling_state = speech_detect(resampling_state)
+                        speech = detector.is_speech(buffer)
                     if speech:
                         break
 
@@ -264,7 +277,7 @@ class Recognizer(speech_recognition.Recognizer):
                     energy = audioop.rms(buffer, source.SAMPLE_WIDTH)  # unit energy of the audio signal within the buffer
                     speech = energy > self.energy_threshold
                 else:
-                    speech, resampling_state = speech_detect(resampling_state)
+                    speech = detector.is_speech(buffer)
                 if speech:
                     pause_count = 0
                 else:
@@ -284,14 +297,6 @@ class Recognizer(speech_recognition.Recognizer):
         return AudioData(frame_data, source.SAMPLE_RATE, source.SAMPLE_WIDTH)
 
     def listen2(self, source, timeout, phrase_time_limit, snowboy_configuration, recognition):
-
-        def speech_detect(resampling_state_):
-            # return True if snowboy detect speech
-            resampled_buffer, resampling_state_ = audioop.ratecv(buffer, source.SAMPLE_WIDTH, 1,
-                                                                 source.SAMPLE_RATE,
-                                                                 snowboy_sample_rate, resampling_state_)
-            return detector.RunDetection(resampled_buffer) >= 0, resampling_state_
-
         assert isinstance(source, AudioSource), "Source must be an audio source"
         assert source.stream is not None, "Audio source must be entered before listening, see documentation for ``AudioSource``; are you using ``source`` outside of a ``with`` statement?"
         assert self.pause_threshold >= self.non_speaking_duration >= 0
@@ -305,10 +310,12 @@ class Recognizer(speech_recognition.Recognizer):
         # read audio input for phrases until there is a phrase that is long enough
         elapsed_time = 0  # number of seconds of audio read
         buffer = b""  # an empty buffer means that the stream has ended and there is no data left to read
-        resampling_state = None
+        snowboy_location, snowboy_hot_word_files = snowboy_configuration
         # Use snowboy to words detecting instead of energy_threshold
-        detector = detector = self._get_detector(*snowboy_configuration)
-        snowboy_sample_rate = detector.SampleRate()
+        detector = SnowboyDetector(
+            snowboy_location, snowboy_hot_word_files, self._sensitivity, self._audio_gain,
+            source.SAMPLE_WIDTH, source.SAMPLE_RATE
+        )
         send_record_starting = False
         voice_recognition = StreamRecognition(recognition)
         while True:
@@ -328,12 +335,10 @@ class Recognizer(speech_recognition.Recognizer):
                     voice_recognition.write(buffer)
 
                     # detect whether speaking has started on audio input
-                    speech, resampling_state = speech_detect(resampling_state)
-                    if speech:
+                    if detector.is_speech(buffer):
                         break
             else:
                 # read audio input until the hotword is said
-                snowboy_location, snowboy_hot_word_files = snowboy_configuration
                 buffer, delta_time = self.snowboy_wait_for_hot_word(snowboy_location, snowboy_hot_word_files, source)
                 # Иначе он залипает на распознавании ключевых слов
                 snowboy_configuration = None
@@ -341,7 +346,6 @@ class Recognizer(speech_recognition.Recognizer):
                 elapsed_time += delta_time
                 if len(buffer) == 0:
                     break  # reached end of the stream
-
 
             # read audio input until the phrase ends
             pause_count, phrase_count = 0, 0
@@ -361,8 +365,7 @@ class Recognizer(speech_recognition.Recognizer):
                 voice_recognition.write(buffer)
                 phrase_count += 1
 
-                speech, resampling_state = speech_detect(resampling_state)
-                if speech:
+                if detector.is_speech(buffer):
                     pause_count = 0
                 else:
                     pause_count += 1
