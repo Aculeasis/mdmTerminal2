@@ -8,7 +8,7 @@ import requests
 
 import logger
 from owner import Owner
-from utils import REQUEST_ERRORS
+from utils import REQUEST_ERRORS, RuntimeErrorTrace
 
 
 class MajordomoNotifier(threading.Thread):
@@ -102,7 +102,7 @@ class MajordomoNotifier(threading.Thread):
         try:
             reply = requests.get(url, params=params, auth=auth, timeout=30)
         except REQUEST_ERRORS as e:
-            raise RuntimeError(e)
+            raise RuntimeErrorTrace(e)
         if not reply.ok:
             raise RuntimeError('Request error {}: {}'.format(reply.status_code, reply.reason))
         return reply.request.url

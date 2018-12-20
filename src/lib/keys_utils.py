@@ -5,7 +5,7 @@ import time
 
 import requests
 
-from utils import REQUEST_ERRORS
+from utils import REQUEST_ERRORS, RuntimeErrorTrace
 from .proxy import proxies
 from .sr_wrapper import UnknownValueError
 
@@ -53,7 +53,7 @@ def requests_post(url, key: str, **kwargs):
     try:
         reply = requests.post(url, **kwargs)
     except REQUEST_ERRORS as e:
-        raise RuntimeError(e)
+        raise RuntimeErrorTrace(e)
     try:
         data = reply.json()
     except ValueError as e:
@@ -130,7 +130,7 @@ def _azure_token_from_oauth(key, region):
     try:
         response = requests.post(url, headers=headers, proxies=proxies('token_azure'))
     except REQUEST_ERRORS as e:
-        raise RuntimeError(str(e))
+        raise RuntimeErrorTrace(e)
     if not response.ok:
         raise RuntimeError('{}: {}'.format(response.status_code, response.reason))
     token = response.text
@@ -146,7 +146,7 @@ def _yandex_get_api_key_v1():
     try:
         response = requests.get(url, proxies=proxies('key_yandex'))
     except REQUEST_ERRORS as e:
-        raise RuntimeError(str(e))
+        raise RuntimeErrorTrace(e)
     line = response.text
     if line.find('<title>Oops!</title>') > -1:
         raise RuntimeError('Yandex blocked automated requests')

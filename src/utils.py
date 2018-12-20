@@ -8,6 +8,7 @@ import socket
 import subprocess
 import threading
 import time
+import traceback
 
 import requests
 import socks  # install socks-proxy dependencies - pip install requests[socks]
@@ -19,6 +20,11 @@ REQUEST_ERRORS = (
     requests.exceptions.HTTPError, requests.exceptions.RequestException, urllib3.exceptions.NewConnectionError,
     socks.ProxyError
 )
+
+
+class RuntimeErrorTrace(RuntimeError):
+    def __init__(self, *args):
+        super().__init__('{}: {}'.format(' '.join([repr(arg) for arg in args]), traceback.format_exc()))
 
 
 class SignalHandler:

@@ -6,7 +6,7 @@ from shlex import quote
 
 import requests
 
-from utils import REQUEST_ERRORS
+from utils import REQUEST_ERRORS, RuntimeErrorTrace
 from .gtts_wrapper import Google, gTTSError
 from .polly_boto3 import aws_boto3
 from .polly_signing import signing as polly_signing
@@ -45,7 +45,7 @@ class BaseTTS:
                 proxies=proxies(proxy_key)
             )
         except REQUEST_ERRORS as e:
-            raise RuntimeError(str(e))
+            raise RuntimeErrorTrace(e)
         self._data = self._rq.iter_content
 
     def _reply_check(self):
@@ -59,7 +59,7 @@ class BaseTTS:
             for chunk in self._data(chunk_size=self._buff_size):
                 yield chunk
         except REQUEST_ERRORS as e:
-            raise RuntimeError(e)
+            raise RuntimeErrorTrace(e)
 
     def stream_to_fps(self, fps):
         if not isinstance(fps, list):
@@ -107,7 +107,7 @@ class YandexCloud(BaseTTS):
                 proxies=proxies(proxy_key)
             )
         except REQUEST_ERRORS as e:
-            raise RuntimeError(str(e))
+            raise RuntimeErrorTrace(e)
         self._data = self._rq.iter_content
 
     def _reply_check(self):
@@ -157,7 +157,7 @@ class AWS(BaseTTS):
                 proxies=proxies(proxy_key)
             )
         except REQUEST_ERRORS as e:
-            raise RuntimeError(str(e))
+            raise RuntimeErrorTrace(e)
         self._data = self._rq.iter_content
 
 

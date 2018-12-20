@@ -7,10 +7,10 @@ from io import BytesIO
 import requests
 
 import lib.streaming_converter as streaming_converter
-from utils import REQUEST_ERRORS
+from utils import REQUEST_ERRORS, RuntimeErrorTrace
+from .keys_utils import requests_post, xml_yandex
 from .proxy import proxies
 from .sr_wrapper import google_reply_parser, UnknownValueError, Recognizer, AudioData, StreamRecognition, RequestError
-from .keys_utils import requests_post, xml_yandex
 
 __all__ = ['support', 'GetSTT', 'RequestError']
 
@@ -58,7 +58,7 @@ class BaseSTT:
                 proxies=proxies(proxy_key)
             )
         except REQUEST_ERRORS as e:
-            raise RuntimeError(str(e))
+            raise RuntimeErrorTrace(e)
 
     def _reply_check(self):
         if not self._rq.ok:

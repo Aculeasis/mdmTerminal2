@@ -2,7 +2,7 @@ import base64
 
 import requests
 
-from utils import REQUEST_ERRORS
+from utils import REQUEST_ERRORS, RuntimeErrorTrace
 from .proxy import proxies
 
 
@@ -49,7 +49,7 @@ class Training:
         try:
             response = requests.post(self.URL, json=self.__params, proxies=proxies('snowboy_training'))
         except REQUEST_ERRORS as e:
-            raise RuntimeError('Request error: {}'.format(e))
+            raise RuntimeErrorTrace(e)
         if not response.ok:
             raise RuntimeError('Server error {}: {} ({})'.format(response.status_code, response.reason, response.text))
         self._data = response.iter_content()
