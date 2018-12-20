@@ -412,6 +412,8 @@ class SpeechToText:
         phrase = ''
         match_count = 0
         for say in result:
+            if not say:
+                continue
             match_count = result.count(say)
             if match_count >= consensus:
                 phrase = say
