@@ -18,7 +18,7 @@ __all__ = ['support', 'GetSTT', 'RequestError']
 class BaseSTT:
     BUFF_SIZE = 1024 * 4
 
-    def __init__(self, url, audio_data: AudioData, ext,
+    def __init__(self, url, audio_data: AudioData or StreamRecognition, ext,
                  headers=None, convert_rate=None, convert_width=None, proxy_key=None, **kwargs):
         self._text = None
         self._rq = None
@@ -26,7 +26,7 @@ class BaseSTT:
         self._headers = headers
         self._params = kwargs
 
-        if ext in streaming_converter.CMD or not isinstance(audio_data, AudioData):
+        if ext in streaming_converter.CMD or isinstance(audio_data, StreamRecognition):
             self._data = streaming_converter.AudioConverter(audio_data, ext, convert_rate, convert_width)
         elif ext == 'wav':
             self._data = BytesIO(audio_data.get_wav_data(convert_rate, convert_width))
@@ -76,7 +76,7 @@ class BaseSTT:
 class Google(BaseSTT):
     URL = 'http://www.google.com/speech-api/v2/recognize'
 
-    def __init__(self, audio_data: AudioData, key=None, lang='ru-RU', **_):
+    def __init__(self, audio_data, key=None, lang='ru-RU', **_):
         ext = 'flac'
         rate = 16000
         width = 2
@@ -96,7 +96,7 @@ class Yandex(BaseSTT):
     # https://tech.yandex.ru/speechkit/cloud/doc/guide/common/speechkit-common-asr-http-request-docpage/
     URL = 'https://asr.yandex.net/asr_xml'
 
-    def __init__(self, audio_data: AudioData, key, lang='ru-RU', **_):
+    def __init__(self, audio_data, key, lang='ru-RU', **_):
         if not key:
             raise RuntimeError('API-Key unset')
         ext = 'pcm'
@@ -120,7 +120,7 @@ class YandexCloud(BaseSTT):
     # https://cloud.yandex.ru/docs/speechkit/stt/request
     URL = 'https://stt.api.cloud.yandex.net/speech/v1/stt:recognize'
 
-    def __init__(self, audio_data: AudioData, key, lang='ru-RU', **_):
+    def __init__(self, audio_data, key, lang='ru-RU', **_):
         if not isinstance(key, (tuple, list)) or len(key) < 2:
             raise RuntimeError('Wrong Yandex APIv2 key')
         ext = 'opus'

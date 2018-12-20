@@ -15,12 +15,10 @@ import urllib3
 
 from languages import YANDEX_SPEAKER, RHVOICE_SPEAKER, AWS_SPEAKER, DEFAULT_SPEAKERS
 
-_PROXY_ERROR = socks.GeneralProxyError, socks.ProxyConnectionError, socks.SOCKS5AuthError, \
-               socks.SOCKS5Error, socks.SOCKS4Error, socks.HTTPError
 REQUEST_ERRORS = (
     requests.exceptions.HTTPError, requests.exceptions.RequestException, urllib3.exceptions.NewConnectionError,
-    requests.exceptions.ChunkedEncodingError
-) + _PROXY_ERROR
+    socks.ProxyError
+)
 
 
 class SignalHandler:
