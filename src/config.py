@@ -469,6 +469,7 @@ class ConfigUpdater:
                 section, new_key = key.split('_', 1)
             except ValueError:
                 continue
+            section = section.replace('0', '-')
             if not new_key or not section or section not in sections:
                 continue
             if not isinstance(data.get(section, {}), dict):
