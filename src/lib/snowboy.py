@@ -93,14 +93,9 @@ class SnowBoySR:
         return self._terminate or self._interrupt_check()
 
     def _get_text(self, adata):
-        alarm = self._cfg.gts('chrome_alarmstt')
-        if alarm:
-            self.own.play(self._cfg.path['dong'], lvl=5)
-        try:
-            return self.own.voice_recognition(adata, True)
-        finally:
-            if alarm:
-                self.own.clear_lvl()
+        if self._cfg.gts('chrome_alarmstt'):
+            self.own.play(self._cfg.path['dong'])
+        return self.own.voice_recognition(adata, True)
 
 
 class SnowBoySR2(SnowBoySR):
@@ -164,4 +159,6 @@ class SnowBoySR4(SnowBoySR2):
                 self._adata_parse(vr, r.get_model, None)
 
     def _get_text(self, adata):
-            return adata.text
+        if self._cfg.gts('chrome_alarmstt'):
+            self.own.play(self._cfg.path['dong'])
+        return adata.text
