@@ -147,6 +147,8 @@ class _TTSWorker(threading.Thread):
                 emotion=self.cfg.gt(provider, 'emotion'),
                 url=self.cfg.gt(provider, 'server'),
                 sets=sets,
+                speed=self.cfg.gt(provider, 'speed'),
+                slow=self.cfg.gt(provider, 'slow'),
                 yandex_api=self.cfg.yandex_api(provider)
             )
         except(RuntimeError, TTS.gTTSError, ValueError) as e:

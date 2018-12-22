@@ -50,7 +50,7 @@ class SignalHandler:
 
 
 class FakeFP(queue.Queue):
-    def read(self, _=None):
+    def read(self, _):
         return self.get()
 
     def write(self, n):
@@ -269,3 +269,7 @@ def bool_cast(value) -> bool:
     elif isinstance(value, int) and value in (1, 0):
         return bool(value)
     raise ValueError('Wrong type or value')
+
+
+def yandex_speed_normalization(speed):
+    return min(3.0, max(0.1, speed))

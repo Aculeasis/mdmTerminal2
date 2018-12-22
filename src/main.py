@@ -67,6 +67,10 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'api': 1,
         'emotion': 'good',
         'speaker': 'alyss',
+        'speed': 1.0
+    },
+    'google': {
+        'slow': False,
     },
     'aws': {
         'speaker': 'Tatyana',
@@ -93,7 +97,7 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'region': 'westus',
     },
     'cache': {
-        'tts_priority': 'yandex',
+        'tts_priority': '',
         'tts_size': 100,
         'path': '',
     },
@@ -126,7 +130,7 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'line_out': '',
     },
     'system': {
-        'ini_version': 15,
+        'ini_version': 16,
     }
 }
 

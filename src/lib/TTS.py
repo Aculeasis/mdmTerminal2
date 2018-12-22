@@ -6,7 +6,7 @@ from shlex import quote
 
 import requests
 
-from utils import REQUEST_ERRORS, RuntimeErrorTrace
+from utils import REQUEST_ERRORS, RuntimeErrorTrace, yandex_speed_normalization
 from .gtts_wrapper import Google, gTTSError
 from .polly_boto3 import aws_boto3
 from .polly_signing import signing as polly_signing
@@ -79,9 +79,10 @@ class Yandex(BaseTTS):
     URL = 'https://tts.voicetech.yandex.net/generate'
     MAX_CHARS = 2000
 
-    def __init__(self, text, buff_size, speaker, audio_format, key, emotion, lang, *_, **__):
-        super().__init__(self.URL, 'tts_yandex', buff_size=buff_size, text=text, speaker=speaker or 'alyss',
-                         format=audio_format, key=key, lang=lang or 'ru-RU', emotion=emotion or 'good')
+    def __init__(self, text, buff_size, speaker, key, emotion, lang, speed, *_, **__):
+        speed = yandex_speed_normalization(speed)
+        super().__init__(self.URL, 'tts_yandex', buff_size=buff_size, text=text, speaker=speaker,
+                         format='mp3', key=key, lang=lang, emotion=emotion, speed=speed)
 
 
 class YandexCloud(BaseTTS):
@@ -89,12 +90,13 @@ class YandexCloud(BaseTTS):
     URL = 'https://tts.api.cloud.yandex.net/speech/v1/tts:synthesize'
     MAX_CHARS = 5000
 
-    def __init__(self, text, buff_size, speaker, key, emotion, lang, *_, **__):
+    def __init__(self, text, buff_size, speaker, key, emotion, lang, speed, *_, **__):
         if not isinstance(key, (tuple, list)) or len(key) < 2:
             raise RuntimeError('Wrong Yandex APIv2 key')
+        speed = yandex_speed_normalization(speed)
         self._headers = {'Authorization': 'Bearer {}'.format(key[1])}
-        super().__init__(self.URL, 'tts_yandex', buff_size=buff_size, text=text, voice=speaker or 'alyss',
-                         format='oggopus', folderId=key[0], lang=lang or 'ru-RU', emotion=emotion or 'good')
+        super().__init__(self.URL, 'tts_yandex', buff_size=buff_size, text=text, voice=speaker,
+                         format='oggopus', folderId=key[0], lang=lang, emotion=emotion, speed=speed)
 
     def _request(self, proxy_key):
         try:
