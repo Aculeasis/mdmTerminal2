@@ -50,7 +50,7 @@ class SignalHandler:
 
 
 class FakeFP(queue.Queue):
-    def read(self, _):
+    def read(self, _=None):
         return self.get()
 
     def write(self, n):
