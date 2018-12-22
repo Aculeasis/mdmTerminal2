@@ -123,15 +123,14 @@ class MPDControl(threading.Thread):
     def pause(self, paused=None):
         if not self.allow():
             return
-        self._queue.put_nowait(('pause', paused))
+        if paused is None or self._cfg['pause']:
+            self._queue.put_nowait(('pause', paused))
 
     def _pause(self, paused=False):
         if paused is None:
             self._force_resume()
             self._mpd_pause()
         elif paused:
-            if not self._cfg['pause']:
-                return
             self._is_auto_paused = self._is_auto_paused or self._mpd_is_play()
             if self._is_auto_paused:
                 self._start_paused()
@@ -163,9 +162,6 @@ class MPDControl(threading.Thread):
             self._mpd_pause(True)
 
     def _stop_paused(self):
-        if not self._cfg['pause']:
-            return
-
         is_paused = self._mpd_get_state() == 'pause'
         if is_paused == self._check_un_pause:
             if self._check_un_pause:
@@ -179,9 +175,7 @@ class MPDControl(threading.Thread):
             self._force_resume()
 
     def _force_resume(self, always=False):
-        if not (self.allow() or always):
-            return
-        if not (self._resume and self._cfg['pause']):
+        if not (self.allow() or always) and self._resume:
             return
 
         self._resume = False
