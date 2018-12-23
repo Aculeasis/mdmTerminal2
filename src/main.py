@@ -31,6 +31,7 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'energy_threshold': -1,
         'audio_gain': 1.0,
         'phrase_time_limit': 15,
+        'silent_multiplier': 1.0,
         'no_background_play': False,
         'chrome_mode': 1,
         'chrome_choke': False,
@@ -111,7 +112,6 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'proxy': 'socks5h://127.0.0.1:9050'
     },
     'snowboy': {
-        'silent_multiplier': 1.0,
         'clear_models': False,
         'token': 'd4977cf8ff6ede6efb8d2277c1608c7dbebf18a7',
         'name': 'unknown',
@@ -131,7 +131,7 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'line_out': '',
     },
     'system': {
-        'ini_version': 17,
+        'ini_version': 18,
     }
 }
 

@@ -282,7 +282,7 @@ class SpeechToText:
         max_play_time = 120  # максимальное время воспроизведения приветствия
         max_wait_time = 10  # ожидание после приветствия
 
-        r = sr.Recognizer(silent_multiplier=self._cfg.gt('snowboy', 'silent_multiplier'))
+        r = sr.Recognizer(silent_multiplier=self._cfg.gts('silent_multiplier'))
         mic = sr.Microphone(device_index=self.get_mic_index())
 
         with mic as source:  # Слушаем шум 1 секунду, потом распознаем, если раздажает задержка можно закомментировать.
@@ -319,7 +319,7 @@ class SpeechToText:
         with sr.Microphone(device_index=self.get_mic_index()) as source:
             r = sr.Recognizer(
                 record_callback=self.own.record_callback,
-                silent_multiplier=self._cfg.gt('snowboy', 'silent_multiplier')
+                silent_multiplier=self._cfg.gts('silent_multiplier')
             )
             if self._cfg.gts('alarmtts') and not hello:
                 self.own.play(self._cfg.path['dong'], lvl, wait=0.01, blocking=2)
