@@ -90,7 +90,7 @@ class SnowboyDetector:
 class Recognizer(speech_recognition.Recognizer):
     def __init__(self,
                  sensitivity=0.45, audio_gain=1.0,
-                 hotword_callback=None, interrupt_check=None, record_callback=None, noising=None
+                 hotword_callback=None, interrupt_check=None, record_callback=None, noising=None, silent_multiplier=1.0
                  ):
         super().__init__()
         self._snowboy_result = 0
@@ -102,6 +102,10 @@ class Recognizer(speech_recognition.Recognizer):
 
         self._noising = noising
         self._record_callback = record_callback
+
+        silent_multiplier = min(5.0, max(0.1, silent_multiplier))
+        self.pause_threshold *= silent_multiplier
+        self.non_speaking_duration *= silent_multiplier
 
     def no_energy_threshold(self):
         self._no_energy_threshold = True
@@ -132,7 +136,8 @@ class Recognizer(speech_recognition.Recognizer):
             proxies.monkey_patching_disable()
 
     # part of https://github.com/Uberi/speech_recognition/blob/master/speech_recognition/__init__.py#L574
-    def snowboy_wait_for_hot_word(self, snowboy_location, snowboy_hot_word_files, source, timeout=None):
+    # noinspection PyMethodOverriding
+    def snowboy_wait_for_hot_word(self, snowboy, source, timeout=None):
         self._snowboy_result = 0
 
         elapsed_time = 0
@@ -142,10 +147,6 @@ class Recognizer(speech_recognition.Recognizer):
         frames = collections.deque(maxlen=five_seconds_buffer_count)
         start_time = time.time() + 0.2
         snowboy_result = 0
-        snowboy = SnowboyDetector(
-            snowboy_location, snowboy_hot_word_files, self._sensitivity, self._audio_gain,
-            source.SAMPLE_WIDTH, source.SAMPLE_RATE
-        )
         while True:
             elapsed_time += seconds_per_buffer
 
@@ -203,7 +204,7 @@ class Recognizer(speech_recognition.Recognizer):
         elapsed_time = 0  # number of seconds of audio read
         buffer = b""  # an empty buffer means that the stream has ended and there is no data left to read
         energy = 0
-        if self._no_energy_threshold and snowboy_configuration:
+        if snowboy_configuration:
             # Use snowboy to words detecting instead of energy_threshold
             detector = SnowboyDetector(
                 snowboy_configuration[0], snowboy_configuration[1], self._sensitivity, self._audio_gain,
@@ -247,8 +248,7 @@ class Recognizer(speech_recognition.Recognizer):
                         self.energy_threshold = self.energy_threshold * damping + target_energy * (1 - damping)
             else:
                 # read audio input until the hotword is said
-                snowboy_location, snowboy_hot_word_files = snowboy_configuration
-                buffer, delta_time = self.snowboy_wait_for_hot_word(snowboy_location, snowboy_hot_word_files, source, timeout)
+                buffer, delta_time = self.snowboy_wait_for_hot_word(detector, source)
                 # Иначе он залипает на распознавании ключевых слов
                 snowboy_configuration = None
                 elapsed_time += delta_time
@@ -339,7 +339,7 @@ class Recognizer(speech_recognition.Recognizer):
                         break
             else:
                 # read audio input until the hotword is said
-                buffer, delta_time = self.snowboy_wait_for_hot_word(snowboy_location, snowboy_hot_word_files, source)
+                buffer, delta_time = self.snowboy_wait_for_hot_word(detector, source)
                 # Иначе он залипает на распознавании ключевых слов
                 snowboy_configuration = None
                 voice_recognition.init(buffer, None, source.SAMPLE_RATE, source.SAMPLE_WIDTH)

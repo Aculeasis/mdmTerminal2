@@ -72,7 +72,8 @@ class SnowBoySR:
             self._hotword_callback,
             self._interrupted,
             self.own.record_callback,
-            noising
+            noising,
+            self._cfg.gt('snowboy', 'silent_multiplier')
         )
 
     def _adata_parse(self, adata, model, energy_threshold):
