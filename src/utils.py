@@ -273,3 +273,14 @@ def bool_cast(value) -> bool:
 
 def yandex_speed_normalization(speed):
     return min(3.0, max(0.1, speed))
+
+
+def singleton(cls):
+    instances = {}
+
+    def get_instance():
+        if cls not in instances:
+            instances[cls] = cls()
+        return instances[cls]
+
+    return get_instance

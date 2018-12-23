@@ -8,7 +8,7 @@ import requests
 
 from utils import REQUEST_ERRORS, RuntimeErrorTrace, yandex_speed_normalization
 from .gtts_wrapper import Google, gTTSError
-from .polly_boto3 import aws_boto3
+from .polly_boto3 import AWS as AWSBoto3
 from .polly_signing import signing as polly_signing
 from .proxy import proxies
 
@@ -241,7 +241,7 @@ def aws(key, **kwargs):
     if len(key) != 2:
         raise RuntimeError('Wrong key')
     if key[1]:
-        return aws_boto3(key=key[0], **kwargs)
+        return AWSBoto3(key=key[0], **kwargs)
     else:
         return AWS(key=key[0], **kwargs)
 

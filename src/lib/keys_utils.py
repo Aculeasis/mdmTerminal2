@@ -5,13 +5,14 @@ import time
 
 import requests
 
-from utils import REQUEST_ERRORS, RuntimeErrorTrace
+from utils import REQUEST_ERRORS, RuntimeErrorTrace, singleton
 from .proxy import proxies
 from .sr_wrapper import UnknownValueError
 
 AZURE_ACCESS_ENDPOINT = 'https://{}.api.cognitive.microsoft.com/sts/v1.0/issueToken'
 
 
+@singleton
 class Keystore:
     # Кэширует старые халявные ключи и новые aim на 11 часов
     YANDEX_LIFETIME = 11 * 3600

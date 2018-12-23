@@ -2,9 +2,11 @@
 import importlib
 import threading
 
+from utils import singleton
+
 
 class AWS:
-    def __init__(self, text, speaker, audio_format, client, lang, *_, **__):
+    def __init__(self, text, speaker, audio_format, key, lang, *_, **__):
         if not text:
             raise RuntimeError('No text to speak')
         params = {
@@ -14,7 +16,7 @@ class AWS:
             'VoiceId': speaker
         }
         try:
-            self._data = client(**params)['AudioStream']
+            self._data = _SessionStorage().get_client(key)(**params)['AudioStream']
         except Exception as e:
             raise RuntimeError('{}: {}'.format(type(e).__name__, e))
 
@@ -38,6 +40,7 @@ class AWS:
         return file_path
 
 
+@singleton
 class _SessionStorage:
     def __init__(self):
         self._client = {}
@@ -52,11 +55,8 @@ class _SessionStorage:
         polly = session.client('polly')
         self._client = {key: polly.synthesize_speech}
 
-    def __call__(self, key, **kwargs):
+    def get_client(self, key):
         with self._lock:
             if key not in self._client:
                 self._create_session(key)
-            return AWS(client=self._client[key], **kwargs)
-
-
-aws_boto3 = _SessionStorage()
+            return self._client[key]

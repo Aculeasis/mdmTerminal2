@@ -19,6 +19,7 @@ import requests
 import urllib3
 from gtts.tts import log, gTTSError, _len
 
+from utils import singleton
 from .proxy import proxies
 
 
@@ -27,6 +28,7 @@ def get_timestamp():
     return int(math.floor(int(time.time()) / 3600))
 
 
+@singleton
 class _TokenStorage:
     def __init__(self):
         self._token = {}
@@ -43,8 +45,6 @@ class _TokenStorage:
             self._token = {get_timestamp(): token}
 
 
-_token_cache = _TokenStorage()
-
 # TODO: Следить за актуальностью копипаст
 
 
@@ -52,7 +52,7 @@ _token_cache = _TokenStorage()
 def _get_token_key(self):
     # if self.token_key is not None:
     #     return self.token_key
-    result = _token_cache.token
+    result = _TokenStorage().token
     if result is not None:
         return result
 
@@ -78,7 +78,7 @@ def _get_token_key(self):
         result = str(hours) + "." + str(int(a) + int(b))
 
     # self.token_key = result
-    _token_cache.token = result
+    _TokenStorage().token = result
     return result
 
 
