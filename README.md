@@ -117,7 +117,7 @@
 Для сборки нужен swig 3.0.10 и выше, если у вас старый swig и вы получаете ошибку `ImportError: No module named '_snowboydetect'` т.к. модуль не собирается нужно обновить swig:
 ```bash
 sudo apt update
-sudo apt-get install -y build-essential libpcre3-dev autoconf automake libtool bison git libboost-dev python-dev ruby ruby-dev tcl-dev mono-devel lua5.1 liblua5.1-0-dev octave liboctave-dev php5-cli php5-dev openjdk-7-jdk guile-2.0-dev
+sudo apt-get install -y build-essential libpcre3-dev autoconf automake libtool bison git libboost-dev python-dev ruby ruby-dev tcl-dev mono-devel lua5.1 liblua5.1-0-dev octave liboctave-dev
 
 git clone https://github.com/swig/swig.git
 cd swig
