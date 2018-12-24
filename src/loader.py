@@ -6,6 +6,7 @@ import stts
 from config import ConfigHandler
 from languages import LOADER as LNG
 from lib.proxy import proxies
+from lib.publisher import PubSub
 from logger import Logger
 from modules_manager import ModuleManager
 from mpd_control import MPDControl
@@ -19,11 +20,11 @@ from updater import Updater
 
 class Loader(Owner):
     def __init__(self, init_cfg: dict, path: dict, die_in):
-        super().__init__()
         self._die_in = die_in
         self.reload = False
         self._lock = threading.Lock()
 
+        self._pub = PubSub()
         self._cfg = ConfigHandler(cfg=init_cfg, path=path, owner=self)
         self._logger = Logger(self._cfg['log'])
         self._cfg.configure(self._logger.add('CFG'))
@@ -41,7 +42,7 @@ class Loader(Owner):
         self._server = MDTServer(cfg=self._cfg, log=self._logger.add('Server'), owner=self)
 
     def start_all_systems(self):
-        self.start()
+        self._pub.start()
         self._mpd.start()
         self._play.start()
         self._play.say_info(LNG['hello'], 0, wait=0.5)
@@ -68,4 +69,4 @@ class Loader(Owner):
         self._play.stop()
         self._mpd.join()
         self._logger.join()
-        self.join()
+        self._pub.join()
