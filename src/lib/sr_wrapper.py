@@ -118,6 +118,15 @@ class Recognizer(speech_recognition.Recognizer):
         target_energy = energy * self.dynamic_energy_ratio
         self.energy_threshold = self.energy_threshold * damping + target_energy * (1 - damping)
 
+    def _get_detector(self, source, snowboy_configuration):
+        if not snowboy_configuration:
+            return None
+        snowboy_location, snowboy_hot_word_files = snowboy_configuration
+        return SnowboyDetector(
+                snowboy_location, snowboy_hot_word_files, self._sensitivity, self._audio_gain,
+                source.SAMPLE_WIDTH, source.SAMPLE_RATE
+            )
+
     @property
     def get_model(self):
         return self._snowboy_result
@@ -204,15 +213,10 @@ class Recognizer(speech_recognition.Recognizer):
         elapsed_time = 0  # number of seconds of audio read
         buffer = b""  # an empty buffer means that the stream has ended and there is no data left to read
         energy = 0
-        if snowboy_configuration:
-            # Use snowboy to words detecting instead of energy_threshold
-            detector = SnowboyDetector(
-                snowboy_configuration[0], snowboy_configuration[1], self._sensitivity, self._audio_gain,
-                source.SAMPLE_WIDTH, source.SAMPLE_RATE
-            )
-        else:
-            detector = None
+        detector = self._get_detector(source, snowboy_configuration)
         send_record_starting = False
+        # Use snowboy to words detecting instead of energy_threshold
+        use_detector = detector and self._no_energy_threshold
         while True:
             frames = collections.deque()
 
@@ -233,16 +237,16 @@ class Recognizer(speech_recognition.Recognizer):
                         frames.popleft()
 
                     # detect whether speaking has started on audio input
-                    if detector is None:
+                    if use_detector:
+                        speech = detector.is_speech(buffer)
+                    else:
                         energy = audioop.rms(buffer, source.SAMPLE_WIDTH)  # energy of the audio signal
                         speech = energy > self.energy_threshold
-                    else:
-                        speech = detector.is_speech(buffer)
                     if speech:
                         break
 
                     # dynamically adjust the energy threshold using asymmetric weighted average
-                    if self.dynamic_energy_threshold and detector is None:
+                    if self.dynamic_energy_threshold and not use_detector:
                         damping = self.dynamic_energy_adjustment_damping ** seconds_per_buffer  # account for different chunk sizes and rates
                         target_energy = energy * self.dynamic_energy_ratio
                         self.energy_threshold = self.energy_threshold * damping + target_energy * (1 - damping)
@@ -273,11 +277,11 @@ class Recognizer(speech_recognition.Recognizer):
                 phrase_count += 1
 
                 # check if speaking has stopped for longer than the pause threshold on the audio input
-                if detector is None:
+                if use_detector:
+                    speech = detector.is_speech(buffer)
+                else:
                     energy = audioop.rms(buffer, source.SAMPLE_WIDTH)  # unit energy of the audio signal within the buffer
                     speech = energy > self.energy_threshold
-                else:
-                    speech = detector.is_speech(buffer)
                 if speech:
                     pause_count = 0
                 else:
@@ -310,12 +314,8 @@ class Recognizer(speech_recognition.Recognizer):
         # read audio input for phrases until there is a phrase that is long enough
         elapsed_time = 0  # number of seconds of audio read
         buffer = b""  # an empty buffer means that the stream has ended and there is no data left to read
-        snowboy_location, snowboy_hot_word_files = snowboy_configuration
         # Use snowboy to words detecting instead of energy_threshold
-        detector = SnowboyDetector(
-            snowboy_location, snowboy_hot_word_files, self._sensitivity, self._audio_gain,
-            source.SAMPLE_WIDTH, source.SAMPLE_RATE
-        )
+        detector = self._get_detector(source, snowboy_configuration)
         send_record_starting = False
         voice_recognition = StreamRecognition(recognition)
         while True:
@@ -377,7 +377,6 @@ class Recognizer(speech_recognition.Recognizer):
             if phrase_count >= phrase_buffer_count or len(buffer) == 0:
                 break  # phrase is long enough or we've reached the end of the stream, so stop listening
 
-        # obtain frame data
         if self._record_callback and send_record_starting:
             self._record_callback(False)
 
