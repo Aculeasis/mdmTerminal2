@@ -379,6 +379,13 @@ class SpeechToText:
             return None
 
     def voice_recognition(self, audio, quiet: bool=False, fusion=None) -> str:
+        self.own.speech_recognized(True)
+        try:
+            return self._voice_recognition(audio, quiet, fusion)
+        finally:
+            self.own.speech_recognized(False)
+
+    def _voice_recognition(self, audio, quiet: bool=False, fusion=None) -> str:
         prov = self._cfg.gts('providerstt', 'unset')
         if not STT.support(prov):
             self.log(LNG['err_unknown_prov'].format(prov), logger.CRIT)
@@ -409,7 +416,7 @@ class SpeechToText:
     def phrase_from_files(self, files: list):
         if not files:
             return '', 0
-        workers = [RecognitionWorker(self.voice_recognition, file) for file in files]
+        workers = [RecognitionWorker(self._voice_recognition, file) for file in files]
         result = [worker.get for worker in workers]
         del workers
         # Фраза с 50% + 1 побеждает

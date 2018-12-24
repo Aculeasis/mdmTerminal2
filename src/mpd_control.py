@@ -50,6 +50,38 @@ class MPDControl(threading.Thread):
         self._saved_volume = None
         self._saved_state = None
 
+        # Состояния для автопаузы
+        self._record_active = False
+        self._say_active = False
+        self._events = (
+            (('start_record', 'start_talking', 'voice_activated'), self._cb_pause),
+            (('stop_record', 'stop_talking'), self._cb_unpause)
+        )
+
+    def _subscribe(self):
+        if self._cfg['pause'] and self._cfg['control']:
+            for events, callback in self._events:
+                self.own.subscribe(events, callback)
+
+    def _unsubscribe(self):
+        for events, callback in self._events:
+            self.own.unsubscribe(events, callback)
+
+    def _cb_unpause(self, name, *_, **__):
+        if name == 'stop_record':
+            self._record_active = False
+        elif name == 'stop_talking':
+            self._say_active = False
+        if not (self._record_active or self._say_active):
+            self.pause(False)
+
+    def _cb_pause(self, name, *_, **__):
+        self.pause(True)
+        if name == 'start_record':
+            self._record_active = True
+        elif name == 'start_talking':
+            self._say_active = True
+
     def connect(self):
         if self.is_conn:
             self._disconnect()
@@ -91,12 +123,14 @@ class MPDControl(threading.Thread):
             self.log('stop.', logger.INFO)
 
     def start(self):
-        if self._cfg.get('control'):
+        if self._cfg['control']:
             self._work = True
             super().start()
 
     def reload(self):
         self._reload = True
+        self._unsubscribe()
+        self._subscribe()
 
     def _init(self):
         time.sleep(self.START_DELAY)
@@ -243,6 +277,7 @@ class MPDControl(threading.Thread):
         if not self._init():
             self._work = False
             return
+        self._subscribe()
         while self._work:
             try:
                 cmd = self._queue.get(timeout=0.9)
@@ -257,6 +292,7 @@ class MPDControl(threading.Thread):
             self._callbacks_event()
         self._force_resume(True)
         self._disconnect()
+        self._unsubscribe()
 
     def _resume_check(self):
         if self._reload:

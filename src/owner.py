@@ -1,15 +1,122 @@
+import queue
+import threading
+
 from lib.volume import get_volume
 from utils import state_cache
 
 
-class Owner:
+class Owner(threading.Thread):
     def __init__(self):
-        self._record_active = False
-        self._say_active = False
+        super().__init__(name='Owner')
+        # Подписки, формат `событие: [список коллбэков]`
+        self._event_callbacks = {}
+        # Очередь вызовов, все вызовы и изменения подписок делаем в треде
+        self._queue = queue.Queue()
+        self._work = False
 
-    def _resume_mpd(self):
-        if not (self._record_active or self._say_active):
-            self.mpd_pause(False)
+    def start(self):
+        if not self._work:
+            self._work = True
+            super().start()
+
+    def join(self, timeout=None):
+        if self._work:
+            self._work = False
+            self._queue.put_nowait(None)
+            super().join(timeout)
+
+    def run(self):
+        while self._work:
+            data = self._queue.get()
+            if data is None:
+                break
+            if isinstance(data, tuple):
+                self._call_processing(*data)
+            elif isinstance(data, list):
+                cmd, data = data[0], data[1]
+                if cmd == 'add_subscribe':
+                    self._add_subscribe(data)
+                elif cmd == 'remove_subscribe':
+                    self._remove_subscribe(data)
+                else:
+                    raise RuntimeError('Wrong command: {}, {}'.format(repr(cmd), repr(data)))
+            else:
+                raise RuntimeError('Wrong type of data: {}'.format(repr(data)))
+
+    def _call_processing(self, name, arg, kwarg):
+        # Вызываем подписчиков
+        if name in self._event_callbacks:
+            for callback in self._event_callbacks[name]:
+                callback(name, *arg, **kwarg)
+
+    def _add_subscribe(self, data):
+        # Добавляем подписчиков
+        for name, callback in data:
+            if name not in self._event_callbacks:
+                self._event_callbacks[name] = set()
+            self._event_callbacks[name].add(callback)
+
+    def _remove_subscribe(self, data):
+        # Удаляем подписчиков
+        for name, callback in data:
+            if name not in self._event_callbacks:
+                continue
+            self._event_callbacks[name].discard(callback)
+            if not self._event_callbacks[name]:
+                del self._event_callbacks[name]
+
+    def _subscribe_action(self, cmd, event, callback) -> bool:
+        if isinstance(event, (list, tuple)) and isinstance(callback, (list, tuple)):
+            # Так нельзя
+            return False
+        if not (isinstance(event, (list, tuple, str)) and event and callback):
+            # И так нельзя
+            return False
+        if isinstance(event, (list, tuple)):
+            data = [(key, callback) for key in event if key]
+        elif isinstance(callback, (list, tuple)):
+            data = [(event, key) for key in callback if key]
+        else:
+            data = [(event, callback)]
+        if data:
+            self._queue.put_nowait([cmd, data])
+            return True
+        return False
+
+    def _call(self, name, *arg, **kwarg):
+        # Внешний вызов, для registration или дефолтных событий
+        self._queue.put_nowait((name, arg, kwarg))
+
+    def subscribe(self, event, callback) -> bool:
+        """
+        Оформление подписки на событие или события. Можно подписаться сразу на много событий или
+        подписать много коллбэков на одно событие передав их списком, но передать сразу 2 списка нельзя.
+        Важно: Вызываемый код не должен выполняться долго т.к. он заблокирует другие коллбэки.
+
+        :param event: имя события в str или список событий.
+        :param callback: ссылка на объект который можно вызвать или список таких объектов,
+        при вызове передаются: имя события, *args, **kwargs.
+        :return: True если данные корректны, иначе False.
+        """
+        return self._subscribe_action('add_subscribe', event, callback)
+
+    def unsubscribe(self, event, callback) -> bool:
+        """
+        Отказ от подписки на событие или события,
+        все параметры и результат аналогичны subscribe.
+        """
+        return self._subscribe_action('remove_subscribe', event, callback)
+
+    def registration(self, event: str):
+        """
+        Создание вызываемого объекта для активации события.
+        :param event: не пустое имя события.
+        :return: вернет объект вызов которого активирует все коллбэки подписанные на событие,
+        или None если event некорректный.
+        """
+        if not isinstance(event, str) or not event:
+            return None
+        return lambda *args, **kwargs: self._call(event, *args, **kwargs)
 
     def say(self, msg: str, lvl: int=2, alarm=None, wait=0, is_file: bool = False, blocking: int=0):
         self._play.say(msg, lvl, alarm, wait, is_file, blocking)
@@ -98,36 +205,28 @@ class Owner:
         return self._tts.tts(msg, realtime)
 
     def voice_activated_callback(self):
-        self.mpd_pause(True)
-        self._notifier.callback(status='voice_activated')
+        self._call('voice_activated')
 
     def speech_recognized_success_callback(self):
-        self._notifier.callback(status='speech_recognized_success')
+        self._call('speech_recognized_success')
 
     def record_callback(self, start_stop: bool):
-        self._record_active = start_stop
-        if start_stop:
-            self.mpd_pause(True)
-        else:
-            self._resume_mpd()
-        self._notifier.callback(status='start_record' if start_stop else 'stop_record')
+        self._call('start_record' if start_stop else 'stop_record')
 
     def say_callback(self, start_stop: bool):
-        self._say_active = start_stop
-        if start_stop:
-            self.mpd_pause(True)
-        else:
-            self._resume_mpd()
-        self._notifier.callback(status='start_talking' if start_stop else 'stop_talking')
+        self._call('start_talking' if start_stop else 'stop_talking')
+
+    def speech_recognized(self, start_stop: bool):
+        self._call('start_recognized' if start_stop else 'stop_recognized')
 
     def mpd_status_callback(self, status: str):
-        self._notifier.callback(status='mpd_{}'.format(status if status is not None else 'error'))
+        self._call('mpd_status', status if status is not None else 'error')
 
     def mpd_volume_callback(self, volume: int):
-        self._notifier.callback(mpd_volume=volume if volume is not None else -1)
+        self._call('mpd_volume', volume if volume is not None else -1)
 
     def volume_callback(self, volume: int):
-        self._notifier.callback(volume=volume)
+        self._call('volume', volume)
 
     def send_to_mjd(self, qry: str, username=None) -> str:
         return self._notifier.send(qry, username)
@@ -192,8 +291,11 @@ class Owner:
                 # re-init proxy
                 self._cfg.proxies_init()
             if is_sub_dict('mpd', diff):
-                # reconnect to mpd
+                # reconnect to mpd and resubscribe
                 self._mpd.reload()
+            if is_sub_dict('majordomo', diff):
+                # resubscribe
+                self._notifier.reload()
             if is_sub_dict('settings', diff) or reload_terminal:
                 # reload terminal
                 self.terminal_call('reload', save_time=False)

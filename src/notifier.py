@@ -20,10 +20,28 @@ class MajordomoNotifier(threading.Thread):
         self._work = False
         self._queue = queue.Queue()
         self._boot_time = None
+        self._events = (
+            'speech_recognized_success', 'voice_activated',
+            'mpd_status', 'start_record', 'stop_record', 'start_talking', 'stop_talking',
+            'volume', 'mpd_volume'
+        )
+
+    def _subscribe(self):
+        # Подписываемся на нужные события, если нужно
+        if self._allow_notify:
+            self.own.subscribe(self._events, self._callback)
+
+    def _unsubscribe(self):
+        self.own.unsubscribe(self._events, self._callback)
+
+    def reload(self):
+        self._unsubscribe()
+        self._subscribe()
 
     def start(self):
         self._work = True
         self.log('start', logger.INFO)
+        self._subscribe()
         super().start()
 
     def join(self, timeout=None):
@@ -73,11 +91,17 @@ class MajordomoNotifier(threading.Thread):
     def _allow_notify(self) -> bool:
         return self._cfg['object_name'] and self._cfg['object_method'] and self._cfg['ip']
 
-    def callback(self, **kwargs):
+    def _callback(self, name, data=None, *_, **__):
         # Отправляет статус на сервер мжд в порядке очереди (FIFO)
         if not self._allow_notify:
             return
-        kwargs['uptime'] = self._uptime
+        kwargs = {'uptime': self._uptime}
+        if name in ('volume', 'mpd_volume'):
+            kwargs[name] = data
+        elif name == 'mpd_status':
+            kwargs['status'] = 'mpd_{}'.format(data)
+        else:
+            kwargs['status'] = name
         self._queue.put_nowait(kwargs)
 
     def _send_notify(self, params: dict):

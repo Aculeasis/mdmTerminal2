@@ -41,6 +41,7 @@ class Loader(Owner):
         self._server = MDTServer(cfg=self._cfg, log=self._logger.add('Server'), owner=self)
 
     def start_all_systems(self):
+        self.start()
         self._mpd.start()
         self._play.start()
         self._play.say_info(LNG['hello'], 0, wait=0.5)
@@ -67,3 +68,4 @@ class Loader(Owner):
         self._play.stop()
         self._mpd.join()
         self._logger.join()
+        self.join()
