@@ -1,4 +1,6 @@
 import base64
+import json
+from collections import OrderedDict
 
 import requests
 
@@ -51,7 +53,12 @@ class Training:
         except REQUEST_ERRORS as e:
             raise RuntimeErrorTrace(e)
         if not response.ok:
-            raise RuntimeError('Server error {}: {} ({})'.format(response.status_code, response.reason, response.text))
+            raise RuntimeError(
+                'Server error {}: {} ({})'.format(
+                    response.status_code,
+                    response.reason,
+                    pretty_errors(response.text))
+            )
         self._data = response.iter_content()
 
     def save(self, file_path):
@@ -63,3 +70,32 @@ class Training:
                 fp.write(d)
         return file_path
 
+
+def pretty_errors(text):
+    try:
+        data = json.loads(text)
+        if not isinstance(data, dict):
+            raise ValueError()
+    except (TypeError, json.JSONDecodeError, ValueError):
+        return text
+    # parse `{"detail":"Authentication credentials were not provided."}`
+    if data.get('detail'):
+        return data['detail']
+    # parse `{"voice_samples":[{},{"wave":["Hotword is too long"]},{}]}`
+    if isinstance(data.get('voice_samples', ''), list) and len(data['voice_samples']) == 3:
+        err = OrderedDict()
+        for idx in range(3):
+            if isinstance(data['voice_samples'][idx], dict) and data['voice_samples'][idx].get('wave'):
+                reasons = data['voice_samples'][idx].get('wave')
+                if isinstance(reasons, str):
+                    reasons = [reasons]
+                elif not isinstance(reasons, list):
+                    continue
+                for msg in reasons:
+                    err[msg] = err.get(msg, [])
+                    ids = str(idx+1)
+                    if ids not in err[msg]:
+                        err[msg].append(ids)
+        if err:
+            text = ';'.join(['{} for samples: {}'.format(repr(msg), ', '.join(err[msg])) for msg in err])
+    return text

@@ -365,7 +365,7 @@ class SpeechToText:
 
             record_time = time.time()
             try:
-                adata = r.listen(source=source, timeout=5, phrase_time_limit=10)
+                adata = r.listen(source=source, timeout=5, phrase_time_limit=8)
             except sr.WaitTimeoutError as e:
                 return str(e)
             if time.time() - record_time < 0.5:
