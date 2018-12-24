@@ -138,6 +138,10 @@ rm -rf swig/
 - Ошибка во время компиляции модели `Hotword is too long` возникает из-за того что в семпл попало слишком много
 аудиоданных. Прослушайте соответствующие семплы, перепишите их и попробуйте снова.
 
+# Сообщество
+- [Обсуждение на форуме MajorDoMo](https://majordomo.smartliving.ru/forum/viewtopic.php?f=5&t=5460)
+- [Группа в Telegram](https://t.me/mdmPiTerminal)
+
 # Ссылки
 - [mdmPiTerminal](https://github.com/devoff/mdmPiTerminal)
 - [В докере](https://github.com/Aculeasis/mdmt2-docker)
