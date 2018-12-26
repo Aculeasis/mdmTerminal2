@@ -3,7 +3,7 @@ from utils import state_cache
 
 
 class Owner:
-    def subscribe(self, event, callback) -> bool:
+    def subscribe(self, event, callback, channel='default') -> bool:
         """
         Оформление подписки на событие или события. Можно подписаться сразу на много событий или
         подписать много коллбэков на одно событие передав их списком, но передать сразу 2 списка нельзя.
@@ -12,25 +12,36 @@ class Owner:
         :param event: имя события в str или список событий.
         :param callback: ссылка на объект который можно вызвать или список таких объектов,
         при вызове передаются: имя события, *args, **kwargs.
+        :param channel: канал.
         :return: True если данные корректны, иначе False.
         """
-        return self._pub.subscribe(event, callback)
+        return self._pub.subscribe(event, callback, channel)
 
-    def unsubscribe(self, event, callback) -> bool:
+    def unsubscribe(self, event, callback, channel='default') -> bool:
         """
         Отказ от подписки на событие или события,
         все параметры и результат аналогичны subscribe.
         """
-        return self._pub.unsubscribe(event, callback)
+        return self._pub.unsubscribe(event, callback, channel)
 
-    def registration(self, event: str):
+    def registration(self, event: str, channel='default'):
         """
         Создание вызываемого объекта для активации события.
         :param event: не пустое имя события.
+        :param channel: канал.
         :return: вернет объект вызов которого активирует все коллбэки подписанные на событие,
         или None если event некорректный.
         """
-        return self._pub.registration(event)
+        return self._pub.registration(event, channel)
+
+    def has_subscribers(self, event: str, channel='default') -> bool:
+        """
+        Проверка события на наличие подписчиков.
+        :param event: имя события.
+        :param channel: канал.
+        :return: есть ли у канала подписчики.
+        """
+        return self._pub.has_subscribers(event, channel)
 
     def say(self, msg: str, lvl: int=2, alarm=None, wait=0, is_file: bool = False, blocking: int=0):
         self._play.say(msg, lvl, alarm, wait, is_file, blocking)
