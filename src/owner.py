@@ -9,11 +9,11 @@ class Owner:
         подписать много коллбэков на одно событие передав их списком, но передать сразу 2 списка нельзя.
         Важно: Вызываемый код не должен выполняться долго т.к. он заблокирует другие коллбэки.
 
-        :param event: имя события в str или список событий.
+        :param event: не пустое имя события в str или список событий.
         :param callback: ссылка на объект который можно вызвать или список таких объектов,
         при вызове передаются: имя события, *args, **kwargs.
         :param channel: канал.
-        :return: True если данные корректны, иначе False.
+        :return: будет ли оформлена подписка.
         """
         return self._pub.subscribe(event, callback, channel)
 
@@ -36,10 +36,9 @@ class Owner:
 
     def has_subscribers(self, event: str, channel='default') -> bool:
         """
-        Проверка события на наличие подписчиков.
         :param event: имя события.
         :param channel: канал.
-        :return: есть ли у канала подписчики.
+        :return: есть ли у события подписчики.
         """
         return self._pub.has_subscribers(event, channel)
 
