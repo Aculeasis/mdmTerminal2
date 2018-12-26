@@ -435,11 +435,17 @@ class Connect:
                 line, data = data.split(CRLF, 1)
                 if not line:
                     return
-                yield line.decode()
+                try:
+                    yield line.decode()
+                except UnicodeDecodeError:
+                    pass
                 del line
         if this_legacy and data and self._work:
             # Данные пришли без \r\n, обработаем их как есть
-            yield data.decode()
+            try:
+                yield data.decode()
+            except UnicodeDecodeError:
+                pass
 
 
 class Unlock(threading.Event):
