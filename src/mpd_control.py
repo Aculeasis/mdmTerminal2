@@ -26,6 +26,7 @@ def _auto_reconnect(func):
 
 class MPDControl(threading.Thread):
     START_DELAY = 6
+    MAX_ERRORS = 5
 
     def __init__(self, cfg: dict, log, owner: Owner):
         super().__init__(name='MPDControl')
@@ -35,8 +36,7 @@ class MPDControl(threading.Thread):
         self._work = False
         self._mpd = mpd.MPDClient(use_unicode=True)
         self.is_conn = False
-        self._errors = 0
-        self._reload = False
+        self._errors_metric = 0
         self._queue = queue.Queue()
 
         self._old_volume = None
@@ -85,22 +85,21 @@ class MPDControl(threading.Thread):
     def connect(self):
         if self.is_conn:
             self._disconnect()
+        self.is_conn = False
+        if not self._cfg['control']:
+            return False
         try:
             self._mpd.connect(self._cfg['ip'], self._cfg['port'])
         except (mpd.MPDError, IOError) as e:
             self.log('{}: {}'.format(LNG['err_mpd'], e), logger.ERROR)
             self.is_conn = False
-            self._errors += 1
-            if self._errors > 5:
-                self.log('Detected many error - stopping.', logger.CRIT)
-                self._work = False
             return False
         else:
             self.is_conn = True
-            self._errors = 0
             return True
 
     def _disconnect(self):
+        self.is_conn = False
         try:
             self._mpd.close()
         except (mpd.MPDError, IOError):
@@ -109,36 +108,32 @@ class MPDControl(threading.Thread):
             self._mpd.disconnect()
         except (mpd.MPDError, IOError):
             self._mpd = mpd.MPDClient(use_unicode=True)
-        finally:
-            self.is_conn = False
 
     def allow(self):
         return self.is_conn and self._work
 
     def join(self, timeout=None):
         if self._work:
-            self.log('stopping...', logger.DEBUG)
             self._work = False
+            self.log('stopping...', logger.DEBUG)
             super().join(timeout)
             self.log('stop.', logger.INFO)
 
     def start(self):
-        if self._cfg['control']:
+        if not self._work:
             self._work = True
             super().start()
 
     def reload(self):
-        self._reload = True
-        self._unsubscribe()
-        self._subscribe()
+        if self._work:
+            self._queue.put_nowait(('reload', None))
 
     def _init(self):
-        time.sleep(self.START_DELAY)
-        if not self.connect():
-            self.own.say(LNG['err_mpd'], 0)
-            return False
+        if self._cfg['control']:
+            time.sleep(self.START_DELAY)
+            if not self.connect():
+                self.own.say(LNG['err_mpd'], 0)
         self.log('start', logger.INFO)
-        return True
 
     def play(self, uri):
         if not self.allow():
@@ -274,9 +269,7 @@ class MPDControl(threading.Thread):
         self._mpd_set_volume(vol)
 
     def run(self):
-        if not self._init():
-            self._work = False
-            return
+        self._init()
         self._subscribe()
         while self._work:
             try:
@@ -288,17 +281,29 @@ class MPDControl(threading.Thread):
                     self._pause(cmd[1])
                 elif cmd[0] == 'play':
                     self._play(cmd[1])
-            self._resume_check()
-            self._callbacks_event()
+                elif cmd[0] == 'reload':
+                    self._errors_metric = 0
+                    self._unsubscribe()
+                    self._force_resume(True)
+                    self.connect()
+                    self._subscribe()
+                    continue
+            if self.is_conn:
+                self._resume_check()
+                self._callbacks_event()
+            elif self._cfg['control'] and self._errors_metric >= 0:
+                self._errors_metric += 1
+                if not self._errors_metric % 10:
+                    if self.connect():
+                        self._errors_metric = 0
+                if self._errors_metric >= (self.MAX_ERRORS * 10) - 10:
+                    self.log('Detected many errors [{}] - stop reconnecting.'.format(self.MAX_ERRORS), logger.CRIT)
+                    self._errors_metric = -1
+        self._unsubscribe()
         self._force_resume(True)
         self._disconnect()
-        self._unsubscribe()
 
     def _resume_check(self):
-        if self._reload:
-            self._reload = False
-            self._force_resume()
-            self.connect()
         if self._resume and self._be_resumed:
             if not self._resume_time and self._cfg['wait_resume'] > 0:
                 self._resume_time = time.time() + self._cfg['wait_resume']
