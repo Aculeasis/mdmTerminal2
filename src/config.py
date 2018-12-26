@@ -127,6 +127,14 @@ class ConfigHandler(dict):
             return False
         return True
 
+    def is_model_name(self, filename: str) -> bool:
+        if not (filename and isinstance(filename, str) and not filename.startswith(('.', '~'))):
+            return False
+        # check wrong chars
+        wrong_chars = '*/:?"|+<>\n\r\t\n\0\\'
+        valid = not set(wrong_chars).intersection(filename)
+        return valid and os.path.splitext(filename)[-1].lower() in self.path['model_supports']
+
     def _config_init(self):
         self._cfg_check(self.config_load())
         self.proxies_init()
@@ -181,12 +189,15 @@ class ConfigHandler(dict):
             return True
         return False
 
-    def _get_allow_models(self) -> list:
+    def get_allow_models(self) -> list:
         allow = self.gt('models', 'allow')
         if not allow:
             return []
         allow = [model.strip() for model in allow.split(',')]
         return [model for model in allow if model]
+
+    def get_all_models(self) -> list:
+        return [file for file in os.listdir(self.path['models']) if self.is_model_name(file)]
 
     def save_dict(self, name: str, data: dict, pretty=False) -> bool:
         file_path = os.path.join(self.path['data'], name + '.json')
@@ -245,10 +256,10 @@ class ConfigHandler(dict):
             return
 
         count = 0
-        allow = self._get_allow_models()
-        for file in os.listdir(self.path['models']):
+        allow = self.get_allow_models()
+        for file in self.get_all_models():
             full_path = os.path.join(self.path['models'], file)
-            if os.path.isfile(full_path) and os.path.splitext(file)[1] in self.path['model_supports']:
+            if os.path.isfile(full_path):
                 if not allow or file in allow:
                     self.path['models_list'].append(full_path)
                     count += 1

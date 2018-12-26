@@ -1,16 +1,10 @@
-import base64
 import json
 from collections import OrderedDict
 
 import requests
 
-from utils import REQUEST_ERRORS, RuntimeErrorTrace
+from utils import REQUEST_ERRORS, RuntimeErrorTrace, file_to_base64
 from .proxy import proxies
-
-
-def file_to_base64(file_name: str) -> str:
-    with open(file_name, 'rb') as fp:
-        return base64.b64encode(fp.read()).decode()
 
 
 class Training:

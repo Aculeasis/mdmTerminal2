@@ -26,7 +26,7 @@ class Loader(Owner):
 
         self._pub = PubSub()
         self._cfg = ConfigHandler(cfg=init_cfg, path=path, owner=self)
-        self._logger = Logger(self._cfg['log'])
+        self._logger = Logger(self._cfg['log'], self)
         self._cfg.configure(self._logger.add('CFG'))
 
         proxies.add_logger(self._logger.add('Proxy'))

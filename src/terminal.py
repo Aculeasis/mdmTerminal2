@@ -83,7 +83,7 @@ class MDTerminal(threading.Thread):
                 continue
             if late:
                 late = time.time() - late
-            msg = LNG['get_call'].format(cmd, data, lvl, int(late))
+            msg = LNG['get_call'].format(cmd, repr(data)[:300], lvl, int(late))
             if late > self.MAX_LATE:
                 self.log(LNG['ignore_call'].format(msg), logger.WARN)
                 continue
@@ -101,6 +101,8 @@ class MDTerminal(threading.Thread):
                 self._rec_play(*data)
             elif cmd == 'compile':
                 self._rec_compile(*data)
+            elif cmd == 'send_model':
+                self._send_model(**data)
             elif cmd == 'del':
                 self._rec_del(*data)
             elif cmd == 'volume':
@@ -230,15 +232,29 @@ class MDTerminal(threading.Thread):
         msg = ', "{}",'.format(phrase) if phrase else ''
         self.log(LNG['compile_ok_log'].format(msg, work_time, pmdl_path), logger.INFO)
         self.own.say(LNG['compile_ok_say'].format(msg, model, work_time))
+
+        self._save_model_data(pmdl_name, username, phrase)
+
+        # Удаляем временные файлы
+        for x in models:
+            os.remove(x)
+
+    def _send_model(self, pmdl_name, body: bytes, username='', phrase='', **_):
+        # Получили модель от сервера (send - это для сервера)
+        pmdl_path = os.path.join(self._cfg.path['models'], pmdl_name)
+        self.log('Model {} received from server: phrase={}, username={}, size={} bytes.'.format(
+            repr(pmdl_name), repr(phrase), repr(username), len(body)), logger.INFO)
+        with open(pmdl_path, 'wb') as fp:
+            fp.write(body)
+        self._save_model_data(pmdl_name, username, phrase)
+
+    def _save_model_data(self, pmdl_name, username, phrase):
         model_data = {'models': {pmdl_name: phrase}}
         if username:
             model_data['persons'] = {pmdl_name: username}
         self._cfg.update_from_dict(model_data)
         self._cfg.models_load()
         self._reload()
-        # Удаляем временные файлы
-        for x in models:
-            os.remove(x)
 
     def _set_volume(self, value):
         control = self._cfg.gt('volume', 'line_out')

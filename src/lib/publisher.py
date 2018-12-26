@@ -29,6 +29,9 @@ class PubSub(threading.Thread):
         # Внешний вызов, канал default
         self._queue.put_nowait(('default', name, args, kwargs))
 
+    def sub_call(self, channel: str, event: str, *args, **kwargs):
+        self._queue.put_nowait((channel, event, args, kwargs))
+
     def _call(self, channel, name, *args, **kwargs):
         self._queue.put_nowait((channel, name, args, kwargs))
 

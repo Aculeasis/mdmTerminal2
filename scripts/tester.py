@@ -1,7 +1,13 @@
 #!/usr/bin/env python3
 
+import base64
 import cmd as cmd__
+import json
 import socket
+import time
+
+ERRORS = (BrokenPipeError, ConnectionResetError, ConnectionRefusedError, OSError)
+CRLF = b'\r\n'
 
 
 class TestShell(cmd__.Cmd):
@@ -13,19 +19,86 @@ class TestShell(cmd__.Cmd):
         self._ip = '127.0.0.1'
         self._port = 7999
 
-    def _send(self, cmd: str):
+    def _send(self, cmd: str, is_logger=False):
         client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        client.settimeout(3)
-        print('Отправляю {}:{} \'{}\'...'.format(self._ip, self._port, cmd))
+        client.settimeout(10 if not is_logger else None)
+        print('Отправляю {}:{} {}...'.format(self._ip, self._port, repr(cmd)))
         try:
             client.connect((self._ip, self._port))
-            client.send(cmd.encode() + b'\r\n')
-        except (BrokenPipeError, ConnectionResetError, ConnectionRefusedError, OSError) as err:
+            client.send('\r\n'.join(cmd.replace('\\n', '\n').split('\n')).encode() + CRLF*2)
+        except ERRORS as err:
             print('Ошибка подключения к {}:{}. {}: {}'.format(self._ip, self._port, err.errno, err.strerror))
         else:
             print('...Успех.')
+            data = b''
+            while True:
+                try:
+                    chunk = client.recv(1024)
+                except ERRORS:
+                    break
+                if not chunk:
+                    break
+                data += chunk
+                while CRLF in data:
+                    line, data = data.split(CRLF, 1)
+                    if not line:
+                        return
+                    line = line.decode()
+                    if is_logger:
+                        print(line)
+                        continue
+                    if line.startswith('{') and line.endswith('}'):
+                        # json? json!
+                        self._parse_json(line)
+                        continue
+                    if line.startswith('pong:'):
+                        try:
+                            diff = time.time() - float(line.split(':', 1)[1])
+                        except (ValueError, TypeError):
+                            pass
+                        else:
+                            line = 'ping {} ms'.format(int(diff * 1000))
+                    print('Ответ: {}'.format(line))
         finally:
             client.close()
+
+    @staticmethod
+    def _parse_json(data: str):
+        try:
+            data = json.loads(data)
+            if not isinstance(data, dict):
+                raise TypeError('Data must be dict type')
+        except (json.decoder.JSONDecodeError, TypeError) as e:
+            return print('Ошибка декодирования: {}'.format(e))
+
+        for key in ('cmd', 'code'):
+            if key not in data:
+                return print('Не хватает ключа: {}'.format(key))
+
+        if data['code'] != 0:
+            return print('Терминал сообщил об ошибке [{}]: {}'.format(data['code'], data.get('msg', '')))
+
+        if 'body' not in data:
+            return print('Не хватает ключа: body')
+        if data['cmd'] == 'recv_model':
+            if 'filename' not in data:
+                return print('Не хватает ключа: filename')
+            try:
+                file_size = len(base64_to_bytes(data['body']))
+            except RuntimeError as e:
+                return print('Ошибка декодирования body: {}'.format(e))
+            optional = ', '.join(['{}={}'.format(k, repr(data[k])) for k in ('username', 'phrase') if k in data])
+            result = 'Получен файл {}; данные: {}; размер {} байт'.format(data['filename'], optional, file_size)
+        elif data['cmd'] == 'list_models':
+            if not isinstance(data['body'], dict) or \
+                    len([k for k in ('models', 'allow') if isinstance(data['body'].get(k, ''), list)]) < 2:
+                return print('Недопустимое body: {}'.format(repr(data.get('body'))))
+            result = 'Все модели: {}; разрешенные: {}'.format(
+                ', '.join(data['body']['models']), ', '.join(data['body']['allow'])
+            )
+        else:
+            result = 'Неизвестная команда: {}'.format(repr(data['cmd']))
+        print('Ответ на {}: {}'.format(repr(data['cmd']), result))
 
     def do_connect(self, arg):
         """Проверяет подключение к терминалу и позволяет задать его адрес. Аргументы: IP:PORT"""
@@ -120,6 +193,22 @@ class TestShell(cmd__.Cmd):
         """Откатывает последнее обновление. Аргументы: нет"""
         self._send('rec:rollback_0_0')
 
+    def do_ping(self, _):
+        """Пинг. Аргументы: нет"""
+        self._send('ping:{}'.format(time.time()))
+
+    def do_list_models(self, _):
+        """Список моделей. Аргументы: нет"""
+        self._send('list_models')
+
+    def do_recv_model(self, filename):
+        """Запросить модель у терминала. Аргументы: имя файла"""
+        self._send('recv_model:{}'.format(filename))
+
+    def do_log(self,_):
+        """Подключает удаленного логгера к терминалу. Аргументы: нет"""
+        self._send('remote_log', True)
+
     def do_raw(self, arg):
         """Отправляет терминалу любые данные. Аргументы: что угодно"""
         if not arg:
@@ -152,6 +241,13 @@ def get_params(arg, helps, seps=None, to_type=int or None, count=2):
                     return err()
             return cmd
     return err()
+
+
+def base64_to_bytes(data):
+    try:
+        return base64.b64decode(data)
+    except (ValueError, TypeError) as e:
+        raise RuntimeError(e)
 
 
 if __name__ == '__main__':

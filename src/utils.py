@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import base64
 import functools
 import os
 import queue
@@ -284,3 +285,15 @@ def singleton(cls):
         return instances[cls]
 
     return get_instance
+
+
+def file_to_base64(file_name: str) -> str:
+    with open(file_name, 'rb') as fp:
+        return base64.b64encode(fp.read()).decode()
+
+
+def base64_to_bytes(data):
+    try:
+        return base64.b64decode(data)
+    except (ValueError, TypeError) as e:
+        raise RuntimeError(e)

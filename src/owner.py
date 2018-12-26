@@ -42,6 +42,16 @@ class Owner:
         """
         return self._pub.has_subscribers(event, channel)
 
+    def sub_call(self, channel: str, event: str, *args, **kwargs):
+        """
+        Активирует событие напрямую.
+        :param channel: канал.
+        :param event: событие.
+        :param args: args.
+        :param kwargs: kwargs.
+        """
+        return self._pub.sub_call(channel, event, *args, **kwargs)
+
     def say(self, msg: str, lvl: int=2, alarm=None, wait=0, is_file: bool = False, blocking: int=0):
         self._play.say(msg, lvl, alarm, wait, is_file, blocking)
 
