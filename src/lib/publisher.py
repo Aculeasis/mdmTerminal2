@@ -20,7 +20,7 @@ class PubSub(threading.Thread):
     def registration(self, event: str, channel='default'):
         if not (isinstance(event, str) and event and channel):
             return None
-        return lambda *args, **kwargs: self.call(channel, event, *args, **kwargs)
+        return lambda *args, **kwargs: self._call(channel, event, *args, **kwargs)
 
     def has_subscribers(self, event: str, channel='default') -> bool:
         return event in self._event_callbacks.get(channel, {})
