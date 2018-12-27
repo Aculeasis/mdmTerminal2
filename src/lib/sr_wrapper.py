@@ -34,6 +34,12 @@ import time
 
 import speech_recognition
 
+try:
+    from webrtcvad import Vad
+    WEBRTCVAD = True
+except (ModuleNotFoundError, ImportError) as e:
+    WEBRTCVAD = False
+    print('Error importing webrtcvad: {}'.format(e))
 from lib import snowboydetect
 from .proxy import proxies
 
@@ -51,10 +57,9 @@ class Interrupted(Exception):
 
 
 class SnowboyDetector:
-    # sample duration in ms
-    DURATION = 150
-
-    def __init__(self, resource_path, snowboy_hot_word_files, sensitivity, audio_gain, width, rate):
+    def __init__(self, resource_path, snowboy_hot_word_files, sensitivity, audio_gain, width, rate, webrtcvad):
+        webrtcvad = min(4, max(0, webrtcvad))
+        webrtcvad = webrtcvad if WEBRTCVAD else 0
         self._detector = snowboydetect.SnowboyDetect(
             resource_filename=os.path.join(resource_path, 'resources', 'common.res').encode(),
             model_str=",".join(snowboy_hot_word_files).encode()
@@ -63,22 +68,42 @@ class SnowboyDetector:
         self._detector.SetSensitivity(','.join([str(sensitivity)] * len(snowboy_hot_word_files)).encode())
 
         self._resample_rate = self._detector.SampleRate()
+        if webrtcvad and self._resample_rate not in (16000, 32000, 48000):
+            self._resample_rate = 16000
         self._rate = rate
         self._width = width
         self._resample_state = None
         self._buffer = b''
-        self._sample_size = int(width * (self._resample_rate * self.DURATION / 1000))
+        # sample duration in ms
+        duration = 150
+        if webrtcvad and duration not in (10, 20, 30):
+            duration = 30
+        self._sample_size = int(width * (self._resample_rate * duration / 1000))
         self._current_state = -2
+        self._vad = Vad(webrtcvad - 1) if webrtcvad else None
 
     def detect(self, buffer: bytes) -> int:
-        self._buffer += self._resampler(buffer)
-        if len(self._buffer) >= self._sample_size:
-            self._current_state = self._detector.RunDetection(self._buffer)
-            self._buffer = b''
-        return self._current_state
+        return self._detect(buffer)
 
     def is_speech(self, buffer: bytes) -> bool:
-        return self.detect(buffer) >= 0
+        return self._detect(buffer, True) >= 0
+
+    def _detect(self, buffer: bytes, only_detect=False) -> int:
+        self._buffer += self._resampler(buffer)
+        if len(self._buffer) >= self._sample_size:
+            if self._vad:
+                while len(self._buffer) >= self._sample_size:
+                    vad_buffer, self._buffer = self._buffer[:self._sample_size], self._buffer[self._sample_size:]
+                    if not self._vad.is_speech(vad_buffer, self._resample_rate):
+                        self._current_state = -2
+                    elif not only_detect:
+                        self._current_state = self._detector.RunDetection(vad_buffer)
+                    else:
+                        self._current_state = 0
+            else:
+                self._current_state = self._detector.RunDetection(self._buffer)
+                self._buffer = b''
+        return self._current_state
 
     def _resampler(self, buffer: bytes) -> bytes:
         buffer, self._resample_state = audioop.ratecv(
@@ -99,6 +124,7 @@ class Recognizer(speech_recognition.Recognizer):
         self._hotword_callback = hotword_callback
         self._audio_gain = audio_gain
         self._no_energy_threshold = False
+        self._webrtcvad = 0
 
         self._noising = noising
         self._record_callback = record_callback
@@ -109,6 +135,9 @@ class Recognizer(speech_recognition.Recognizer):
 
     def no_energy_threshold(self):
         self._no_energy_threshold = True
+
+    def use_webrtcvad(self, webrtcvad):
+        self._webrtcvad = webrtcvad
 
     def _calc_noise(self, buffer, sample_width, seconds_per_buffer):
         energy = audioop.rms(buffer, sample_width)  # energy of the audio signal
@@ -124,7 +153,7 @@ class Recognizer(speech_recognition.Recognizer):
         snowboy_location, snowboy_hot_word_files = snowboy_configuration
         return SnowboyDetector(
                 snowboy_location, snowboy_hot_word_files, self._sensitivity, self._audio_gain,
-                source.SAMPLE_WIDTH, source.SAMPLE_RATE
+                source.SAMPLE_WIDTH, source.SAMPLE_RATE, self._webrtcvad
             )
 
     @property

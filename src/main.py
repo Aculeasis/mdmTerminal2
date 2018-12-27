@@ -36,6 +36,7 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'chrome_mode': 1,
         'chrome_choke': False,
         'chrome_alarmstt': False,
+        'webrtcvad': 0,
         'lang': 'ru',
         'lang_check': False,
     },
@@ -132,7 +133,7 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'line_out': '',
     },
     'system': {
-        'ini_version': 19,
+        'ini_version': 20,
     }
 }
 

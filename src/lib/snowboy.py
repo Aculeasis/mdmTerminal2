@@ -131,6 +131,7 @@ class SnowBoySR3(SnowBoySR2):
         self._terminate = False
         r = self._get_recognizer()
         r.no_energy_threshold()
+        r.use_webrtcvad(self._cfg.gts('webrtcvad'))
         while not self._interrupted():
             with sr.Microphone() as source:
                 try:
@@ -147,6 +148,7 @@ class SnowBoySR4(SnowBoySR2):
         self._terminate = False
         r = self._get_recognizer()
         r.no_energy_threshold()
+        r.use_webrtcvad(self._cfg.gts('webrtcvad'))
         while not self._interrupted():
             with sr.Microphone() as source:
                 try:
