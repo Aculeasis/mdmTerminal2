@@ -63,6 +63,7 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'file_lvl' : 'debug',
         'print_lvl': 'debug',
         'remote_log': True,
+        'print_ms': True,
         'method': 3,
         'file': '',
     },
@@ -133,7 +134,7 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'line_out': '',
     },
     'system': {
-        'ini_version': 20,
+        'ini_version': 21,
     }
 }
 

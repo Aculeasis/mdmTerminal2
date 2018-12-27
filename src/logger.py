@@ -213,11 +213,12 @@ class Logger(threading.Thread):
     def _to_file(self, name, msg, lvl):
         self._app_log.log(lvl, '{}: {}'.format(name, msg))
 
-    @staticmethod
-    def _to_print(name, msg, lvl, l_time, m_name) -> str:
+    def _to_print(self, name, msg, lvl, l_time, m_name) -> str:
         if m_name:
             m_name = '->{}'.format(colored(m_name, MODULE_COLOR))
         time_ = time.strftime('%Y.%m.%d %H:%M:%S', time.localtime(l_time))
+        if self._cfg['print_ms']:
+            time_ += '.{:03d}'.format(int(l_time * 1000 % 1000))
         return '{} {}{}: {}'.format(time_, colored(name, NAME_COLOR), m_name, colored(msg, COLORS[lvl]))
 
     def _to_remote_log(self, line: str):
