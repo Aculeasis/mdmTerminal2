@@ -25,7 +25,7 @@ class Player:
         self._only_one = threading.Lock()
         self._work = False
         self._popen = None
-        self._lp_play = LowPrioritySay(self.really_busy, self.say, self.play)
+        self._lp_play = LowPrioritySay(self._wait_popen, self.say, self.play)
 
     def start(self):
         self._work = True
@@ -38,10 +38,7 @@ class Player:
         self._lvl = 100500
         self._lp_play.stop()
 
-        count = 0
-        while (self.popen_work()) and count < 1000:
-            time.sleep(0.01)
-            count += 1
+        self._wait_popen(10)
         self.quiet()
         self.kill_popen()
 
@@ -51,10 +48,8 @@ class Player:
         if lvl > 1:
             self._lp_play.clear()
 
-        start_time = time.time()
-        if lvl <= self.get_lvl():
-                while self.busy() and time.time() - start_time < self.MAX_BUSY_WAIT:
-                    time.sleep(0.01)
+        if lvl <= self.get_lvl() and self._popen:
+            self._wait_popen(self.MAX_BUSY_WAIT)
         if lvl >= self.get_lvl():
             self._lvl = lvl
             self.quiet()
@@ -101,10 +96,11 @@ class Player:
         return self._popen is not None and self._popen.poll() is None
 
     def _wait_popen(self, timeout=2):
-        try:
-            self._popen.wait(timeout)
-        except subprocess.TimeoutExpired:
-            self.kill_popen()
+        if self._popen:
+            try:
+                self._popen.wait(timeout)
+            except subprocess.TimeoutExpired:
+                pass
 
     def _no_background_play(self, lvl, blocking):
         if not self._cfg.gts('no_background_play'):
@@ -120,7 +116,6 @@ class Player:
         if not self.set_lvl(lvl):
             return
 
-        time.sleep(0.01)
         self._play(file)
         if blocking:
             self._wait_popen(blocking)
@@ -147,8 +142,6 @@ class Player:
             alarm = self._cfg.gts('alarmtts')
 
         file = self.own.tts(msg) if not is_file else msg
-
-        time.sleep(0.01)
         if alarm:
             self._play(self._cfg.path['dong'])
             self._wait_popen()
@@ -184,11 +177,11 @@ class Player:
 
 
 class LowPrioritySay(threading.Thread):
-    def __init__(self, is_busy, say, play):
+    def __init__(self, wait_popen, say, play):
         super().__init__(name='LowPrioritySay')
         self._play = play
         self._say = say
-        self._is_busy = is_busy
+        self._wait_popen = wait_popen
         self._queue_in = queue.Queue()
         self._work = False
 
@@ -220,14 +213,10 @@ class LowPrioritySay(threading.Thread):
     def run(self):
         while self._work:
             say = self._queue_in.get()
-            while self._is_busy() and self._work:
-                time.sleep(0.01)
+            self._wait_popen()
             if say is None or not self._work:
                 break
             if say[0] in [1, 3]:
                 self._say(msg=say[1], lvl=1, wait=say[2], is_file=say[0] == 3)
             elif say[0] == 2:
                 self._play(file=say[1], lvl=1, wait=say[2])
-
-
-
