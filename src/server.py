@@ -28,21 +28,21 @@ class MDTServer(threading.Thread):
         super().__init__(name='MDTServer')
         # Базовое, MajorDroid, API
         self.MDAPI = {
-            'hi': self._api_voice,
-            'voice': self._api_voice,
-            'home': self._api_home,
-            'url': self._api_url,
+            'hi': self._api_terminal_direct,
+            'voice': self._api_terminal_direct,
+            'home': self._api_no_implement,
+            'url': self._api_no_implement,
             'play': self._api_play,
             'pause': self._api_pause,
-            'tts': self._api_tts,
-            'ask': self._api_ask,
-            'rtsp': self._api_rtsp,
-            'run': self._api_run,
+            'tts': self._api_terminal_direct,
+            'ask': self._api_terminal_direct,
+            'rtsp': self._api_no_implement,
+            'run': self._api_no_implement,
         }
         # API терминала для получения данных
         self.MTAPI = {
             'settings': self._api_settings,
-            'volume': self._api_volume,
+            'volume': self._api_terminal_direct,
             'rec': self._api_rec,
             'pong': self._api_pong,
             'send_model': self._api_send_model,
@@ -135,14 +135,17 @@ class MDTServer(threading.Thread):
             # 1 минуты хватит?
             self._lock.wait(60)
         elif cmd[0] in self.MDAPI:
-            self.MDAPI[cmd[0]](cmd[1])
+            try:
+                self.MDAPI[cmd[0]](cmd[0], cmd[1])
+            except RuntimeError as e:
+                self.log('MDAPI: {}'.format(e), logger.ERROR)
         elif cmd[0] in self.MTAPI:
             try:
-                self.MTAPI[cmd[0]](cmd[1])
+                self.MTAPI[cmd[0]](cmd[0], cmd[1])
             except RuntimeError as e:
-                self.log(e, logger.ERROR)
+                self.log('MTAPI: {}'.format(e), logger.ERROR)
         elif cmd[0] in self.TRANSFER:
-            action = 'Transfer protocol ({})... '.format(cmd[0])
+            action = 'Transfer protocol ({})...'.format(cmd[0])
             try:
                 self.TRANSFER[cmd[0]](cmd[0], cmd[1])
             except RuntimeError as e:
@@ -152,40 +155,26 @@ class MDTServer(threading.Thread):
         else:
             self.log(LNG['unknown_cmd'].format(cmd[0]), logger.WARN)
 
-    def _api_voice(self, cmd: str):
-        self.own.terminal_call('voice', cmd)
+    def _api_no_implement(self, name: str, cmd: str):
+        # home, url, rtsp, run
+        raise RuntimeError(LNG['no_implement'].format(name, cmd))
 
-    def _api_home(self, cmd: str):
-        self.log(LNG['no_implement'].format('home', cmd), logger.WARN)
+    def _api_terminal_direct(self, name: str, cmd: str):
+        # hi, voice, tts, ask, volume
+        if name == 'hi':
+            name = 'voice'
+        self.own.terminal_call(name, cmd)
 
-    def _api_url(self, cmd: str):
-        self.log(LNG['no_implement'].format('url', cmd), logger.WARN)
-
-    def _api_play(self, cmd: str):
+    def _api_play(self, _, cmd: str):
         self.own.mpd_play(cmd)
 
-    def _api_pause(self, _):
+    def _api_pause(self, __, _):
         self.own.mpd_pause()
 
-    def _api_tts(self, cmd: str):
-        self.own.terminal_call('tts', cmd)
-
-    def _api_ask(self, cmd: str):
-        self.own.terminal_call('ask', cmd)
-
-    def _api_rtsp(self, cmd: str):
-        self.log(LNG['no_implement'].format('rtsp', cmd), logger.WARN)
-
-    def _api_run(self, cmd: str):
-        self.log(LNG['no_implement'].format('run', cmd), logger.WARN)
-
-    def _api_settings(self, cmd: str):
+    def _api_settings(self, _, cmd: str):
         self.own.settings_from_mjd(cmd)
 
-    def _api_volume(self, cmd: str):
-        self.own.terminal_call('volume', cmd)
-
-    def _api_rec(self, cmd: str):
+    def _api_rec(self, _, cmd: str):
         param = cmd.split('_')  # должно быть вида rec_1_1, play_2_1, compile_5_1
         if len(param) != 3 or sum([1 if len(x) else 0 for x in param]) != 3:
             raise RuntimeError(LNG['err_rec_param'].format(param))
@@ -199,7 +188,7 @@ class MDTServer(threading.Thread):
         else:
             raise RuntimeError(LNG['unknown_rec_cmd'].format(param[0]))
 
-    def _api_send_model(self, data):
+    def _api_send_model(self, _, data: str):
         """
         Получение модели от сервера.
         Нужно ли отправить на сервер результат? Пока не будем.
@@ -245,7 +234,7 @@ class MDTServer(threading.Thread):
             raise RuntimeError('File too small: {}'.format(len(data['body'])))
         self.own.terminal_call('send_model', data, save_time=False)
 
-    def _api_recv_model(self, cmd, pmdl_name):
+    def _api_recv_model(self, cmd: str, pmdl_name: str):
         """
         Отправка модели на сервер.
         Все данные пакуются в json:
@@ -283,7 +272,7 @@ class MDTServer(threading.Thread):
             data['username'] = username
         self._conn.write(data)
 
-    def _api_list_models(self, cmd, _):
+    def _api_list_models(self, name: str, _):
         """
         Отправка на сервер моделей которые есть у терминала.
         Все данные пакуются в json:
@@ -295,7 +284,7 @@ class MDTServer(threading.Thread):
         - allow: список моделей из [models] allow, может быть пустым, обязательно если code 0.
         """
         data = {
-            'cmd': cmd,
+            'cmd': name,
             'code': 0,
             'body': {
                 'models': self._cfg.get_all_models(),
@@ -304,7 +293,7 @@ class MDTServer(threading.Thread):
         }
         self._conn.write(data)
 
-    def _api_ping(self, _, data):
+    def _api_ping(self, _, data: str):
         """
         Пустая команды для поддержания и проверки соединения,
         на 'ping' терминал пришлет 'pong'. Если пинг с данными,
@@ -316,7 +305,7 @@ class MDTServer(threading.Thread):
             cmd = '{}:{}'.format(cmd, data)
         self._conn.write(cmd)
 
-    def _api_pong(self, data):
+    def _api_pong(self, _, data: str):
         if data:
             # Считаем пинг
             try:
