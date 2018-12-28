@@ -19,3 +19,4 @@ python-pip
 swig
 lame
 git
+libtool

@@ -133,8 +133,12 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
     'volume': {
         'line_out': '',
     },
+    'noise_suppression': {
+        'enable': False,
+        'ns_lvl': 0,
+    },
     'system': {
-        'ini_version': 21,
+        'ini_version': 22,
     }
 }
 

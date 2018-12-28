@@ -230,6 +230,9 @@ class Owner:
             if is_sub_dict('majordomo', diff):
                 # resubscribe
                 self._notifier.reload()
+            if is_sub_dict('noise_suppression', diff):
+                # reconfigure APM
+                self._cfg.apm_configure()
             if is_sub_dict('settings', diff) or reload_terminal:
                 # reload terminal
                 self.terminal_call('reload', save_time=False)

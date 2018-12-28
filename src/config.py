@@ -13,6 +13,7 @@ from languages import CONFIG as LNG, LANG_CODE
 from lib import volume
 from lib.keys_utils import Keystore
 from lib.proxy import proxies
+from lib.sr_wrapper import APMSettings
 from owner import Owner
 
 
@@ -104,6 +105,7 @@ class ConfigHandler(dict):
 
     def configure(self, log):
         self._add_log(log)
+        self.apm_configure()
 
         # ~/resources/
         self._make_dir(self.path['resources'])
@@ -141,6 +143,12 @@ class ConfigHandler(dict):
 
     def proxies_init(self):
         proxies.configure(self.get('proxy', {}))
+
+    def apm_configure(self):
+        apm = APMSettings()
+        apm.cfg(**self['noise_suppression'])
+        if apm.failed:
+            self._print(apm.failed, logger.CRIT)
 
     def fix_speakers(self):
         return utils.fix_speakers(self)
