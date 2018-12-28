@@ -11,9 +11,9 @@ import logger
 import utils
 from languages import CONFIG as LNG, LANG_CODE
 from lib import volume
+from lib.audio_utils import APMSettings
 from lib.keys_utils import Keystore
 from lib.proxy import proxies
-from lib.sr_wrapper import APMSettings
 from owner import Owner
 
 

@@ -20,7 +20,7 @@ class AudioConverter(threading.Thread):
     POPEN_TIMEOUT = 10
     JOIN_TIMEOUT = 10
 
-    def __init__(self, adata: AudioData or threading.Thread, ext, convert_rate=None, convert_width=None):
+    def __init__(self, adata, ext, convert_rate=None, convert_width=None):
         super().__init__()
 
         self._adata = adata

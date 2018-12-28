@@ -8,9 +8,10 @@ import requests
 
 import lib.streaming_converter as streaming_converter
 from utils import REQUEST_ERRORS, RuntimeErrorTrace
+from .audio_utils import StreamRecognition
 from .keys_utils import requests_post, xml_yandex
 from .proxy import proxies
-from .sr_wrapper import google_reply_parser, UnknownValueError, Recognizer, AudioData, StreamRecognition, RequestError
+from .sr_wrapper import google_reply_parser, UnknownValueError, Recognizer, AudioData, RequestError
 
 __all__ = ['support', 'GetSTT', 'RequestError']
 
