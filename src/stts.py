@@ -245,7 +245,7 @@ class SpeechToText:
         commands = None
 
         if self._cfg.gts('alarmkwactivated'):
-            self.own.play(self._cfg.path['ding'], lvl, wait=0.01, blocking=2)
+            self.own.play(self._cfg.path['ding'], lvl, blocking=2)
         else:
             self.own.set_lvl(lvl)
             self.own.kill_popen()
@@ -293,7 +293,7 @@ class SpeechToText:
 
         start_wait = time.time()
         if file_path:
-            self.own.say(file_path, lvl, alarm=False, is_file=True)
+            self.own.play(file_path, lvl)
 
         # Начинаем фоновое распознавание голосом после того как запустился плей.
         listener = NonBlockListener(r=r, source=mic, phrase_time_limit=self._cfg.gts('phrase_time_limit', 15))
@@ -316,18 +316,16 @@ class SpeechToText:
         return listener.audio, record_time, energy_threshold
 
     def _block_listen(self, hello, lvl, file_path, self_call=False):
+        if self._cfg.gts('alarmtts') and not hello:
+            self.own.play(self._cfg.path['dong'], lvl, blocking=2)
+        if file_path:
+            self.own.play(file_path, lvl, blocking=120)
         with sr.Microphone(device_index=self.get_mic_index()) as source:
             r = sr.Recognizer(
                 record_callback=self.own.record_callback,
                 silent_multiplier=self._cfg.gts('silent_multiplier')
             )
-            if self._cfg.gts('alarmtts') and not hello:
-                self.own.play(self._cfg.path['dong'], lvl, wait=0.01, blocking=2)
-
-            if file_path:
-                self.own.say(file_path, lvl, alarm=False, wait=0.01, is_file=True, blocking=120)
             energy_threshold = self.energy.correct(r, source)
-
             record_time = time.time()
             try:
                 audio = r.listen(source, timeout=10, phrase_time_limit=self._cfg.gts('phrase_time_limit', 15))

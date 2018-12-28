@@ -162,7 +162,8 @@ class Player:
             (path, stream, ext) = obj
         else:
             raise RuntimeError('Get unknown object: {}'.format(str(obj)))
-        self.kill_popen()
+        if self._popen:
+            self._popen.kill()
         ext = ext or os.path.splitext(path)[1]
         if not stream and not os.path.isfile(path):
             return self.log(LNG['file_not_found'].format(path), logger.ERROR)

@@ -59,9 +59,7 @@ class AudioConverter(threading.Thread):
                 chunk, state = audioop.ratecv(
                     chunk, self._sample_width, 1, self._adata.sample_rate, self._sample_rate, state
                 )
-            try:
-                self._processing(chunk)
-            except BrokenPipeError:
+            if not self._processing(chunk):
                 break
 
     def _run_adata(self):
@@ -69,15 +67,18 @@ class AudioConverter(threading.Thread):
             del self._adata
             while True:
                 chunk = fp.read(self.IN_CHUNK_SIZE)
-                if not chunk:
+                if not (chunk and self._processing(chunk)):
                     break
-                self._processing(chunk)
 
     def _processing(self, data):
         if self._wave:
-            self._wave.writeframesraw(data)
+            try:
+                self._wave.writeframesraw(data)
+            except BrokenPipeError:
+                return False
         else:
             self._stream.write(data)
+        return True
 
     def _start_processing(self):
         if self._format != 'pcm':
