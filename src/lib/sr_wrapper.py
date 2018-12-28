@@ -194,12 +194,7 @@ class SnowboyDetector:
     def __init__(self, resource_path, snowboy_hot_word_files, sensitivity, audio_gain, width, rate, webrtcvad):
         webrtcvad = min(4, max(0, webrtcvad))
         webrtcvad = webrtcvad if WEBRTCVAD else 0
-        self._detector = snowboydetect.SnowboyDetect(
-            resource_filename=os.path.join(resource_path, 'resources', 'common.res').encode(),
-            model_str=",".join(snowboy_hot_word_files).encode()
-        )
-        self._detector.SetAudioGain(audio_gain)
-        self._detector.SetSensitivity(','.join([str(sensitivity)] * len(snowboy_hot_word_files)).encode())
+        self._detector = _snowboy_constructor(resource_path, sensitivity, audio_gain, *snowboy_hot_word_files)
 
         self._resample_rate = self._detector.SampleRate()
         if webrtcvad and self._resample_rate not in (16000, 32000, 48000):
@@ -214,8 +209,8 @@ class SnowboyDetector:
             duration = 30
         self._sample_size = int(width * (self._resample_rate * duration / 1000))
         self._current_state = -2
-        self._vad = Vad(webrtcvad - 1) if webrtcvad else None
-        if self._rate == 16000:
+        self._vad = _webrtcvad_constructor(webrtcvad)
+        if self._rate == self._resample_rate:
             self._resampler = lambda x: x
         else:
             self._resampler = self.__resampler
@@ -643,6 +638,22 @@ class TimeFusion:
 
     def up(self):
         self._time = time.time()
+
+
+@lru_cache()
+def _webrtcvad_constructor(webrtcvad):
+    return Vad(webrtcvad - 1) if webrtcvad else None
+
+
+@lru_cache()
+def _snowboy_constructor(resource_path, sensitivity, audio_gain, *snowboy_hot_word_files):
+    sn = snowboydetect.SnowboyDetect(
+        resource_filename=os.path.join(resource_path, 'resources', 'common.res').encode(),
+        model_str=",".join(snowboy_hot_word_files).encode()
+    )
+    sn.SetAudioGain(audio_gain)
+    sn.SetSensitivity(','.join([str(sensitivity)] * len(snowboy_hot_word_files)).encode())
+    return sn
 
 
 def google_reply_parser(text: str) -> str:
