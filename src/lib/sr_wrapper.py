@@ -38,13 +38,13 @@ import speech_recognition
 try:
     from webrtc_audio_processing import AudioProcessingModule
     APM_ERR = None
-except (ModuleNotFoundError, ImportError) as e:
+except ImportError as e:
     APM_ERR = 'Error importing webrtc_audio_processing: {}'.format(e)
 
 try:
     from webrtcvad import Vad
     WEBRTCVAD = True
-except (ModuleNotFoundError, ImportError) as e:
+except ImportError as e:
     WEBRTCVAD = False
     print('Error importing webrtcvad: {}'.format(e))
 from lib import snowboydetect
