@@ -4,6 +4,7 @@ import os
 import queue
 import threading
 import time
+import traceback
 
 import lib.snowboy_training as training_service
 import logger
@@ -71,8 +72,19 @@ class MDTerminal(threading.Thread):
         if self._snowboy is None:
             time.sleep(0.5)
         else:
-            self._snowboy.start()
-            self._snowboy.terminate()
+            try:
+                self._snowboy.start()
+            except OSError as e:
+                self._work = False
+                self.log('Critical error, bye: {}'.format(e), logger.CRIT)
+                self.log(traceback.format_exc(), logger.CRIT)
+                self.own.die_in(1)
+                try:
+                    self._snowboy.terminate()
+                except OSError:
+                    pass
+            else:
+                self._snowboy.terminate()
 
     def _external_check(self):
         while self._queue.qsize() and self._work:
