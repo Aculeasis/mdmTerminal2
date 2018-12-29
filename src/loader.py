@@ -67,6 +67,6 @@ class Loader(Owner):
 
         self._stt.stop()
         self._play.stop()
-        self._mpd.join()
+        self._mpd.join(20)
         self._logger.join()
         self._pub.join()

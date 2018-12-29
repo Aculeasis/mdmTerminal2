@@ -115,6 +115,7 @@ class MPDControl(threading.Thread):
     def join(self, timeout=None):
         if self._work:
             self._work = False
+            self._queue.put_nowait(None)
             self.log('stopping...', logger.DEBUG)
             super().join(timeout)
             self.log('stop.', logger.INFO)
@@ -277,7 +278,9 @@ class MPDControl(threading.Thread):
             except queue.Empty:
                 pass
             else:
-                if cmd[0] == 'pause':
+                if cmd is None:
+                    break
+                elif cmd[0] == 'pause':
                     self._pause(cmd[1])
                 elif cmd[0] == 'play':
                     self._play(cmd[1])
