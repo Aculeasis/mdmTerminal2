@@ -155,63 +155,118 @@ class MicrophoneStreamAPM(MicrophoneStream):
         return chunks
 
 
-class SnowboyDetector:
-    def __init__(self, resource_path, snowboy_hot_word_files, sensitivity, audio_gain, width, rate, webrtcvad):
-        webrtcvad = min(4, max(0, webrtcvad))
-        webrtcvad = webrtcvad if Vad else 0
-        self._detector = _snowboy_constructor(resource_path, sensitivity, audio_gain, *snowboy_hot_word_files)
-
-        self._resample_rate = self._detector.SampleRate()
-        if webrtcvad and self._resample_rate not in (16000, 32000, 48000):
-            self._resample_rate = 16000
+class Detector:
+    def __init__(self, duration, width, rate, resample_rate):
+        self._resample_rate = resample_rate
         self._rate = rate
         self._width = width
+        self._sample_size = int(width * (self._resample_rate * duration / 1000))
         self._resample_state = None
         self._buffer = b''
-        # sample duration in ms
-        duration = 150
-        if webrtcvad and duration not in (10, 20, 30):
-            duration = 30
-        self._sample_size = int(width * (self._resample_rate * duration / 1000))
-        self._current_state = -2
-        self._vad = _webrtcvad_constructor(webrtcvad)
+        self._state = False
         if self._rate == self._resample_rate:
             self._resampler = lambda x: x
         else:
-            self._resampler = self.__resampler
+            self._resampler = self._audio_resampler
 
-    def detect(self, buffer: bytes) -> int:
-        return self._detect(buffer)
+    def is_speech(self, data: bytes) -> bool:
+        self._call_detector(self._resampler(data))
+        return self._state
 
-    def is_speech(self, buffer: bytes) -> bool:
-        return self._detect(buffer, True) >= 0
+    def _detector(self, chunk: bytes):
+        pass
 
-    def _detect(self, buffer: bytes, only_detect=False) -> int:
-        self._buffer += self._resampler(buffer)
-        if len(self._buffer) >= self._sample_size:
-            if self._vad:
-                current_state = self._current_state
-                while len(self._buffer) >= self._sample_size:
-                    vad_buffer, self._buffer = self._buffer[:self._sample_size], self._buffer[self._sample_size:]
-                    if not self._vad.is_speech(vad_buffer, self._resample_rate):
-                        current_state = -2
-                    elif not only_detect:
-                        current_state = self._detector.RunDetection(vad_buffer)
-                    else:
-                        current_state = 0
-                    if current_state != self._current_state:
-                        break
-                self._current_state = current_state
-            else:
-                self._current_state = self._detector.RunDetection(self._buffer)
-                self._buffer = b''
-        return self._current_state
+    def _call_detector(self, data: bytes):
+        self._buffer += data
+        buff_len = len(self._buffer)
+        read_len = (buff_len // self._sample_size) * self._sample_size
+        if read_len:
+            for step in range(0, read_len, self._sample_size):
+                self._detector(self._buffer[step: step + self._sample_size])
+            self._buffer = self._buffer[read_len:]
 
-    def __resampler(self, buffer: bytes) -> bytes:
+    def _audio_resampler(self, buffer: bytes) -> bytes:
         buffer, self._resample_state = audioop.ratecv(
             buffer, self._width, 1, self._rate, self._resample_rate, self._resample_state
         )
         return buffer
+
+
+class SnowboyDetector(Detector):
+    def __init__(self, resource_path, snowboy_hot_word_files, sensitivity, audio_gain, width, rate, webrtcvad):
+        self._snowboy = SnowboyDetector._constructor(resource_path, sensitivity, audio_gain, *snowboy_hot_word_files)
+        super().__init__(150, width, rate, self._snowboy.SampleRate())
+        webrtcvad = min(4, max(0, webrtcvad))
+        webrtcvad = webrtcvad if Vad else 0
+
+        self._current_state = -2
+        self._another = DetectorVAD(width, self._resample_rate, webrtcvad - 1) if webrtcvad else None
+
+    def detect(self, buffer: bytes) -> int:
+        return self._detector(buffer)
+
+    def is_speech(self, buffer: bytes) -> bool:
+        return self._detector(buffer, True) >= 0
+
+    def _detector(self, buffer: bytes, only_detect=False) -> int:
+        self._buffer += self._resampler(buffer)
+        if len(self._buffer) >= self._sample_size:
+            if self._another:
+                is_speech = self._another.is_speech(self._buffer)
+                if only_detect or not is_speech:
+                    self._current_state = 0 if is_speech else -2
+                elif is_speech:
+                    self._current_state = self._snowboy.RunDetection(self._buffer)
+            else:
+                self._current_state = self._snowboy.RunDetection(self._buffer)
+            self._buffer = b''
+        return self._current_state
+
+    @classmethod
+    @lru_cache(maxsize=1)
+    def _constructor(cls, resource_path, sensitivity, audio_gain, *snowboy_hot_word_files):
+        sn = snowboydetect.SnowboyDetect(
+            resource_filename=os.path.join(resource_path, 'resources', 'common.res').encode(),
+            model_str=",".join(snowboy_hot_word_files).encode()
+        )
+        sn.SetAudioGain(audio_gain)
+        sn.SetSensitivity(','.join([str(sensitivity)] * len(snowboy_hot_word_files)).encode())
+        return sn
+
+
+class DetectorVAD(Detector):
+    def __init__(self, width, rate, lvl):
+        super().__init__(30, width, rate, 16000)
+        self._vad = DetectorVAD._constructor(lvl)
+
+    def _detector(self, chunk: bytes):
+        self._state = self._vad.is_speech(chunk, self._resample_rate)
+
+    @classmethod
+    @lru_cache(maxsize=1)
+    def _constructor(cls, lvl):
+        return Vad(lvl)
+
+
+class DetectorAPM(Detector):
+    def __init__(self, width, rate, lvl):
+        super().__init__(10, width, rate, 16000)
+        self._apm = DetectorAPM._constructor(lvl)
+
+    def is_speech(self, data: bytes) -> bool:
+        self._call_detector(self._resampler(data))
+        self._state = self._apm.has_voice()
+        return self._state
+
+    def _detector(self, chunk: bytes):
+        self._apm.process_stream(chunk)
+
+    @classmethod
+    @lru_cache(maxsize=1)
+    def _constructor(cls, lvl):
+        apm = AudioProcessingModule(enable_vad=True)
+        apm.set_vad_level(lvl)
+        return apm
 
 
 class StreamRecognition(threading.Thread):
@@ -299,19 +354,3 @@ class TimeFusion:
 
     def up(self):
         self._time = time.time()
-
-
-@lru_cache(maxsize=1)
-def _webrtcvad_constructor(webrtcvad):
-    return Vad(webrtcvad - 1) if webrtcvad else None
-
-
-@lru_cache(maxsize=1)
-def _snowboy_constructor(resource_path, sensitivity, audio_gain, *snowboy_hot_word_files):
-    sn = snowboydetect.SnowboyDetect(
-        resource_filename=os.path.join(resource_path, 'resources', 'common.res').encode(),
-        model_str=",".join(snowboy_hot_word_files).encode()
-    )
-    sn.SetAudioGain(audio_gain)
-    sn.SetSensitivity(','.join([str(sensitivity)] * len(snowboy_hot_word_files)).encode())
-    return sn
