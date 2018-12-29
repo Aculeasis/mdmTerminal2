@@ -170,7 +170,7 @@ class _TTSWorker(threading.Thread):
             fp.close()
 
     def _synthesis_error(self, prov, key, e):
-        self.log(LNG['err_synthesis'].format(prov, key, e), logger.CRIT)
+        self.log(LNG['err_synthesis'].format(prov, utils.mask_off(key), e), logger.CRIT)
 
 
 class SpeechToText:

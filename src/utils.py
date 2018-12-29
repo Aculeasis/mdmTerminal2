@@ -297,3 +297,34 @@ def base64_to_bytes(data):
         return base64.b64decode(data)
     except (ValueError, TypeError) as e:
         raise RuntimeError(e)
+
+
+def mask_off(obj):
+    iterable_type = (list, tuple, set, dict)
+    if not obj:
+        return obj
+    iterable = isinstance(obj, iterable_type)
+    if not iterable:
+        obj = (obj,)
+    masked = []
+    for key in obj:
+        if not key or isinstance(key, bool):
+            masked.append(key)
+        elif isinstance(key, iterable_type):
+            masked.append(mask_off(key))
+        elif isinstance(key, (int, float)):
+            key_ = str(key)
+            if len(key_) < 3:
+                masked.append(key)
+            else:
+                masked.append('*' * len(key_))
+        elif isinstance(key, str):
+            key_len = len(key)
+            if key_len < 14:
+                key = '*' * key_len
+            else:
+                key = '{}**LENGTH<{}>**{}'.format(key[:2], key_len, key[-2:])
+            masked.append(key)
+        else:
+            masked.append('**HIDDEN OBJECT**')
+    return masked if iterable or not masked else masked[0]

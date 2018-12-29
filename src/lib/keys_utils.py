@@ -5,7 +5,7 @@ import time
 
 import requests
 
-from utils import REQUEST_ERRORS, RuntimeErrorTrace, singleton
+from utils import REQUEST_ERRORS, RuntimeErrorTrace, singleton, mask_off
 from .proxy import proxies
 from .sr_wrapper import UnknownValueError
 
@@ -66,7 +66,7 @@ def requests_post(url, key: str, **kwargs):
     if not reply.ok:
         raise RuntimeError('{}: {}'.format(reply.status_code, reply.reason))
     if key not in data:
-        raise RuntimeError('Key \'{}\' not in reply'.format(key))
+        raise RuntimeError('Key \'{}\' not in reply'.format(mask_off(key)))
     return data[key]
 
 
