@@ -92,7 +92,7 @@ class APMSettings:
             val = None
         return val
 
-    @lru_cache()
+    @lru_cache(maxsize=1)
     def _constructor(self, **kwargs):
         ap = AudioProcessingModule(aec_type=kwargs['aec_type'], enable_ns=True, agc_type=kwargs['agc_type'])
         if kwargs['ns_lvl'] is not None:
@@ -190,14 +190,18 @@ class SnowboyDetector:
         self._buffer += self._resampler(buffer)
         if len(self._buffer) >= self._sample_size:
             if self._vad:
+                current_state = self._current_state
                 while len(self._buffer) >= self._sample_size:
                     vad_buffer, self._buffer = self._buffer[:self._sample_size], self._buffer[self._sample_size:]
                     if not self._vad.is_speech(vad_buffer, self._resample_rate):
-                        self._current_state = -2
+                        current_state = -2
                     elif not only_detect:
-                        self._current_state = self._detector.RunDetection(vad_buffer)
+                        current_state = self._detector.RunDetection(vad_buffer)
                     else:
-                        self._current_state = 0
+                        current_state = 0
+                    if current_state != self._current_state:
+                        break
+                self._current_state = current_state
             else:
                 self._current_state = self._detector.RunDetection(self._buffer)
                 self._buffer = b''
@@ -297,12 +301,12 @@ class TimeFusion:
         self._time = time.time()
 
 
-@lru_cache()
+@lru_cache(maxsize=1)
 def _webrtcvad_constructor(webrtcvad):
     return Vad(webrtcvad - 1) if webrtcvad else None
 
 
-@lru_cache()
+@lru_cache(maxsize=1)
 def _snowboy_constructor(resource_path, sensitivity, audio_gain, *snowboy_hot_word_files):
     sn = snowboydetect.SnowboyDetect(
         resource_filename=os.path.join(resource_path, 'resources', 'common.res').encode(),

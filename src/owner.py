@@ -231,8 +231,9 @@ class Owner:
                 # resubscribe
                 self._notifier.reload()
             if is_sub_dict('noise_suppression', diff):
-                # reconfigure APM
+                # reconfigure APM. Reload terminal - later
                 self._cfg.apm_configure()
+                reload_terminal = True
             if is_sub_dict('settings', diff) or reload_terminal:
                 # reload terminal
                 self.terminal_call('reload', save_time=False)
