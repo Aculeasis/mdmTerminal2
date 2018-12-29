@@ -32,8 +32,8 @@ import time
 
 import speech_recognition
 
+from .audio_utils import APMSettings, MicrophoneStreamAPM, MicrophoneStream, SnowboyDetector, StreamRecognition
 from .proxy import proxies
-from .audio_utils import APMSettings, MicrophoneStreamAPM, SnowboyDetector, StreamRecognition
 
 AudioData = speech_recognition.AudioData
 AudioSource = speech_recognition.AudioSource
@@ -70,9 +70,9 @@ class Microphone(speech_recognition.Microphone):
     @classmethod
     def get_microphone_stream(cls, pyaudio_stream, width, rate):
         if APMSettings().enable:
-            return MicrophoneStreamAPM(pyaudio_stream, width, rate)
+            return MicrophoneStreamAPM(pyaudio_stream, width, rate, APMSettings().conservative)
         else:
-            return speech_recognition.Microphone.MicrophoneStream(pyaudio_stream)
+            return MicrophoneStream(pyaudio_stream)
 
 
 class Recognizer(speech_recognition.Recognizer):
@@ -148,6 +148,7 @@ class Recognizer(speech_recognition.Recognizer):
         frames = collections.deque(maxlen=five_seconds_buffer_count)
         start_time = time.time() + 0.2
         snowboy_result = 0
+        source.stream.deactivate()
         while True:
             elapsed_time += seconds_per_buffer
 
@@ -175,7 +176,7 @@ class Recognizer(speech_recognition.Recognizer):
         self._snowboy_result = snowboy_result
         if self._hotword_callback:
             self._hotword_callback()
-        return frames, elapsed_time if elapsed_time < 5 else 5.0
+        return source.stream.reactivate(frames), elapsed_time if elapsed_time < 5 else 5.0
 
     # part of https://github.com/Uberi/speech_recognition/blob/master/speech_recognition/__init__.py#L616
     def listen(self, source, timeout=None, phrase_time_limit=None, snowboy_configuration=None):

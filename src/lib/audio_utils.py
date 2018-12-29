@@ -28,6 +28,7 @@ class APMSettings:
     def __init__(self):
         self._cfg = {
             'enable': False,
+            'conservative': False,
             'aec_type': 0,
             'agc_type': 0,
             'ns_lvl': 0,
@@ -45,8 +46,8 @@ class APMSettings:
         # agc_target = 0..31, for agc_type == 1..2
         # aec_lvl = 0..2, for aec_type == 2?
         for key, val in kwargs.items():
-            if key == 'enable' and isinstance(val, bool):
-                self._cfg['enable'] = val
+            if key in ('enable', 'conservative') and isinstance(val, bool):
+                self._cfg[key] = val
             elif key == 'ns_lvl':
                 val = self._to_int(val)
                 if val is not None:
@@ -68,6 +69,10 @@ class APMSettings:
     @property
     def enable(self):
         return not APM_ERR and self._cfg['enable']
+
+    @property
+    def conservative(self):
+        return self._cfg['conservative']
 
     @property
     def failed(self):
@@ -102,16 +107,31 @@ class APMSettings:
         return ap
 
 
-class MicrophoneStreamAPM(Microphone.MicrophoneStream):
-    def __init__(self, pyaudio_stream, width, rate):
+class MicrophoneStream(Microphone.MicrophoneStream):
+    def deactivate(self):
+        pass
+
+    @staticmethod
+    def reactivate(chunks):
+        return chunks
+
+
+class MicrophoneStreamAPM(MicrophoneStream):
+    def __init__(self, pyaudio_stream, width, rate, conservative):
         super().__init__(pyaudio_stream)
         self._ap = APMSettings().instance
+        self._conservative = conservative
         self._ap.set_stream_format(rate, 1)
         self._buffer = b''
         self._sample_size = width * int(rate * 10 / 1000)
+        self._active = True
 
     def read(self, size):
-        return b''.join(chunk for chunk in self._reader(super().read(size)))
+        data = super().read(size)
+        return self._convert(data) if self._active else data
+
+    def _convert(self, data):
+        return b''.join(chunk for chunk in self._reader(data))
 
     def _reader(self, data: bytes):
         self._buffer += data
@@ -121,6 +141,18 @@ class MicrophoneStreamAPM(Microphone.MicrophoneStream):
             for step in range(0, read_len, self._sample_size):
                 yield self._ap.process_stream(self._buffer[step: step + self._sample_size])
             self._buffer = self._buffer[read_len:]
+
+    def deactivate(self):
+        if self._conservative:
+            self._active = False
+
+    def reactivate(self, chunks):
+        if not self._active:
+            self._active = True
+            if self._buffer:
+                raise RuntimeError('buffer {}'.format(len(self._buffer)))
+            return collections.deque(self._convert(chunk) for chunk in chunks)
+        return chunks
 
 
 class SnowboyDetector:

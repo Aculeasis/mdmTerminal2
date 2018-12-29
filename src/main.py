@@ -135,10 +135,11 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
     },
     'noise_suppression': {
         'enable': False,
+        'conservative': False,
         'ns_lvl': 0,
     },
     'system': {
-        'ini_version': 22,
+        'ini_version': 23,
     }
 }
 
