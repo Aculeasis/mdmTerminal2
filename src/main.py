@@ -140,6 +140,7 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
     },
     'system': {
         'ini_version': 23,
+        'ws_token': 'token_is_unset'
     }
 }
 

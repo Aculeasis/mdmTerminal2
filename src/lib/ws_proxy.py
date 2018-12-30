@@ -11,26 +11,28 @@ import logger
 
 class WSClient(WebSocket):
     def __init__(self, server, sock, address):
-        self._proxy = None
         super().__init__(server, sock, address)
-        if not self._is_allow():
-            self.handleClose()
-            return
-        try:
-            self._proxy = TCPProxy(self, server.remote)
-        except RuntimeError as e:
-            self.server.log('Proxy error: {}'.format(e))
-            self.close()
+        self._proxy = None
+        self._first = True
 
     def _is_allow(self) -> bool:
-        allow = self.server.allow is None or self.server.allow(self.address[0])
-        msg = 'WSProxy {} new connection from {}'.format('allow' if allow else 'ignore', self.address[0])
+        self._first = False
+        allow = self.server.allow is None or self.server.allow(self.address[0], self.data)
+        msg = '{} new connection from {}'.format('Allow' if allow else 'Ignore', self.address[0])
         self.server.log(msg, logger.DEBUG if allow else logger.WARN)
         return allow
 
     def handleMessage(self):
         if self._proxy:
             self._proxy.send(self.data)
+        elif self._first and self._is_allow():
+            try:
+                self._proxy = TCPProxy(self, self.server.remote)
+            except RuntimeError as e:
+                self.server.log('Proxy error: {}'.format(e))
+                self.close()
+        else:
+            self.close()
 
     def handleClose(self):
         self.close()

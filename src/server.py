@@ -86,12 +86,20 @@ class MDTServer(threading.Thread):
         if WS_ERROR:
             self.log('WSProxy error: {}'.format(WS_ERROR), logger.WARN)
             return
-        self._ws_proxy = WSProxy(remote=self._local, allow=self._cfg.allow_connect, log=self._ws_log)
+        self._ws_proxy = WSProxy(remote=self._local, allow=self._ws_allow, log=self._ws_log)
         self._ws_proxy.start()
 
     def _ws_stop(self):
         if self._ws_proxy:
             self._ws_proxy.join(20)
+
+    def _ws_allow(self, _, token):
+        ws_token = self._cfg.gt('system', 'ws_token')
+        if ws_token and ws_token == token:
+            if ws_token == 'token_is_unset':
+                self.log('WSProxy token is unset, it is very dangerous!', logger.WARN)
+            return True
+        return False
 
     def _open_socket(self) -> bool:
         self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
