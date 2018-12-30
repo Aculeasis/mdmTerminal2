@@ -10,8 +10,7 @@ from logging.handlers import RotatingFileHandler
 
 from languages import LOGGER as LNG
 from owner import Owner
-from server import Connect
-from utils import write_permission_check
+from utils import write_permission_check, Connect
 
 DEBUG = logging.DEBUG
 INFO = logging.INFO
@@ -27,6 +26,14 @@ LOG_LEVEL = {
     'error'   : ERROR,
     'critical': CRIT,
     'crit'    : CRIT,
+}
+
+LVL_NAME = {
+    DEBUG: 'DEBUG',
+    INFO: 'INFO ',
+    WARN: 'WARN ',
+    ERROR: 'ERROR',
+    CRIT: 'CRIT ',
 }
 
 COLORS = {
@@ -88,6 +95,7 @@ class Logger(threading.Thread):
         self._handler = None
         self._app_log = None
         self._conn = None
+        self._conn_raw = False
         self._queue = queue.Queue()
         self._init()
         self._print('Logger', 'start', INFO)
@@ -110,9 +118,8 @@ class Logger(threading.Thread):
                 break
             elif data == 'reload':
                 self._init()
-            elif isinstance(data, Connect):
-                self._close_connect()
-                self._add_connect(data)
+            elif isinstance(data, list) and len(data) == 3 and data[0] == 'remote_log':
+                self._add_connect(data[1], data[2])
             else:
                 self._print('Logger', 'Wrong data: {}'.format(repr(data)), ERROR)
         self._close_connect()
@@ -160,19 +167,20 @@ class Logger(threading.Thread):
             self._app_log.setLevel(logging.DEBUG)
             self._app_log.addHandler(self._handler)
 
-    def _add_remote_log(self, _, __, lock, conn: Connect):
+    def _add_remote_log(self, _, data, lock, conn: Connect):
         try:
             # Забираем сокет у сервера
             conn_ = conn.extract()
             if conn_:
                 conn_.settimeout(None)
-                self._queue.put_nowait(conn_)
+                self._queue.put_nowait(['remote_log', conn_, data == 'raw'])
         finally:
             lock()
 
-    def _add_connect(self, conn):
+    def _add_connect(self, conn, raw):
         self._close_connect()
         self._conn = conn
+        self._conn_raw = raw
         self._print('Logger', 'OPEN REMOTE LOG FOR {}:{}'.format(self._conn.ip, self._conn.port), WARN)
 
     def _close_connect(self):
@@ -204,7 +212,11 @@ class Logger(threading.Thread):
             print_line = self._to_print(name, msg, lvl, l_time, m_name)
             print(print_line)
         if self._conn:
-            self._to_remote_log(print_line if print_line else self._to_print(name, msg, lvl, l_time, m_name))
+            if self._conn_raw:
+                print_line = self._to_print_raw(name, msg, lvl, l_time, m_name)
+            elif print_line is None:
+                print_line = self._to_print(name, msg, lvl, l_time, m_name)
+            self._to_remote_log(print_line)
         if self._app_log and lvl >= self.file_lvl:
             if m_name:
                 name = '{}->{}'.format(name, m_name)
@@ -220,6 +232,14 @@ class Logger(threading.Thread):
         if self._cfg['print_ms']:
             time_ += '.{:03d}'.format(int(l_time * 1000 % 1000))
         return '{} {}{}: {}'.format(time_, colored(name, NAME_COLOR), m_name, colored(msg, COLORS[lvl]))
+
+    def _to_print_raw(self, name, msg, lvl, l_time, m_name):
+        if m_name:
+            m_name = '->{}'.format(m_name)
+        time_ = time.strftime('%Y.%m.%d %H:%M:%S', time.localtime(l_time))
+        if self._cfg['print_ms']:
+            time_ += '.{:03d}'.format(int(l_time * 1000 % 1000))
+        return '{} {} {}{}: {}'.format(time_, LVL_NAME[lvl], name, m_name, msg)
 
     def _to_remote_log(self, line: str):
         if self._conn:

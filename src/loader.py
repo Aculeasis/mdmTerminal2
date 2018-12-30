@@ -39,7 +39,7 @@ class Loader(Owner):
         self._mm = ModuleManager(log=self._logger.add_plus('MM'), cfg=self._cfg, owner=self)
         self._updater = Updater(cfg=self._cfg, log=self._logger.add('Updater'), owner=self)
         self._terminal = MDTerminal(cfg=self._cfg, log=self._logger.add('Terminal'), owner=self)
-        self._server = MDTServer(cfg=self._cfg, log=self._logger.add('Server'), owner=self)
+        self._server = MDTServer(cfg=self._cfg, log=self._logger.add_plus('Server'), owner=self)
 
     def start_all_systems(self):
         self._pub.start()

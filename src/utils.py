@@ -2,6 +2,7 @@
 
 import base64
 import functools
+import json
 import os
 import queue
 import signal
@@ -10,6 +11,7 @@ import subprocess
 import threading
 import time
 import traceback
+from io import BytesIO
 
 import requests
 import socks  # install socks-proxy dependencies - pip install requests[socks]
@@ -21,6 +23,7 @@ REQUEST_ERRORS = (
     requests.exceptions.HTTPError, requests.exceptions.RequestException, urllib3.exceptions.NewConnectionError,
     socks.ProxyError
 )
+CRLF = b'\r\n'
 
 
 class RuntimeErrorTrace(RuntimeError):
@@ -129,6 +132,139 @@ class Popen:
         if self._popen.poll():
             raise RuntimeError('{}: {}'.format(self._popen.poll(), repr(self._popen.stderr.read().decode())))
         return self._popen.stdout.read().decode()
+
+
+class Connect:
+    CHUNK_SIZE = 1024 * 4
+
+    def __init__(self, conn, ip_info, work=True):
+        self._conn = conn
+        self._ip_info = ip_info
+        self._work = work
+        self._r_wait = False
+
+    def stop(self):
+        self._work = False
+
+    def r_wait(self):
+        self._r_wait = True
+
+    @property
+    def ip(self):
+        return self._ip_info[0] if self._ip_info else None
+
+    @property
+    def port(self):
+        return self._ip_info[1] if self._ip_info else None
+
+    def settimeout(self, timeout):
+        if self._conn:
+            self._conn.settimeout(timeout)
+
+    def close(self):
+        if self._conn:
+            try:
+                # Сообщаем серверу о завершении сеанса отпрвкой CRLFCRLF
+                self._conn_sender(CRLF)
+            except RuntimeError:
+                pass
+            self._conn.close()
+
+    def extract(self):
+        if self._conn:
+            try:
+                return Connect(self._conn, self._ip_info, self._work)
+            finally:
+                self._conn = None
+                self._ip_info = None
+
+    def insert(self, conn, ip_info):
+        self._conn = conn
+        self._ip_info = ip_info
+
+    def read(self):
+        """
+        Генератор,
+        читает байты из сокета, разделяет их по \r\n и возвращает результаты в str,
+        получение пустых данных(\r\n\r\n), любая ошибка сокета или завершение работы прерывает итерацию.
+        Для совместимости: Если в данных вообще не было \r\n, сделаем вид что получили <data>\r\n\r\n.
+        """
+        if self._conn:
+            return self._conn_reader()
+
+    def write(self, data):
+        """
+        Преобразует dict -> json, str -> bytes, (nothing) -> bytes('') и отправляет байты в сокет.
+        В конце автоматически добавляет \r\n.
+        В любой непонятной ситуации кидает RuntimeError.
+        """
+        if self._conn:
+            self._conn_sender(data)
+
+    def raise_recv_err(self, cmd, code, msg, pmdl_name=None):
+        data = {'cmd': cmd, 'code': code, 'msg': msg}
+        if pmdl_name is not None:
+            data['filename'] = pmdl_name
+        self.write(data)
+        raise RuntimeError(msg)
+
+    def _conn_sender(self, data):
+        if not data:
+            data = b''
+        elif isinstance(data, dict):
+            try:
+                data = json.dumps(data, ensure_ascii=False).encode()
+            except TypeError as e:
+                raise RuntimeError(e)
+        elif isinstance(data, str):
+            data = data.encode()
+        elif not isinstance(data, bytes):
+            raise RuntimeError('Unsupported data type: {}'.format(repr(type(data))))
+
+        with BytesIO(data) as fp:
+            del data
+            chunk = True
+            while chunk:
+                chunk = fp.read(self.CHUNK_SIZE)
+                try:
+                    self._conn.send(chunk or CRLF)
+                except (BrokenPipeError, socket.timeout, InterruptedError, OSError) as e:
+                    raise RuntimeError(e)
+
+    def _conn_reader(self):
+        data = b''
+        this_legacy = True
+        while self._work:
+            try:
+                chunk = self._conn.recv(self.CHUNK_SIZE)
+            except socket.timeout:
+                if self._r_wait:
+                    continue
+                else:
+                    break
+            except (BrokenPipeError, ConnectionResetError, AttributeError, OSError):
+                break
+            if not chunk:
+                # сокет закрыли, пустой объект
+                break
+            data += chunk
+            while CRLF in data:
+                # Обрабатываем все строки разделенные \r\n отдельно, пустая строка завершает сеанс
+                this_legacy = False
+                line, data = data.split(CRLF, 1)
+                if not line:
+                    return
+                try:
+                    yield line.decode()
+                except UnicodeDecodeError:
+                    pass
+                del line
+        if this_legacy and data and self._work:
+            # Данные пришли без \r\n, обработаем их как есть
+            try:
+                yield data.decode()
+            except UnicodeDecodeError:
+                pass
 
 
 def fix_speakers(cfg: dict) -> bool:

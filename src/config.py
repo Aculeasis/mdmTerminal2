@@ -122,6 +122,8 @@ class ConfigHandler(dict):
         self.tts_cache_check()
 
     def allow_connect(self, ip: str) -> bool:
+        if ip == '127.0.0.1':
+            return True
         if not self['majordomo'].get('ip') and self.gts('first_love'):
             self['majordomo']['ip'] = ip
             self.config_save()

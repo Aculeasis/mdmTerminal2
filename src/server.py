@@ -5,14 +5,19 @@ import os
 import socket
 import threading
 import time
-from io import BytesIO
 
 import logger
 from languages import SERVER as LNG
 from owner import Owner
-from utils import file_to_base64, base64_to_bytes, pretty_time
+from utils import file_to_base64, base64_to_bytes, pretty_time, Connect
 
-CRLF = b'\r\n'
+try:
+    from lib.ws_proxy import Server as WSProxy
+    WS_ERROR = None
+except ImportError as e_:
+    WSProxy = None
+    WS_ERROR = e_
+    del e_
 
 
 class MDTServer(threading.Thread):
@@ -54,9 +59,12 @@ class MDTServer(threading.Thread):
             'ping': self._api_ping,
         }
         self._cfg = cfg
-        self.log = log
+        (self.log, ws_log) = log
+        self._ws_log = lambda x, y=logger.DEBUG: ws_log('WSProxy', x, y)
         self.own = owner
         self.work = False
+        self._local = ('', 7999)
+        self._ws_proxy = None
         self._socket = socket.socket()
         self._conn = Connect(None, None)
         self._lock = Unlock()
@@ -74,16 +82,25 @@ class MDTServer(threading.Thread):
         super().start()
         self.log('start', logger.INFO)
 
+    def _ws_start(self):
+        if WS_ERROR:
+            self.log('WSProxy error: {}'.format(WS_ERROR), logger.WARN)
+            return
+        self._ws_proxy = WSProxy(remote=self._local, allow=self._cfg.allow_connect, log=self._ws_log)
+        self._ws_proxy.start()
+
+    def _ws_stop(self):
+        if self._ws_proxy:
+            self._ws_proxy.join(20)
+
     def _open_socket(self) -> bool:
-        ip = ''
-        port = 7999
         self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self._socket.settimeout(1)
         try:
-            self._socket.bind((ip, port))
+            self._socket.bind(self._local)
         except OSError as e:
             say = LNG['err_start_say'].format(LNG['err_already_use'] if e.errno == 98 else '')
-            self.log(LNG['err_start'].format(ip, port, e), logger.CRIT)
+            self.log(LNG['err_start'].format(*self._local, e), logger.CRIT)
             self.own.say(say)
             return False
         self._socket.listen(1)
@@ -92,6 +109,7 @@ class MDTServer(threading.Thread):
     def run(self):
         if not self._open_socket():
             return
+        self._ws_start()
         while self.work:
             try:
                 self._conn.insert(*self._socket.accept())
@@ -106,13 +124,9 @@ class MDTServer(threading.Thread):
                     continue
                 for line in self._conn.read():
                     self._parse(line)
-                try:
-                    # Сообщаем серверу о завершении сеанса отпрвкой пустой команды
-                    self._conn.write(b'')
-                except RuntimeError:
-                    pass
             finally:
                 self._conn.close()
+        self._ws_stop()
         self._socket.close()
 
     def _parse(self, data: str):
@@ -316,125 +330,6 @@ class MDTServer(threading.Thread):
                 data = time.time() - data
             if data:
                 self.log('ping {}'.format(pretty_time(data)), logger.INFO)
-
-
-class Connect:
-    CHUNK_SIZE = 1024 * 4
-
-    def __init__(self, conn, ip_info, work=True):
-        self._conn = conn
-        self._ip_info = ip_info
-        self._work = work
-
-    def stop(self):
-        self._work = False
-
-    @property
-    def ip(self):
-        return self._ip_info[0] if self._ip_info else None
-
-    @property
-    def port(self):
-        return self._ip_info[1] if self._ip_info else None
-
-    def settimeout(self, timeout):
-        if self._conn:
-            self._conn.settimeout(timeout)
-
-    def close(self):
-        if self._conn:
-            self._conn.close()
-
-    def extract(self):
-        if self._conn:
-            try:
-                return Connect(self._conn, self._ip_info, self._work)
-            finally:
-                self._conn = None
-                self._ip_info = None
-
-    def insert(self, conn, ip_info):
-        self._conn = conn
-        self._ip_info = ip_info
-
-    def read(self):
-        """
-        Генератор,
-        читает байты из сокета, разделяет их по \r\n и возвращает результаты в str,
-        получение пустых данных(\r\n\r\n), любая ошибка сокета или завершение работы прерывает итерацию.
-        Для совместимости: Если в данных вообще не было \r\n, сделаем вид что получили <data>\r\n\r\n.
-        """
-        if self._conn:
-            return self._conn_reader()
-
-    def write(self, data):
-        """
-        Преобразует dict -> json, str -> bytes, (nothing) -> bytes('') и отправляет байты в сокет.
-        В конце автоматически добавляет \r\n.
-        В любой непонятной ситуации кидает RuntimeError.
-        """
-        if self._conn:
-            self._conn_sender(data)
-
-    def raise_recv_err(self, cmd, code, msg, pmdl_name=None):
-        data = {'cmd': cmd, 'code': code, 'msg': msg}
-        if pmdl_name is not None:
-            data['filename'] = pmdl_name
-        self.write(data)
-        raise RuntimeError(msg)
-
-    def _conn_sender(self, data):
-        if not data:
-            data = b''
-        elif isinstance(data, dict):
-            try:
-                data = json.dumps(data, ensure_ascii=False).encode()
-            except TypeError as e:
-                raise RuntimeError(e)
-        elif isinstance(data, str):
-            data = data.encode()
-        elif not isinstance(data, bytes):
-            raise RuntimeError('Unsupported data type: {}'.format(repr(type(data))))
-
-        with BytesIO(data) as fp:
-            del data
-            chunk = True
-            while chunk:
-                chunk = fp.read(self.CHUNK_SIZE)
-                try:
-                    self._conn.send(chunk or CRLF)
-                except (BrokenPipeError, socket.timeout, InterruptedError) as e:
-                    raise RuntimeError(e)
-
-    def _conn_reader(self):
-        data = b''
-        this_legacy = True
-        while self._work:
-            try:
-                chunk = self._conn.recv(self.CHUNK_SIZE)
-            except (BrokenPipeError, socket.timeout, ConnectionResetError, AttributeError):
-                break
-            if not chunk:
-                # сокет закрыли, пустой объект
-                break
-            data += chunk
-            while CRLF in data:
-                # Обрабатываем все строки разделенные \r\n отдельно, пустая строка завершает сеанс
-                this_legacy = False
-                line, data = data.split(CRLF, 1)
-                if not line:
-                    return
-                try:
-                    yield line.decode()
-                except UnicodeDecodeError:
-                    pass
-                del line
-        if this_legacy and data and self._work:
-            # Данные пришли без \r\n, обработаем их как есть
-            try:
-                yield data.decode()
-            except UnicodeDecodeError:
-                pass
 
 
 class Unlock(threading.Event):
