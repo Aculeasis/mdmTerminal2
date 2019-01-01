@@ -16,20 +16,27 @@ class WSClient(WebSocket):
         self._first = True
 
     def _is_allow(self) -> bool:
+        if not self._first:
+            return False
         self._first = False
         allow = self.server.allow is None or self.server.allow(self.address[0], self.data)
         msg = '{} new connection from {}'.format('Allow' if allow else 'Ignore', self.address[0])
         self.server.log(msg, logger.DEBUG if allow else logger.WARN)
+        if not allow:
+            msg = logger.colored('Terminal rejected connection (incorrect ws_token?)', logger.COLORS[logger.ERROR])
+            msg = '{}. {}!'.format(msg, logger.colored('BYE', logger.COLORS[logger.CRIT]))
+            self.sendMessage(msg)
         return allow
 
     def handleMessage(self):
         if self._proxy:
             self._proxy.send(self.data)
-        elif self._first and self._is_allow():
+        elif self._is_allow():
             try:
                 self._proxy = TCPProxy(self, self.server.remote)
             except RuntimeError as e:
                 self.server.log('Proxy error: {}'.format(e))
+                self.sendMessage(logger.colored('Error connecting to terminal, bye.', logger.COLORS[logger.ERROR]))
                 self.close()
         else:
             self.close()

@@ -186,7 +186,7 @@ class Logger(threading.Thread):
     def _close_connect(self):
         if self._conn:
             try:
-                self._conn.write(b'CLOSE REMOTE LOG\r\n')
+                self._conn.write(colored('CLOSE REMOTE LOG, BYE.', COLORS[INFO]))
                 self._conn.close()
             except RuntimeError:
                 pass
