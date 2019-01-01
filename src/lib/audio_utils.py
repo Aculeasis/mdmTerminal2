@@ -46,25 +46,22 @@ class APMSettings:
         # agc_target = 0..31, for agc_type == 1..2
         # aec_lvl = 0..2, for aec_type == 2?
         for key, val in kwargs.items():
-            if key in ('enable', 'conservative') and isinstance(val, bool):
-                self._cfg[key] = val
-            elif key == 'ns_lvl':
-                val = self._to_int(val)
-                if val is not None:
-                    self._cfg[key] = min(3, max(0, val))
+            if key in ('enable', 'conservative'):
+                if isinstance(val, bool):
+                    self._cfg[key] = val
+                continue
+            val = self._to_int(val)
+            if val is None:
+                continue
+
+            if key == 'ns_lvl':
+                self._cfg[key] = min(3, max(0, val))
             elif key == 'agc_lvl':
-                val = self._to_int(val)
-                if val is not None:
-                    self._cfg[key] = min(100, max(0, val))
+                self._cfg[key] = min(100, max(0, val))
             elif key == 'agc_target':
-                val = self._to_int(val)
-                if val is not None:
-                    val = val * -1 if val < 0 else val
-                    self._cfg[key] = min(31, max(0, val))
+                self._cfg[key] = min(31, max(0, val * -1 if val < 0 else val))
             elif key in ('aec_lvl', 'agc_type', 'aec_type'):
-                val = self._to_int(val)
-                if val is not None:
-                    self._cfg[key] = min(2, max(0, val))
+                self._cfg[key] = min(2, max(0, val))
 
     @property
     def enable(self):

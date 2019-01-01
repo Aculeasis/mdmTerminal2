@@ -166,20 +166,15 @@ class Updater(threading.Thread):
             return LNG['rollback_yes']
 
     def _up_dependencies(self, up):
-        pip = self._cfg.gt('update', 'pip')
-        apt = self._cfg.gt('update', 'apt')
-        new_pip = up.update_pip(pip)
-        if new_pip:
-            if pip:
-                self.log(LNG['pip_yes'].format(new_pip), logger.DEBUG)
-            else:
-                self.log(LNG['pip_no'].format(new_pip), logger.WARN)
-        new_apt = up.update_apt(apt)
-        if new_apt:
-            if apt:
-                self.log(LNG['apt_yes'].format(new_apt), logger.DEBUG)
-            else:
-                self.log(LNG['apt_no'].format(new_apt), logger.WARN)
+        self._up_dependency('apt', up.update_apt)
+        self._up_dependency('pip', up.update_pip)
+
+    def _up_dependency(self, name: str, updater):
+        to_update = self._cfg.gt('update', name)
+        packages = updater(to_update)
+        if packages:
+            status = 'yes' if to_update else 'no'
+            self.log(LNG['{}_{}'.format(name, status)].format(packages), logger.DEBUG if to_update else logger.WARN)
 
     def _new_worker(self):
         return Worker(os.path.split(self._cfg.path['home'])[0], sys.executable)
@@ -214,12 +209,12 @@ class Worker:
     def updated(self):
         return self._new_files or self._new_pip or self._new_apt
 
-    def update_pip(self, upgrade: int):
+    def update_pip(self, upgrade: bool):
         if upgrade and self._new_pip:
             Popen(self.PIP_INSTALL + self._new_pip).run()
         return ', '.join(self._new_pip)
 
-    def update_apt(self, upgrade: int):
+    def update_apt(self, upgrade: bool):
         if upgrade and self._new_apt:
             Popen(self.APT_UPDATE).run()
             Popen(self.APT_INSTALL + self._new_apt).run()
@@ -277,7 +272,7 @@ class Worker:
             else:
                 continue
             line = line[1:]
-            for test in (' ', '#', '+', '/', '\\'):
+            for test in (' ', '#', '\\'):
                 if test in line:
                     line = ''
                     break
