@@ -317,8 +317,7 @@ class SpeechToText:
         mic = sr.Microphone(device_index=self.get_mic_index())
         if self._cfg.gts('alarmtts') and not hello:
             self.own.play(self._cfg.path['dong'], lvl, blocking=2)
-        with mic as source:
-            detector = self.own.get_detector(source)
+        detector = self.own.get_detector(mic)
         if file_path:
             self.own.play(file_path, lvl, blocking=120)
 
@@ -351,8 +350,7 @@ class SpeechToText:
         self.own.say(file_path, lvl, True, is_file=True, blocking=120)
         r = sr.Recognizer()
         mic = sr.Microphone(device_index=self.get_mic_index())
-        with mic as source:
-            detector = self.own.get_detector(source)
+        detector = self.own.get_detector(mic)
         self.own.play(self._cfg.path['ding'], lvl, blocking=3)
         with mic as source:
             record_time = time.time()

@@ -30,15 +30,13 @@ class Listener:
 
     def background_listen(self):
         mic = sr.Microphone(device_index=self.own.mic_index)
-        with mic as source:
-            detector, _ = self._get_detector(source)
-        return NonBlockListener(self._background_listen, mic, detector)
+        return NonBlockListener(self._background_listen, mic, self.get_detector(mic))
 
     def chrome_listen(self, interrupt_check, callback):
         r = sr.Recognizer(self.own.record_callback, self.cfg.gt('listener', 'silent_multiplier'))
         while not interrupt_check():
             with sr.Microphone(device_index=self.own.mic_index) as source:
-                detector, noising = self._get_detector(source)
+                detector, noising = self._get_detector(source, self.cfg.gt('listener', 'vad_chrome') or None)
                 if not isinstance(detector, SnowboyDetector):
                     sn = self._get_snowboy(source.SAMPLE_WIDTH, source.SAMPLE_RATE, detector)
                 else:
@@ -61,8 +59,8 @@ class Listener:
             energy_threshold = detector.energy_threshold if isinstance(detector, sr.EnergyDetector) else None
             self._adata_parse(adata, model_name, phrase, model_msg, energy_threshold, callback)
 
-    def get_detector(self, source, vad_mode=None, vad_lvl=None, energy_lvl=None, energy_dynamic=None):
-        detector, _ = self._get_detector(source, vad_mode, vad_lvl, energy_lvl, energy_dynamic)
+    def get_detector(self, source_or_mic, vad_mode=None, vad_lvl=None, energy_lvl=None, energy_dynamic=None):
+        detector, _ = self._get_detector(source_or_mic, vad_mode, vad_lvl, energy_lvl, energy_dynamic)
         return detector
 
     def _listen(self, r, source, detector, timeout, phrase_time_limit=None, frames=None, sn_time=None):
@@ -101,7 +99,7 @@ class Listener:
             self.own.play(self.cfg.path['dong'])
         return self.own.voice_recognition(adata, True)
 
-    def _get_detector(self, source, vad_mode=None, vad_lvl=None, energy_lvl=None, energy_dynamic=None):
+    def _get_detector(self, source_or_mic, vad_mode=None, vad_lvl=None, energy_lvl=None, energy_dynamic=None):
         vad = self._select_vad(vad_mode)
         vad_lvl = vad_lvl if vad_lvl is not None else self.cfg.gt('listener', 'vad_lvl')
         vad_lvl = min(3, max(0, vad_lvl))
@@ -109,14 +107,21 @@ class Listener:
         energy_lvl = energy_lvl if energy_lvl > 10 else 0
         energy_dynamic = energy_dynamic if energy_dynamic is not None else self.cfg.gt('listener', 'energy_dynamic')
         vad = vad(
-            source=source, energy_lvl=energy_lvl, energy_dynamic=energy_dynamic,
-            lvl=vad_lvl, width=source.SAMPLE_WIDTH, rate=source.SAMPLE_RATE,
+            source=source_or_mic, energy_lvl=energy_lvl, energy_dynamic=energy_dynamic,
+            lvl=vad_lvl, width=source_or_mic.SAMPLE_WIDTH, rate=source_or_mic.SAMPLE_RATE,
             resource_path=self.cfg.path['home'], snowboy_hot_word_files=self.cfg.path['models_list'],
             sensitivity=self.cfg.gts('sensitivity'), audio_gain=self.cfg.gts('audio_gain'), another=None
         )
         if isinstance(vad, sr.EnergyDetector):
             if not energy_lvl:
-                vad.adjust_for_ambient_noise()
+                manual_exit = source_or_mic.stream is None
+                try:
+                    if manual_exit:
+                        source_or_mic.__enter__()
+                    vad.adjust_for_ambient_noise(source_or_mic.stream, source_or_mic.CHUNK)
+                finally:
+                    if manual_exit:
+                        source_or_mic.__exit__(None, None, None)
             if energy_dynamic:
                 return vad, self.own.noising
         return vad, None

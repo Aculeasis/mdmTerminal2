@@ -40,6 +40,7 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
     'listener': {
         'stream_recognition': False,
         'vad_mode': 'snowboy',
+        'vad_chrome': '',
         'vad_lvl': 0,
         'energy_lvl': 0,
         'energy_dynamic': True,
@@ -146,7 +147,7 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'ns_lvl': 0,
     },
     'system': {
-        'ini_version': 24,
+        'ini_version': 25,
         'ws_token': 'token_is_unset'
     }
 }

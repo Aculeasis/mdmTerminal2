@@ -192,8 +192,8 @@ class Owner:
     def chrome_listen(self, interrupt_check, callback):
         return self._listen.chrome_listen(interrupt_check, callback)
 
-    def get_detector(self, source, vad_mode=None, vad_lvl=None, energy_lvl=None, energy_dynamic=None):
-        return self._listen.get_detector(source, vad_mode, vad_lvl, energy_lvl, energy_dynamic)
+    def get_detector(self, source_or_mic, vad_mode=None, vad_lvl=None, energy_lvl=None, energy_dynamic=None):
+        return self._listen.get_detector(source_or_mic, vad_mode, vad_lvl, energy_lvl, energy_dynamic)
 
     def listener_listen(self, r=None, mic=None, detector=None, timeout=10):
         return self._listen.listen(r, mic, detector, timeout)

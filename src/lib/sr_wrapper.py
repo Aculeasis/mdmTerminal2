@@ -319,7 +319,6 @@ class EnergyDetector:
         self.dynamic_energy_adjustment_damping = 0.15
         self.dynamic_energy_ratio = 1.5
         self._width = width
-        self._source = source
         self._dynamic_energy_threshold = energy_dynamic
         self._seconds_per_buffer = float(source.CHUNK) / rate
         if not energy_lvl:
@@ -330,13 +329,13 @@ class EnergyDetector:
             self._energy = energy_lvl
             self._dynamic_energy()
 
-    def adjust_for_ambient_noise(self, duration=1):
+    def adjust_for_ambient_noise(self, stream, chunk, duration=1):
         elapsed_time = 0
         while True:
             elapsed_time += self._seconds_per_buffer
             if elapsed_time > duration:
                 break
-            buffer = self._source.stream.read(self._source.CHUNK)
+            buffer = stream.read(chunk)
             if not buffer:
                 break
             # energy of the audio signal
