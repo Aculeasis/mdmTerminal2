@@ -10,7 +10,7 @@ from logging.handlers import RotatingFileHandler
 
 from languages import LOGGER as LNG
 from owner import Owner
-from utils import write_permission_check, Connect
+from utils import write_permission_check, Connect, singleton
 
 DEBUG = logging.DEBUG
 INFO = logging.INFO
@@ -110,6 +110,7 @@ class Logger(threading.Thread):
         super().join()
 
     def run(self):
+        MainLogger().connect(self.add('MAIN'))
         while True:
             data = self._queue.get()
             if isinstance(data, tuple):
@@ -122,6 +123,7 @@ class Logger(threading.Thread):
                 self._add_connect(data[1], data[2])
             else:
                 self._print('Logger', 'Wrong data: {}'.format(repr(data)), ERROR)
+        MainLogger().disconnect()
         self._close_connect()
 
     def permission_check(self):
@@ -247,3 +249,25 @@ class Logger(threading.Thread):
                 self._conn.write(line)
             except RuntimeError:
                 self._close_connect()
+
+
+@singleton
+class MainLogger:
+    def __init__(self):
+        self._log = self.to_print
+
+    def to_print(self, msg , *_, **__):
+        print(msg)
+
+    def connect(self, logger):
+        self._log = logger
+
+    def disconnect(self):
+        self._log = self.to_print
+
+    def __call__(self, msg, lvl, *_, **__):
+        self._log(msg, lvl)
+
+
+def main_logger(msg, lvl=ERROR):
+    MainLogger()(msg, lvl)
