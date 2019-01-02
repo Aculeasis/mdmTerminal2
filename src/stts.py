@@ -182,6 +182,8 @@ class SpeechToText:
         self.sys_say = Phrases(log, cfg)
         self._lock = threading.Lock()
         self._work = True
+        self._start_stt_event = owner.registration('start_stt_event')
+        self._stop_stt_event = owner.registration('stop_stt_event')
         try:
             self.max_mic_index = len(sr.Microphone().list_microphone_names()) - 1
         except OSError as e:
@@ -207,9 +209,11 @@ class SpeechToText:
             return ''
         if self.max_mic_index != -2:
             self._lock.acquire()
+            self._start_stt_event()
             try:
                 msg = self._listen_and_take(hello, deaf, voice)
             finally:
+                self._stop_stt_event()
                 self._lock.release()
         else:
             self.log(LNG['no_mics'], logger.ERROR)
@@ -332,10 +336,12 @@ class SpeechToText:
             self.log(LNG['no_mics'], logger.ERROR)
             return LNG['no_mics']
         self._lock.acquire()
+        self._start_stt_event()
         try:
             return self._voice_record(hello, save_to, convert_rate, convert_width)
         finally:
             self.own.clear_lvl()
+            self._stop_stt_event()
             self._lock.release()
 
     def _voice_record(self, hello: str, save_to: str, convert_rate=None, convert_width=None):
