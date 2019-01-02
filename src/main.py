@@ -28,17 +28,25 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'quiet': False,
         'no_hello': False,
         'blocking_listener': True,
-        'energy_threshold': -1,
         'audio_gain': 1.0,
         'phrase_time_limit': 15,
-        'silent_multiplier': 1.0,
         'no_background_play': False,
-        'chrome_mode': 1,
+        'chrome_mode': True,
         'chrome_choke': False,
         'chrome_alarmstt': False,
         'webrtcvad': 0,
         'lang': 'ru',
         'lang_check': False,
+    },
+    'listener': {
+        'stream_recognition': False,
+        'vad_mode': 'snowboy',
+        'vad_lvl': 0,
+        'energy_lvl': 0,
+        'energy_dynamic': True,
+        'silent_multiplier': 1.0,
+
+
     },
     'majordomo': {
         'linkedroom': '',
@@ -139,7 +147,7 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'ns_lvl': 0,
     },
     'system': {
-        'ini_version': 23,
+        'ini_version': 24,
         'ws_token': 'token_is_unset'
     }
 }

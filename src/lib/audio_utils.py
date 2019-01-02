@@ -170,6 +170,9 @@ class Detector:
         self._call_detector(self._resampler(data))
         return self._state
 
+    def dynamic_energy(self):
+        pass
+
     def _detector(self, chunk: bytes):
         pass
 
@@ -190,14 +193,11 @@ class Detector:
 
 
 class SnowboyDetector(Detector):
-    def __init__(self, resource_path, snowboy_hot_word_files, sensitivity, audio_gain, width, rate, webrtcvad):
+    def __init__(self, resource_path, snowboy_hot_word_files, sensitivity, audio_gain, width, rate, another, **_):
         self._snowboy = SnowboyDetector._constructor(resource_path, sensitivity, audio_gain, *snowboy_hot_word_files)
         super().__init__(150, width, rate, self._snowboy.SampleRate())
-        webrtcvad = min(4, max(0, webrtcvad))
-        webrtcvad = webrtcvad if Vad else 0
-
+        self._another = another
         self._current_state = -2
-        self._another = DetectorVAD(width, self._resample_rate, webrtcvad - 1) if webrtcvad else None
 
     def detect(self, buffer: bytes) -> int:
         return self._detector(buffer)
@@ -205,14 +205,18 @@ class SnowboyDetector(Detector):
     def is_speech(self, buffer: bytes) -> bool:
         return self._detector(buffer, True) >= 0
 
+    def dynamic_energy(self):
+        if self._another:
+            self._another.dynamic_energy()
+
     def _detector(self, buffer: bytes, only_detect=False) -> int:
         self._buffer += self._resampler(buffer)
         if len(self._buffer) >= self._sample_size:
             if self._another:
                 is_speech = self._another.is_speech(self._buffer)
-                if only_detect or not is_speech:
+                if only_detect:
                     self._current_state = 0 if is_speech else -2
-                elif is_speech:
+                else:
                     self._current_state = self._snowboy.RunDetection(self._buffer)
             else:
                 self._current_state = self._snowboy.RunDetection(self._buffer)
@@ -232,7 +236,7 @@ class SnowboyDetector(Detector):
 
 
 class DetectorVAD(Detector):
-    def __init__(self, width, rate, lvl):
+    def __init__(self, width, rate, lvl, **_):
         super().__init__(30, width, rate, 16000)
         self._vad = DetectorVAD._constructor(lvl)
 
@@ -246,7 +250,7 @@ class DetectorVAD(Detector):
 
 
 class DetectorAPM(Detector):
-    def __init__(self, width, rate, lvl):
+    def __init__(self, width, rate, lvl, **_):
         super().__init__(10, width, rate, 16000)
         self._apm = DetectorAPM._constructor(lvl)
 

@@ -92,15 +92,13 @@ class Owner:
     def voice_recognition(self, audio, quiet: bool=False, fusion=None) -> str:
         return self._stt.voice_recognition(audio, quiet, fusion)
 
-    def energy_correct(self, r, source):
-        return self._stt.energy.correct(r, source)
-
-    def energy_set(self, energy_threshold):
-        return self._stt.energy.set(energy_threshold)
-
     @property
     def max_mic_index(self) -> int:
         return self._stt.max_mic_index
+
+    @property
+    def mic_index(self) -> int:
+        return self._stt.get_mic_index()
 
     def phrase_from_files(self, files: list) -> tuple:
         return self._stt.phrase_from_files(files)
@@ -191,6 +189,18 @@ class Owner:
     def terminal_call(self, cmd: str, data='', lvl: int=0, save_time: bool=True):
         self._terminal.call(cmd, data, lvl, save_time)
 
+    def chrome_listen(self, interrupt_check, callback):
+        return self._listen.chrome_listen(interrupt_check, callback)
+
+    def get_detector(self, source, vad_mode=None, vad_lvl=None, energy_lvl=None, energy_dynamic=None):
+        return self._listen.get_detector(source, vad_mode, vad_lvl, energy_lvl, energy_dynamic)
+
+    def listener_listen(self, r=None, mic=None, detector=None, timeout=10):
+        return self._listen.listen(r, mic, detector, timeout)
+
+    def background_listen(self):
+        return self._listen.background_listen()
+
     def settings_from_mjd(self, cfg: str):
         # Reload modules if their settings could be changes
         with self._lock:
@@ -234,7 +244,7 @@ class Owner:
                 # reconfigure APM. Reload terminal - later
                 self._cfg.apm_configure()
                 reload_terminal = True
-            if is_sub_dict('settings', diff) or reload_terminal:
+            if is_sub_dict('settings', diff) or is_sub_dict('listener', diff) or reload_terminal:
                 # reload terminal
                 self.terminal_call('reload', save_time=False)
             self._cfg.print_cfg_change()

@@ -13,6 +13,7 @@ import pyaudio
 import lib.STT as STT
 import lib.TTS as TTS
 import lib.sr_wrapper as sr
+from lib.audio_utils import StreamRecognition
 import logger
 import utils
 from languages import LANG_CODE
@@ -181,7 +182,6 @@ class SpeechToText:
         self.sys_say = Phrases(log, cfg)
         self._lock = threading.Lock()
         self._work = True
-        self.energy = utils.EnergyControl(cfg, owner.noising)
         try:
             self.max_mic_index = len(sr.Microphone().list_microphone_names()) - 1
         except OSError as e:
@@ -271,22 +271,15 @@ class SpeechToText:
         if commands:
             msg = ''
             if energy_threshold:
-                self.energy.set(energy_threshold)
                 msg = ', energy_threshold={}'.format(int(energy_threshold))
             self.log(LNG['recognized'].format(commands, msg), logger.INFO)
-        else:
-            self.energy.set(None)
         return commands
 
     def _non_block_listen(self, hello, lvl, file_path):
         max_play_time = 120  # максимальное время воспроизведения приветствия
         max_wait_time = 10  # ожидание после приветствия
 
-        r = sr.Recognizer(silent_multiplier=self._cfg.gts('silent_multiplier'))
-        mic = sr.Microphone(device_index=self.get_mic_index())
-
-        with mic as source:  # Слушаем шум 1 секунду, потом распознаем, если раздажает задержка можно закомментировать.
-            energy_threshold = self.energy.correct(r, source)
+        listener = self.own.background_listen()
 
         if self._cfg.gts('alarmtts') and not hello:
             self.own.play(self._cfg.path['dong'], lvl)
@@ -296,7 +289,7 @@ class SpeechToText:
             self.own.play(file_path, lvl)
 
         # Начинаем фоновое распознавание голосом после того как запустился плей.
-        listener = NonBlockListener(r=r, source=mic, phrase_time_limit=self._cfg.gts('phrase_time_limit', 15))
+        listener.start()
         self.own.record_callback(True)
         if file_path:
             while listener.work() and self.own.really_busy() and \
@@ -313,25 +306,19 @@ class SpeechToText:
         record_time = time.time() - start_wait
         listener.stop()
         self.own.record_callback(False)
-        return listener.audio, record_time, energy_threshold
+        return listener.audio, record_time, listener.energy_threshold
 
     def _block_listen(self, hello, lvl, file_path, self_call=False):
+        r = sr.Recognizer(self.own.record_callback, self._cfg.gt('listener', 'silent_multiplier'))
+        mic = sr.Microphone(device_index=self.get_mic_index())
         if self._cfg.gts('alarmtts') and not hello:
             self.own.play(self._cfg.path['dong'], lvl, blocking=2)
+        with mic as source:
+            detector = self.own.get_detector(source)
         if file_path:
             self.own.play(file_path, lvl, blocking=120)
-        with sr.Microphone(device_index=self.get_mic_index()) as source:
-            r = sr.Recognizer(
-                record_callback=self.own.record_callback,
-                silent_multiplier=self._cfg.gts('silent_multiplier')
-            )
-            energy_threshold = self.energy.correct(r, source)
-            record_time = time.time()
-            try:
-                audio = r.listen(source, timeout=10, phrase_time_limit=self._cfg.gts('phrase_time_limit', 15))
-            except sr.WaitTimeoutError:
-                audio = None
-            record_time = time.time() - record_time
+
+        audio, record_time, energy_threshold = self.own.listener_listen(r, mic, detector)
         if record_time < 0.5 and not self_call:
             # Если от инициализации микрофона до записи прошло больше 20-35 сек, то запись ломается
             # Игнорируем полученную запись и запускаем новую, без приветствий
@@ -356,14 +343,15 @@ class SpeechToText:
 
         file_path = self.own.tts(hello)()
         self.own.say(file_path, lvl, True, is_file=True, blocking=120)
-        with sr.Microphone(device_index=self.get_mic_index()) as source:
-            r = sr.Recognizer()
-            r.adjust_for_ambient_noise(source)
-            self.own.play(self._cfg.path['ding'], lvl, blocking=3)
-
+        r = sr.Recognizer()
+        mic = sr.Microphone(device_index=self.get_mic_index())
+        with mic as source:
+            detector = self.own.get_detector(source)
+        self.own.play(self._cfg.path['ding'], lvl, blocking=3)
+        with mic as source:
             record_time = time.time()
             try:
-                adata = r.listen(source=source, timeout=5, phrase_time_limit=8)
+                adata = r.listen1(source=source, detector=detector, timeout=5, phrase_time_limit=8)
             except sr.WaitTimeoutError as e:
                 return str(e)
             if time.time() - record_time < 0.5:
@@ -377,6 +365,8 @@ class SpeechToText:
             return None
 
     def voice_recognition(self, audio, quiet: bool=False, fusion=None) -> str:
+        if isinstance(audio, StreamRecognition) and fusion is None:
+            return audio.text
         self.own.speech_recognized(True)
         try:
             return self._voice_recognition(audio, quiet, fusion)
@@ -449,19 +439,6 @@ class RecognitionWorker(threading.Thread):
     def get(self):
         super().join()
         return self._result
-
-
-class NonBlockListener:
-    def __init__(self, r, source, phrase_time_limit):
-        self.audio = None
-        self.stop = r.listen_in_background(source, self._callback, phrase_time_limit=phrase_time_limit)
-
-    def work(self):
-        return self.audio is None
-
-    def _callback(self, _, audio):
-        if self.work():
-            self.audio = audio
 
 
 class Phrases:

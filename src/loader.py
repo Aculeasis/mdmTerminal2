@@ -16,6 +16,7 @@ from player import Player
 from server import MDTServer
 from terminal import MDTerminal
 from updater import Updater
+from listener import Listener
 
 
 class Loader(Owner):
@@ -28,7 +29,7 @@ class Loader(Owner):
         self._cfg = ConfigHandler(cfg=init_cfg, path=path, owner=self)
         self._logger = Logger(self._cfg['log'], self)
         self._cfg.configure(self._logger.add('CFG'))
-
+        self._listen = Listener(cfg=self._cfg, owner=self)
         proxies.add_logger(self._logger.add('Proxy'))
 
         self._notifier = MajordomoNotifier(cfg=self._cfg['majordomo'], log=self._logger.add('Notifier'), owner=self)

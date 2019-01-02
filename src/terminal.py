@@ -13,7 +13,7 @@ from languages import LANG_CODE
 from languages import STTS as LNG2
 from languages import TERMINAL as LNG
 from lib import volume
-from lib.snowboy import SnowBoySR, SnowBoySR2, SnowBoySR3, SnowBoySR4, SnowBoy
+from listener import SnowBoy, SnowBoySR
 from owner import Owner
 
 
@@ -31,15 +31,9 @@ class MDTerminal(threading.Thread):
 
     def _reload(self):
         if len(self._cfg.path['models_list']) and self.own.max_mic_index != -2:
-            detected = self._detected_sr
-            if self._cfg.gts('chrome_mode') == 1:
+            if self._cfg.gts('chrome_mode'):
+                detected = self._detected_sr
                 snowboy = SnowBoySR
-            elif self._cfg.gts('chrome_mode') == 2:
-                snowboy = SnowBoySR2
-            elif self._cfg.gts('chrome_mode') == 3:
-                snowboy = SnowBoySR3
-            elif self._cfg.gts('chrome_mode') == 4:
-                snowboy = SnowBoySR4
             else:
                 snowboy = SnowBoy
                 detected = self._detected
@@ -335,7 +329,7 @@ class MDTerminal(threading.Thread):
         if model_msg is None:
             self.log(LNG['wrong_activation'].format(msg, model_name, energy_threshold), logger.DEBUG)
             return
-        if self._cfg.gts('energy_threshold', 0) < 1:
+        if self._cfg.gt('listener', 'energy_threshold', 0) < 1:
             energy_threshold = ', energy_threshold={}'.format(energy_threshold)
         else:
             energy_threshold = ''

@@ -64,40 +64,6 @@ class FakeFP(queue.Queue):
         self.write(b'')
 
 
-class EnergyControl:
-    def __init__(self, cfg, noising, default=700):
-        self._cfg = cfg
-        self._noising = noising
-        self._energy_previous = default
-        self._energy_currently = None
-        self._lock = threading.Lock()
-
-    def _energy_threshold(self):
-        return self._cfg.gts('energy_threshold', 0)
-
-    def correct(self, r, source):
-        with self._lock:
-            energy_threshold = self._energy_threshold()
-            if energy_threshold > 0:
-                r.energy_threshold = energy_threshold
-                return None
-            elif energy_threshold < 0 and self._energy_currently:
-                r.energy_threshold = self._energy_currently
-            elif energy_threshold < 0 and self._noising():
-                # Не подстаиваем автоматический уровень шума если терминал шумит сам.
-                # Пусть будет прошлое успешное значение или 700
-                r.energy_threshold = self._energy_previous
-            else:
-                r.adjust_for_ambient_noise(source)
-            return r.energy_threshold
-
-    def set(self, energy_threshold):
-        with self._lock:
-            if self._energy_currently:
-                self._energy_previous = self._energy_currently
-            self._energy_currently = energy_threshold
-
-
 class Popen:
     TIMEOUT = 3 * 3600
 
