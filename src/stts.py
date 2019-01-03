@@ -186,6 +186,12 @@ class SpeechToText:
         self._stop_stt_event = owner.registration('stop_stt_event')
         try:
             self.max_mic_index = len(sr.Microphone().list_microphone_names()) - 1
+            try:
+                with sr.Microphone(device_index=self.get_mic_index()) as _:
+                    pass
+            except OSError as e:
+                if e.errno == -9996:
+                    raise
         except OSError as e:
             self.log('Error get list microphones: {}'.format(e), logger.CRIT)
             self.max_mic_index = -2
