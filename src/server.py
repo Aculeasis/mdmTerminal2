@@ -70,12 +70,13 @@ class MDTServer(threading.Thread):
         self._lock = Unlock()
 
     def join(self, timeout=None):
-        self.work = False
-        self._conn.stop()
-        self._lock()
-        self.log('stopping...')
-        super().join(timeout)
-        self.log('stop.', logger.INFO)
+        if self.work:
+            self.work = False
+            self._conn.stop()
+            self._lock()
+            self.log('stopping...')
+            super().join(timeout)
+            self.log('stop.', logger.INFO)
 
     def start(self):
         self.work = True

@@ -110,9 +110,10 @@ class ModuleManager:
             self._print_info()
             self._conflicts_checker()
 
-    def save(self):
+    def stop(self):
         # Сохраняем настройки модулей
-        self.cfg.save_dict(self._cfg_name, self._get_options())
+        if self.all:
+            self.cfg.save_dict(self._cfg_name, self._get_options())
 
     def _print_info(self):
         active, inactive, disable = [], [], []

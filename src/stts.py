@@ -196,6 +196,7 @@ class SpeechToText:
     def start(self):
         self._work = True
         self.log('start.', logger.INFO)
+        self._select_sample_rate()
 
     def stop(self):
         self._work = False
@@ -424,6 +425,39 @@ class SpeechToText:
                 break
         self.log(LNG['consensus'].format(', '.join([str(x) for x in result]), phrase), logger.DEBUG)
         return phrase, match_count
+
+    def _select_sample_rate(self):
+        try:
+            self._sample_rate_tester()
+        except RuntimeError as e:
+            self.log(e, logger.CRIT)
+            time.sleep(0.2)
+            raise RuntimeError()
+
+    def _sample_rate_tester(self):
+        rates = (32000, 8000, 48000, 44100, None)
+        if self.max_mic_index == -2:
+            return
+        if self._test_rate():
+            return
+        for rate in rates:
+            msg = 'Microphone does not support sample rate {}, fallback to {}'.format(sr.Microphone.DEFAULT_RATE, rate)
+            self.log(msg, logger.WARN)
+            sr.Microphone.DEFAULT_RATE = rate
+            if self._test_rate():
+                return
+        raise RuntimeError('Microphone is broken. Supported sample rate not found')
+
+    def _test_rate(self):
+        try:
+            with sr.Microphone(device_index=self.get_mic_index()) as _:
+                pass
+        except OSError as e:
+            if e.errno == -9997:
+                return False
+            raise RuntimeError('Microphone is broken: {}'.format(e))
+        else:
+            return True
 
 
 class RecognitionWorker(threading.Thread):

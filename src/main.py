@@ -181,8 +181,12 @@ def main():
     print('MAIN: Start...')
     sig = SignalHandler((signal.SIGINT, signal.SIGTERM))
     loader = Loader(init_cfg=deepcopy(CFG), path=get_path(HOME), die_in=sig.die_in)
-    loader.start_all_systems()
-    sig.sleep(None)
+    try:
+        loader.start_all_systems()
+    except RuntimeError:
+        pass
+    else:
+        sig.sleep(None)
     loader.stop_all_systems()
     print('MAIN: bye.')
     return loader.reload

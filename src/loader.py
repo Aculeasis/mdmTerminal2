@@ -56,7 +56,7 @@ class Loader(Owner):
         self._server.start()
 
     def stop_all_systems(self):
-        self._mm.save()
+        self._mm.stop()
         self._server.join()
         self._terminal.join()
         self._updater.join()

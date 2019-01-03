@@ -191,9 +191,10 @@ class LowPrioritySay(threading.Thread):
         super().start()
 
     def stop(self):
-        self._work = False
-        self._queue_in.put_nowait(None)
-        self.join()
+        if self._work:
+            self._work = False
+            self._queue_in.put_nowait(None)
+            self.join()
 
     def clear(self):
         while not self._queue_in.empty():

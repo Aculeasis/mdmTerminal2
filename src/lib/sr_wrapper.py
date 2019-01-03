@@ -32,7 +32,6 @@ import time
 
 import speech_recognition
 
-from logger import main_logger
 from .audio_utils import APMSettings, MicrophoneStreamAPM, MicrophoneStream, StreamRecognition
 from .proxy import proxies
 
@@ -46,24 +45,6 @@ get_flac_converter = speech_recognition.get_flac_converter
 
 class Interrupted(Exception):
     pass
-
-
-class DummyStream:
-    @classmethod
-    def close(cls):
-        pass
-
-    @classmethod
-    def read(cls, *_):
-        return b''
-
-    @classmethod
-    def deactivate(cls):
-        pass
-
-    @classmethod
-    def reactivate(cls, chunks):
-        return chunks
 
 
 class Microphone(speech_recognition.Microphone):
@@ -83,17 +64,6 @@ class Microphone(speech_recognition.Microphone):
                     input=True,  # stream is an input stream
                 ), self.SAMPLE_WIDTH, self.SAMPLE_RATE
             )
-        except OSError as e:
-            self.audio.terminate()
-            if e.errno == -9997 and Microphone.DEFAULT_RATE:
-                self.stream = DummyStream
-                msg = 'Microphone broken! Invalid sample rate: \'{}\', fallback to default'.format(
-                    Microphone.DEFAULT_RATE
-                )
-                main_logger(msg)
-                Microphone.DEFAULT_RATE = None
-                return self
-            raise
         except Exception:
             self.audio.terminate()
             raise

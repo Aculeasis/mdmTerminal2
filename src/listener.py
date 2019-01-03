@@ -145,7 +145,7 @@ class Listener:
 
 
 class SnowBoy:
-    def __init__(self, cfg, callback, interrupt_check, *_, **__):
+    def __init__(self, cfg, callback, interrupt_check, owner: Owner):
         sensitivity = [cfg.gts('sensitivity')]
         decoder_model = cfg.path['models_list']
         audio_gain = cfg.gts('audio_gain')
@@ -154,7 +154,8 @@ class SnowBoy:
         self._snowboy = snowboydecoder.HotwordDetector(
             decoder_model=decoder_model,
             sensitivity=sensitivity,
-            audio_gain=audio_gain
+            audio_gain=audio_gain,
+            device_index=owner.mic_index
         )
 
     def start(self):
