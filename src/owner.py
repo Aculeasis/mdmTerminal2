@@ -164,8 +164,8 @@ class Owner:
         return self._notifier.send(qry, username)
 
     @property
-    def mjd_ip_set(self) -> bool:
-        return self._notifier.ip_set
+    def mjd_ip(self) ->str:
+        return self._notifier.ip
 
     def update(self):
         self._updater.update()

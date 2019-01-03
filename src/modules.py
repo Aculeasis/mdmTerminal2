@@ -287,7 +287,7 @@ def majordomo(self, _, phrase):
         self.log(LNG['mjd_no_say'], logger.DEBUG)
         return
 
-    if not self.own.mjd_ip_set:
+    if not self.own.mjd_ip:
         self.log(LNG['mjd_no_ip_log'], logger.CRIT)
         return Say(LNG['mjd_no_ip_say'].format(self.cfg.get('ip', LNG['error'])))
 
@@ -299,6 +299,7 @@ def majordomo(self, _, phrase):
     try:
         self.log(LNG['mjd_ok'].format(self.own.send_to_mjd(phrase, username)), logger.DEBUG)
     except RuntimeError as e:
+        e = '[{}] {}'.format(self.own.mjd_ip, e)
         self.log(LNG['err_mjd'].format(e), logger.ERROR)
         return Say(LNG['err_mjd'].format(''))
 

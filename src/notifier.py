@@ -71,8 +71,8 @@ class MajordomoNotifier(threading.Thread):
             self._send_notify(data)
 
     @property
-    def ip_set(self) -> bool:
-        return True if self._cfg['ip'] else False
+    def ip(self) -> str:
+        return self._cfg['ip']
 
     def send(self, qry: str, user=None) -> str:
         # Прямая отправка
