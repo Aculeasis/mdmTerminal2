@@ -10,7 +10,7 @@ from logging.handlers import RotatingFileHandler
 
 from languages import LOGGER as LNG
 from owner import Owner
-from utils import write_permission_check, Connect
+from utils import write_permission_check
 
 DEBUG = logging.DEBUG
 INFO = logging.INFO
@@ -167,7 +167,7 @@ class Logger(threading.Thread):
             self._app_log.setLevel(logging.DEBUG)
             self._app_log.addHandler(self._handler)
 
-    def _add_remote_log(self, _, data, lock, conn: Connect):
+    def _add_remote_log(self, _, data, lock, conn):
         try:
             # Забираем сокет у сервера
             conn_ = conn.extract()
@@ -181,17 +181,20 @@ class Logger(threading.Thread):
         self._close_connect()
         self._conn = conn
         self._conn_raw = raw
+        self._conn.start_remote_log()
         self._print('Logger', 'OPEN REMOTE LOG FOR {}:{}'.format(self._conn.ip, self._conn.port), WARN)
 
     def _close_connect(self):
         if self._conn:
             try:
                 self._conn.write(colored('CLOSE REMOTE LOG, BYE.', COLORS[INFO]))
+            except RuntimeError:
+                pass
+            try:
                 self._conn.close()
             except RuntimeError:
                 pass
-            finally:
-                self._print('Logger', 'CLOSE REMOTE LOG FOR {}:{}'.format(self._conn.ip, self._conn.port), WARN)
+            self._print('Logger', 'CLOSE REMOTE LOG FOR {}:{}'.format(self._conn.ip, self._conn.port), WARN)
             self._conn = None
 
     def add(self, name):

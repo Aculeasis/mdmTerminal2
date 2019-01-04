@@ -9,15 +9,8 @@ import time
 import logger
 from languages import SERVER as LNG
 from owner import Owner
-from utils import file_to_base64, base64_to_bytes, pretty_time, Connect
-
-try:
-    from lib.ws_proxy import Server as WSProxy
-    WS_ERROR = None
-except ImportError as e_:
-    WSProxy = None
-    WS_ERROR = e_
-    del e_
+from utils import file_to_base64, base64_to_bytes, pretty_time
+from lib.socket_wrapper import Connect
 
 
 class MDTServer(threading.Thread):
@@ -64,9 +57,8 @@ class MDTServer(threading.Thread):
         self.own = owner
         self.work = False
         self._local = ('', 7999)
-        self._ws_proxy = None
         self._socket = socket.socket()
-        self._conn = Connect(None, None)
+        self._conn = Connect(None, None, self._ws_allow)
         self._lock = Unlock()
 
     def join(self, timeout=None):
@@ -83,24 +75,14 @@ class MDTServer(threading.Thread):
         super().start()
         self.log('start', logger.INFO)
 
-    def _ws_start(self):
-        if WS_ERROR:
-            self.log('WSProxy error: {}'.format(WS_ERROR), logger.WARN)
-            return
-        self._ws_proxy = WSProxy(remote=self._local, allow=self._ws_allow, log=self._ws_log)
-        self._ws_proxy.start()
-
-    def _ws_stop(self):
-        if self._ws_proxy:
-            self._ws_proxy.join(20)
-
-    def _ws_allow(self, _, token):
+    def _ws_allow(self, ip, port, token):
         ws_token = self._cfg.gt('system', 'ws_token')
-        if ws_token and ws_token == token:
-            if ws_token == 'token_is_unset':
-                self.log('WSProxy token is unset, it is very dangerous!', logger.WARN)
-            return True
-        return False
+        allow = ws_token and ws_token == token
+        msg = '{} upgrade socket to websocket from {}:{}'.format('Allow' if allow else 'Ignore', ip, port)
+        self.log(msg, logger.DEBUG if allow else logger.WARN)
+        if allow and ws_token == 'token_is_unset':
+            self.log('Websocket token is unset, it is very dangerous!', logger.WARN)
+        return allow
 
     def _open_socket(self) -> bool:
         self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -118,7 +100,6 @@ class MDTServer(threading.Thread):
     def run(self):
         if not self._open_socket():
             return
-        self._ws_start()
         while self.work:
             try:
                 self._conn.insert(*self._socket.accept())
@@ -126,7 +107,7 @@ class MDTServer(threading.Thread):
             except socket.timeout:
                 continue
             allow = self._cfg.allow_connect(self._conn.ip)
-            msg = '{} new connection from {}'.format('Allow' if allow else 'Ignore', self._conn.ip)
+            msg = '{} new connection from {}:{}'.format('Allow' if allow else 'Ignore', self._conn.ip, self._conn.port)
             self.log(msg, logger.DEBUG if allow else logger.WARN)
             try:
                 if not allow:
@@ -135,7 +116,6 @@ class MDTServer(threading.Thread):
                     self._parse(line)
             finally:
                 self._conn.close()
-        self._ws_stop()
         self._socket.close()
 
     def _parse(self, data: str):
