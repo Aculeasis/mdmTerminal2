@@ -28,6 +28,15 @@ HANDSHAKE_STR = (
     "Connection: Upgrade\r\n"
     "Sec-WebSocket-Accept: {acceptstr}\r\n\r\n"
 )
+FAILED_HANDSHAKE_STR = (
+    "HTTP/1.1 426 Upgrade Required\r\n"
+    "Upgrade: WebSocket\r\n"
+    "Connection: Upgrade\r\n"
+    "Sec-WebSocket-Version: 13\r\n"
+    "Content-Type: text/plain\r\n\r\n"
+    "This service requires use of the WebSocket protocol or raw TCP/IP\r\n\r\n"
+    "See https://github.com/Aculeasis/mdmTerminal2/wiki/API-(draft)\r\n"
+)
 
 GUID_STR = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
 
@@ -485,6 +494,11 @@ class WebSocket:
                     self._send_buffer(h_str)
                     self.handshaked = True
                 except Exception as e:
+                    try:
+                        self._send_buffer(FAILED_HANDSHAKE_STR.encode('ascii'))
+                    except RuntimeError:
+                        pass
+                    self.client.close()
                     raise RuntimeError('handshake failed: {}'.format(e))
 
         # else do normal data

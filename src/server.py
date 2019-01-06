@@ -52,8 +52,7 @@ class MDTServer(threading.Thread):
             'ping': self._api_ping,
         }
         self._cfg = cfg
-        (self.log, ws_log) = log
-        self._ws_log = lambda x, y=logger.DEBUG: ws_log('WSProxy', x, y)
+        self.log = log
         self.own = owner
         self.work = False
         self._local = ('', 7999)
@@ -217,7 +216,7 @@ class MDTServer(threading.Thread):
             if key not in data:
                 raise RuntimeError('Missing key: {}'.format(repr(key)))
         # Ошибка?
-        if data['code'] != 0:
+        if not isinstance(data['code'], int) or data['code']:
             raise RuntimeError('Transfer error [{}]: {}'.format(data['code'], data.get('msg', '')))
         # Недопустимое имя модели?
         if not self._cfg.is_model_name(data['filename']):

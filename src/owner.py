@@ -1,8 +1,15 @@
+import threading
+
 from lib.volume import get_volume
 from utils import state_cache
 
 
 class Owner:
+    def __init__(self, die_in=lambda x: None):
+        self._die_in = die_in
+        self.reload = False
+        self._lock = threading.Lock()
+
     def subscribe(self, event, callback, channel='default') -> bool:
         """
         Оформление подписки на событие или события. Можно подписаться сразу на много событий или

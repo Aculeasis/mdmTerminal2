@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 
-import threading
-
 import stts
 from config import ConfigHandler
 from languages import LOADER as LNG
 from lib.proxy import proxies
 from lib.publisher import PubSub
+from listener import Listener
 from logger import Logger
 from modules_manager import ModuleManager
 from mpd_control import MPDControl
@@ -16,14 +15,11 @@ from player import Player
 from server import MDTServer
 from terminal import MDTerminal
 from updater import Updater
-from listener import Listener
 
 
 class Loader(Owner):
     def __init__(self, init_cfg: dict, path: dict, die_in):
-        self._die_in = die_in
-        self.reload = False
-        self._lock = threading.Lock()
+        super().__init__(die_in)
 
         self._pub = PubSub()
         self._cfg = ConfigHandler(cfg=init_cfg, path=path, owner=self)
@@ -40,7 +36,7 @@ class Loader(Owner):
         self._mm = ModuleManager(log=self._logger.add_plus('MM'), cfg=self._cfg, owner=self)
         self._updater = Updater(cfg=self._cfg, log=self._logger.add('Updater'), owner=self)
         self._terminal = MDTerminal(cfg=self._cfg, log=self._logger.add('Terminal'), owner=self)
-        self._server = MDTServer(cfg=self._cfg, log=self._logger.add_plus('Server'), owner=self)
+        self._server = MDTServer(cfg=self._cfg, log=self._logger.add('Server'), owner=self)
 
     def start_all_systems(self):
         self._pub.start()
