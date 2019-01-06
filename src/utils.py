@@ -15,8 +15,6 @@ import requests
 import socks  # install socks-proxy dependencies - pip install requests[socks]
 import urllib3
 
-from languages import YANDEX_SPEAKER, RHVOICE_SPEAKER, AWS_SPEAKER, DEFAULT_SPEAKERS
-
 REQUEST_ERRORS = (
     requests.exceptions.HTTPError, requests.exceptions.RequestException, urllib3.exceptions.NewConnectionError,
     socks.ProxyError
@@ -95,24 +93,6 @@ class Popen:
         if self._popen.poll():
             raise RuntimeError('{}: {}'.format(self._popen.poll(), repr(self._popen.stderr.read().decode())))
         return self._popen.stdout.read().decode()
-
-
-def fix_speakers(cfg: dict) -> bool:
-    modify = False
-    for name, speakers in (
-            ('rhvoice', RHVOICE_SPEAKER),
-            ('rhvoice-rest', RHVOICE_SPEAKER),
-            ('yandex', YANDEX_SPEAKER),
-            ('aws', AWS_SPEAKER)):
-        if not isinstance(cfg.get(name), dict) or 'speaker' not in cfg[name]:
-            continue
-        if cfg[name]['speaker'] in speakers:
-            continue
-        def_name = name if name != 'rhvoice-rest' else 'rhvoice'
-        if def_name in DEFAULT_SPEAKERS:
-            cfg[name]['speaker'] = DEFAULT_SPEAKERS[def_name]
-            modify = True
-    return modify
 
 
 def get_ip_address():

@@ -30,8 +30,6 @@ YANDEX_EMOTION = {}
 YANDEX_SPEAKER = {}
 RHVOICE_SPEAKER = {}
 AWS_SPEAKER = {}
-# Спикеры по умолчанию.
-DEFAULT_SPEAKERS = {}
 
 
 class _LangSetter:
@@ -39,7 +37,7 @@ class _LangSetter:
     DICTS = (
         'LANG_CODE', 'CONFIG', 'LOADER', 'LOGGER', 'MODULES', 'MODULES_MANAGER', 'MPD_CONTROL', 'PLAYER', 'SERVER',
         'STTS', 'TERMINAL', 'UPDATER',
-        'YANDEX_EMOTION', 'YANDEX_SPEAKER', 'RHVOICE_SPEAKER', 'AWS_SPEAKER', 'DEFAULT_SPEAKERS'
+        'YANDEX_EMOTION', 'YANDEX_SPEAKER', 'RHVOICE_SPEAKER', 'AWS_SPEAKER'
     )
     UNIQUE = ('RHVOICE_SPEAKER', 'AWS_SPEAKER')
     PATH = os.path.dirname(os.path.abspath(__file__))

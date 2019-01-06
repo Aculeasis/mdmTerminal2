@@ -215,8 +215,6 @@ class Owner:
                 diff['settings'].pop('lang_check', None)
                 self._cfg.lang_init()
                 if lang:
-                    # change unsupported speakers to default
-                    self._cfg.fix_speakers()
                     # reload phrases
                     self._stt.reload()
                     # reload modules

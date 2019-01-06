@@ -152,9 +152,6 @@ class ConfigHandler(dict):
         if apm.failed:
             self._print(apm.failed, logger.CRIT)
 
-    def fix_speakers(self):
-        return utils.fix_speakers(self)
-
     def _cfg_check(self, to_save=False):
         for key in ['providerstt', 'providerstt']:
             to_save |= self._cfg_dict_checker(self.gts(key))
@@ -162,7 +159,6 @@ class ConfigHandler(dict):
         to_save |= self._tts_cache_path_check()
         to_save |= self._init_volume()
         to_save |= self._first()
-        to_save |= self.fix_speakers()
         if to_save:
             self.config_save()
 

@@ -316,9 +316,3 @@ AWS_SPEAKER = {
     'Tatyana': 'Тетяна',
     'Maxim': 'Максим',
 }
-
-DEFAULT_SPEAKERS = {
-    'yandex': 'alyss',
-    'rhvoice': 'natalia',
-    'aws': 'Tatyana'
-}
