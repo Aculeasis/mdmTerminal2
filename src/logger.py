@@ -228,21 +228,20 @@ class Logger(threading.Thread):
     def _to_file(self, name, msg, lvl):
         self._app_log.log(lvl, '{}: {}'.format(name, msg))
 
-    def _to_print(self, name, msg, lvl, l_time, m_name) -> str:
-        if m_name:
-            m_name = '->{}'.format(colored(m_name, MODULE_COLOR))
-        time_ = time.strftime('%Y.%m.%d %H:%M:%S', time.localtime(l_time))
+    def _str_time(self, l_time: float) -> str:
+        time_str = time.strftime('%Y.%m.%d %H:%M:%S', time.localtime(l_time))
         if self._cfg['print_ms']:
-            time_ += '.{:03d}'.format(int(l_time * 1000 % 1000))
-        return '{} {}{}: {}'.format(time_, colored(name, NAME_COLOR), m_name, colored(msg, COLORS[lvl]))
+            time_str += '.{:03d}'.format(int(l_time * 1000 % 1000))
+        return time_str
 
-    def _to_print_raw(self, name, msg, lvl, l_time, m_name):
-        if m_name:
-            m_name = '->{}'.format(m_name)
-        time_ = time.strftime('%Y.%m.%d %H:%M:%S', time.localtime(l_time))
-        if self._cfg['print_ms']:
-            time_ += '.{:03d}'.format(int(l_time * 1000 % 1000))
-        return '{} {} {}{}: {}'.format(time_, LVL_NAME[lvl], name, m_name, msg)
+    def _to_print(self, name, msg, lvl, l_time, m_name) -> str:
+        m_name = '->{}'.format(colored(m_name, MODULE_COLOR)) if m_name else ''
+        str_time = self._str_time(l_time)
+        return '{} {}{}: {}'.format(str_time, colored(name, NAME_COLOR), m_name, colored(msg, COLORS[lvl]))
+
+    def _to_print_raw(self, name, msg, lvl, l_time, m_name) -> str:
+        m_name = '->{}'.format(m_name) if m_name else ''
+        return '{} {} {}{}: {}'.format(self._str_time(l_time), LVL_NAME[lvl], name, m_name, msg)
 
     def _to_remote_log(self, line: str):
         if self._conn:

@@ -29,6 +29,23 @@ class MDTerminal(threading.Thread):
         self._snowboy = None
         self._queue = queue.Queue()
 
+        self.CALL = {
+            'reload': self._reload,
+            'update': self.own.update,
+            'rollback': self.own.manual_rollback,
+        }
+        self.DATA_CALL = {
+            'volume': self._set_volume,
+            'mpd_volume': self._set_mpd_volume,
+        }
+        self.ARGS_CALL = {
+            'rec': self._rec_rec,
+            'play': self._rec_play,
+            'compile': self._rec_compile,
+            'del': self._rec_del,
+            'send_model': self._send_model,
+        }
+
     def _reload(self):
         if len(self._cfg.path['models_list']) and self.own.max_mic_index != -2:
             if self._cfg.gts('chrome_mode'):
@@ -95,43 +112,34 @@ class MDTerminal(threading.Thread):
                 continue
             else:
                 self.log(msg, logger.DEBUG)
-            if cmd == 'reload':
-                self._reload()
+
+            if cmd == 'tts':
+                self.own.say(data, lvl=lvl)
             elif cmd == 'ask' and data:
                 self._detected_parse(data, self.own.listen(data))
             elif cmd == 'voice' and not data:
                 self._detected_parse('', self.own.listen(voice=True))
-            elif cmd == 'rec':
-                self._rec_rec(*data)
-            elif cmd == 'play':
-                self._rec_play(*data)
-            elif cmd == 'compile':
-                self._rec_compile(*data)
-            elif cmd == 'send_model':
-                self._send_model(**data)
-            elif cmd == 'del':
-                self._rec_del(*data)
-            elif cmd == 'volume':
-                self._set_volume(data)
-            elif cmd == 'mpd_volume':
-                self._set_mpd_volume(data)
-            elif cmd == 'tts':
-                self.own.say(data, lvl=lvl)
-            elif cmd == 'update':
-                self.own.update()
-            elif cmd == 'rollback':
-                self.own.manual_rollback()
             elif cmd == 'notify' and data:
                 terminal_name = self._cfg.gt('majordomo', 'terminal') or 'mdmTerminal2'
                 self._detected_parse(None, '[{}] {}'.format(terminal_name, data))
+            elif cmd in self.CALL:
+                self.CALL[cmd]()
+            elif cmd in self.DATA_CALL:
+                self.DATA_CALL[cmd](data)
+            elif cmd in self.ARGS_CALL:
+                self.ARGS_CALL[cmd](*data)
             else:
-                self.log(LNG['err_call'].format(cmd, data, lvl), logger.ERROR)
+                self.log(LNG['err_call'].format(cmd, repr(data)[:300], lvl), logger.ERROR)
 
     def _rec_rec(self, model, sample):
         # Записываем образец sample для модели model
         if sample not in LNG['rec_nums']:
             self.log('{}: {}'.format(LNG['err_rec_param'], sample), logger.ERROR)
             self.own.say(LNG['err_rec_param'])
+            return
+        pmdl_name = ''.join(['model', model, self._cfg.path['model_ext']])
+        if not self._cfg.is_model_name(pmdl_name):
+            self.log('Wrong model filename: {}'.format(repr(pmdl_name)), logger.ERROR)
             return
 
         hello = LNG['rec_hello'].format(LNG['rec_nums'][sample])
@@ -157,23 +165,26 @@ class MDTerminal(threading.Thread):
             self.log(LNG['err_play_log'].format(file), logger.WARN)
 
     def _rec_compile(self, model, username):
-        if len(username) < 2:
-            username = None
-        models = [os.path.join(self._cfg.path['tmp'], ''.join([model, x, '.wav'])) for x in ['1', '2', '3']]
-        miss = False
-        for x in models:
-            if not os.path.isfile(x):
-                miss = True
-                self.log(LNG['compile_no_file'].format(x), logger.ERROR)
-                self.own.say(LNG['compile_no_file'].format(os.path.basename(x)))
-        if not miss:
-            self._compile_model(model, models, username)
+        samples = []
+        for num in ('1', '2', '3'):
+            sample_path = os.path.join(self._cfg.path['tmp'], ''.join((model, num, '.wav')))
+            if not os.path.isfile(sample_path):
+                self.log(LNG['compile_no_file'].format(sample_path), logger.ERROR)
+                self.own.say(LNG['compile_no_file'].format(os.path.basename(sample_path)))
+            else:
+                samples.append(sample_path)
+        if len(samples) == 3:
+            username = username if len(username) > 1 else None
+            self._compile_model(model, samples, username)
 
     def _rec_del(self, model, _):
         is_del = False
         to_save = False
         pmdl_name = ''.join(['model', model, self._cfg.path['model_ext']])
         pmdl_path = os.path.join(self._cfg.path['models'], pmdl_name)
+        if not self._cfg.is_model_name(pmdl_name):
+            self.log('Wrong model filename: {}'.format(repr(pmdl_name)), logger.ERROR)
+            return
 
         # remove model file
         if os.path.isfile(pmdl_path):
@@ -203,19 +214,22 @@ class MDTerminal(threading.Thread):
             self._cfg.models_load()
             self._reload()
 
-    def _compile_model(self, model, models, username):
-        phrase, match_count = self.own.phrase_from_files(models)
+    def _compile_model(self, model, samples, username):
+        phrase, match_count = self.own.phrase_from_files(samples)
         pmdl_name = ''.join(['model', model, self._cfg.path['model_ext']])
         pmdl_path = os.path.join(self._cfg.path['models'], pmdl_name)
+        if not self._cfg.is_model_name(pmdl_name):
+            self.log('Wrong model filename: {}'.format(repr(pmdl_name)), logger.ERROR)
+            return
 
         # Начальные параметры для API сноубоя
         params = {key: self._cfg.gt('snowboy', key) for key in ('token', 'name', 'age_group', 'gender', 'microphone')}
         params['language'] = LANG_CODE['ISO']
 
-        if match_count != len(models):
-            msg = LNG['no_consensus'].format(pmdl_name, match_count, len(models))
-            # Не создаем модель если не все фразы идентичны
+        if match_count != len(samples):
+            msg = LNG['no_consensus'].format(pmdl_name, match_count, len(samples))
             if self._cfg.gt('snowboy', 'clear_models') or self._cfg.gts('chrome_mode'):
+                # Не создаем модель если не все фразы идентичны
                 self.log(msg, logger.ERROR)
                 self.own.say(LNG['err_no_consensus'].format(model))
                 return
@@ -227,7 +241,7 @@ class MDTerminal(threading.Thread):
         self.log(LNG['compiling'].format(pmdl_path), logger.INFO)
         work_time = time.time()
         try:
-            snowboy = training_service.Training(*models, params=params)
+            snowboy = training_service.Training(*samples, params=params)
         except RuntimeError as e:
             self.log(LNG['err_compile_log'].format(pmdl_path, e), logger.ERROR)
             self.own.say(LNG['err_compile_say'].format(model))
@@ -242,17 +256,17 @@ class MDTerminal(threading.Thread):
         self._save_model_data(pmdl_name, username, phrase)
 
         # Удаляем временные файлы
-        for x in models:
+        for x in samples:
             os.remove(x)
 
-    def _send_model(self, pmdl_name, body: bytes, username='', phrase='', **_):
+    def _send_model(self, filename, body, username, phrase):
         # Получили модель от сервера (send - это для сервера)
-        pmdl_path = os.path.join(self._cfg.path['models'], pmdl_name)
+        pmdl_path = os.path.join(self._cfg.path['models'], filename)
         self.log('Model {} received from server: phrase={}, username={}, size={} bytes.'.format(
-            repr(pmdl_name), repr(phrase), repr(username), len(body)), logger.INFO)
+            repr(filename), repr(phrase), repr(username), len(body)), logger.INFO)
         with open(pmdl_path, 'wb') as fp:
             fp.write(body)
-        self._save_model_data(pmdl_name, username, phrase)
+        self._save_model_data(filename, username, phrase)
 
     def _save_model_data(self, pmdl_name, username, phrase):
         model_data = {'models': {pmdl_name: phrase}}

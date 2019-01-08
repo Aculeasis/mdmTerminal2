@@ -221,8 +221,6 @@ class MDTServer(threading.Thread):
         # Недопустимое имя модели?
         if not self._cfg.is_model_name(data['filename']):
             raise RuntimeError('Wrong model name: {}'.format(data['filename']))
-        data['pmdl_name'] = data['filename']
-        del data['filename']
         # И значения на корректность
         for key in ('username', 'phrase'):
             if key in data and not isinstance(data[key], str):
@@ -234,6 +232,7 @@ class MDTServer(threading.Thread):
         data['body'] = base64_to_bytes(data['body'])
         if len(data['body']) < 1024 * 3:
             raise RuntimeError('File too small: {}'.format(len(data['body'])))
+        data = (data.get(key, '') for key in ('filename', 'body', 'username', 'phrase'))
         self.own.terminal_call('send_model', data, save_time=False)
 
     def _api_recv_model(self, cmd: str, pmdl_name: str):

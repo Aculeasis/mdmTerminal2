@@ -30,7 +30,7 @@ class SignalHandler:
     def __init__(self, signals=(signal.SIGTERM,)):
         self._sleep = threading.Event()
         self._death_time = 0
-        [signal.signal(signal_, self._signal_handler)for signal_ in signals]
+        [signal.signal(signal_, self._signal_handler) for signal_ in signals]
 
     def _signal_handler(self, *_):
         self._sleep.set()
