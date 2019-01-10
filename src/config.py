@@ -18,6 +18,8 @@ from owner import Owner
 
 
 class ConfigHandler(dict):
+    API = 1
+
     def __init__(self, cfg: dict, path: dict, owner: Owner):
         super().__init__()
         self.update(cfg)

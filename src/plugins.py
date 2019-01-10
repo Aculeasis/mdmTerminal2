@@ -10,6 +10,7 @@ ENTRYPOINT = 'Main'
 NAME = 'NAME'
 RELOAD = 'CFG_RELOAD'
 PLUG_FILE = 'main.py'
+API = 'API'
 DISABLE_1 = 'DISABLE'
 DISABLE_2 = 'disable'
 
@@ -85,6 +86,15 @@ class Plugins:
         reload = getattr(module, RELOAD, None)
         if reload is not None and not is_iterable(reload):
             raise RuntimeError('\'{}\' must be iterable or None'.format(RELOAD))
+
+        api = getattr(module, API, None)
+        if not isinstance(api, int):
+            raise RuntimeError('\'{}\' missing or not int: {}, {}'.format(API, repr(api), type(api)))
+
+        if api < self.cfg.API:
+            msg = 'Plugin \'{}\' deprecated. Plugin api: {}, terminal api: {}. Ignore.'.format(name, api, self.cfg.API)
+            self.log(msg, logger.WARN)
+            return
 
         self._init[name] = (getattr(module, ENTRYPOINT)(cfg=self.cfg, log=self._get_log(name), owner=self.own), reload)
 
