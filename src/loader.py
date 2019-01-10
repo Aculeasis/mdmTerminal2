@@ -12,6 +12,7 @@ from mpd_control import MPDControl
 from notifier import MajordomoNotifier
 from owner import Owner
 from player import Player
+from plugins import Plugins
 from server import MDTServer
 from terminal import MDTerminal
 from updater import Updater
@@ -37,6 +38,7 @@ class Loader(Owner):
         self._updater = Updater(cfg=self._cfg, log=self._logger.add('Updater'), owner=self)
         self._terminal = MDTerminal(cfg=self._cfg, log=self._logger.add('Terminal'), owner=self)
         self._server = MDTServer(cfg=self._cfg, log=self._logger.add('Server'), owner=self)
+        self._plugins = Plugins(cfg=self._cfg, log=self._logger.add_plus('Plugins'), owner=self)
 
     def start_all_systems(self):
         self._pub.start()
@@ -50,8 +52,10 @@ class Loader(Owner):
         self._updater.start()
         self._terminal.start()
         self._server.start()
+        self._plugins.start()
 
     def stop_all_systems(self):
+        self._plugins.stop()
         self._mm.stop()
         self._server.join()
         self._terminal.join()

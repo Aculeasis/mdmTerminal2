@@ -168,6 +168,8 @@ def get_path(home) -> dict:
         'resources': os.path.join(home, 'resources'),
         # ~/data/
         'data': os.path.join(home, 'data'),
+        # ~/plugins/
+        'plugins': os.path.join(home, 'plugins'),
     }
     path['models'] = os.path.join(path['resources'], 'models')
     # ~/resources/ding.wav ~/resources/dong.wav ~/resources/tts_error.mp3

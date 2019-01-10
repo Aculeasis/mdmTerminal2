@@ -252,6 +252,8 @@ class Owner:
             if is_sub_dict('settings', diff) or is_sub_dict('listener', diff) or reload_terminal:
                 # reload terminal
                 self.terminal_call('reload', save_time=False)
+            # check and reload plugins
+            self._plugins.reload(diff)
             self._cfg.print_cfg_change()
             self._cfg.config_save()
 

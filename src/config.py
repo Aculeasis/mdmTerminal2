@@ -111,6 +111,8 @@ class ConfigHandler(dict):
         self._make_dir(self.path['resources'])
         # ~/data/
         self._make_dir(self.path['data'])
+        # ~/plugins/
+        self._make_dir(self.path['plugins'])
         # ~/resources/models/
         self._make_dir(self.path['models'])
         # ~/resources/ding.wav ~/resources/dong.wav ~/resources/tts_error.mp3
