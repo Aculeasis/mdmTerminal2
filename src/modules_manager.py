@@ -61,6 +61,47 @@ class SayLow:  # Говорим с низким приоритетом
                 yield text
 
 
+class DynamicModule:
+    MODES = (NM, DM, ANY)
+
+    def __init__(self, callback, mode_, phrases=None):
+        self._is_ok = mode_ in self.MODES and callback
+        self._cb = callback
+        self._mode = mode_
+        self._phrases = {}
+        if phrases is not None:
+            self.phrase(phrases, mode_)
+
+    @property
+    def ok(self) -> bool:
+        return self._is_ok and self._phrases
+
+    @property
+    def callback(self):
+        return self._cb
+
+    @property
+    def get(self) -> dict:
+        if not self.ok:
+            raise RuntimeError('Module is broken')
+        data = {'enable': True, 'mode': self._mode}
+        data.update(self._phrases)
+        return data
+
+    def phrase(self, phrases, mode_=None) -> bool:
+        mode_ = mode_ or ANY
+        if not (self._is_ok and mode_ in self.MODES):
+            return False
+        try:
+            phrases = parse_phrases('', phrases)
+        except RuntimeError:
+            return False
+        if mode_ not in self._phrases:
+            self._phrases[mode_] = []
+        self._phrases[mode_].extend(phrases)
+        return True
+
+
 class ModuleManager:
     def __init__(self, log, cfg, owner: Owner):
         (self._log, self._m_log) = log
@@ -88,6 +129,26 @@ class ModuleManager:
         # Не проверяем данные модули на конфликты
         self._no_check = ['majordomo', 'terminator']
         self._lock = threading.Lock()
+        # Динамические модули
+        self._ext_all = OrderedDict()
+        self._ext_lock = threading.Lock()
+
+    def insert_module(self, module: DynamicModule) -> bool:
+        if not isinstance(module, DynamicModule):
+            return False
+        with self._ext_lock:
+            if not module.ok or module.callback in self._ext_all:
+                return False
+            self._ext_all[module.callback] = module.get
+            self._ext_all.move_to_end(module.callback, last=False)
+            return True
+
+    def extract_module(self, callback) -> bool:
+        with self._ext_lock:
+            if callback in self._ext_all:
+                del self._ext_all[callback]
+                return True
+            return False
 
     def start(self):
         self.reload()
@@ -301,7 +362,7 @@ class ModuleManager:
 
             return self._phrases_testing(phrase, phrase_check)
 
-    def words_by_f(self, f):
+    def words_by_f(self, f, modules=None):
         def allow_any():
             if not val['enable']:
                 return False
@@ -309,7 +370,7 @@ class ModuleManager:
                 return True
             return self.debug == (val['mode'] == DM)
 
-        val = self.all[f]
+        val = (modules or self.all)[f]
         for words_target in self._check_words:
             if words_target in val and allow_any():
                 for check in val[words_target]:
@@ -319,8 +380,14 @@ class ModuleManager:
                         yield check[0], check[1]
 
     def _words_iter(self):  # Функция, фраза, режим проверки
-        for key in self.all:
-            for words in self.words_by_f(key):
+        if self._ext_all:
+            with self._ext_lock:
+                yield from self._words_iter_target(self._ext_all)
+        yield from self._words_iter_target(self.all)
+
+    def _words_iter_target(self, target):
+        for key in target:
+            for words in self.words_by_f(key, target):
                 yield key, words[0], words[1]
 
     def _processing_set(self, to_set: Set or None):
@@ -427,18 +494,7 @@ class ModuleWrapper:
 
     def _add_phrases(self, f, param, phrases: list or str or tuple):
         name = self.__is_all.get(f, {}).get('name', f)
-
-        if isinstance(phrases, str) or \
-                (isinstance(phrases, (tuple, list)) and len(phrases) == 2 and phrases[1] in [EQ, SW, EW]):
-            phrases = [phrases]
-        for idx in range(len(phrases)):
-            if isinstance(phrases[idx], str):
-                phrases[idx] = phrases[idx].lower()
-            elif isinstance(phrases[idx], (tuple, list)) and isinstance(phrases[idx][0], str) \
-                    and len(phrases[idx]) == 2 and phrases[idx][1] in [EQ, SW, EW]:
-                phrases[idx][0] = phrases[idx][0].lower()
-            else:
-                raise RuntimeError('Bad word \'{}\' from \'{}\''.format(phrases[idx], name))
+        phrases = parse_phrases(name, phrases)
 
         self._add(f, **{param: phrases})
 
@@ -479,3 +535,18 @@ class ModuleWrapper:
             self._add(f, hardcoded=True)
             return f
         return wrap
+
+
+def parse_phrases(name, phrases):
+    if isinstance(phrases, str) or \
+            (isinstance(phrases, (tuple, list)) and len(phrases) == 2 and phrases[1] in [EQ, SW, EW]):
+        phrases = [phrases]
+    for idx in range(len(phrases)):
+        if isinstance(phrases[idx], str):
+            phrases[idx] = phrases[idx].lower()
+        elif isinstance(phrases[idx], (tuple, list)) and isinstance(phrases[idx][0], str) \
+                and len(phrases[idx]) == 2 and phrases[idx][1] in [EQ, SW, EW]:
+            phrases[idx][0] = phrases[idx][0].lower()
+        else:
+            raise RuntimeError('Bad word \'{}\' from \'{}\''.format(phrases[idx], name))
+    return phrases

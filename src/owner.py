@@ -59,6 +59,24 @@ class Owner:
         """
         return self._pub.sub_call(channel, event, *args, **kwargs)
 
+    def insert_module(self, module) -> bool:
+        """
+        Добавляет динамический модуль.
+        Динамические модули проритетнее обычных и обрабатываются в порядке LIFO,
+        также ими нельзя управлять и их настройки не сохраняются.
+        :param module: экземпляр modules_manager.DynamicModule.
+        :return: был ли модуль добавлен.
+        """
+        return self._mm.insert_module(module)
+
+    def extract_module(self, callback) -> bool:
+        """
+        Удаляет динамический модуль по его коллбэку.
+        :param callback: коллбэк динамического модуля.
+        :return: был ли модуль удален.
+        """
+        return self._mm.extract_module(callback)
+
     def say(self, msg: str, lvl: int=2, alarm=None, wait=0, is_file: bool = False, blocking: int=0):
         self._play.say(msg, lvl, alarm, wait, is_file, blocking)
 
