@@ -161,6 +161,9 @@ class Owner:
     def tts(self, msg, realtime: bool = True):
         return self._tts.tts(msg, realtime)
 
+    def ask_again_callback(self):
+        self._pub.call('ask_again')
+
     def voice_activated_callback(self):
         self._pub.call('voice_activated')
 

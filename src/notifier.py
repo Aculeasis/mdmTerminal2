@@ -21,7 +21,7 @@ class MajordomoNotifier(threading.Thread):
         self._queue = queue.Queue()
         self._boot_time = None
         self._events = (
-            'speech_recognized_success', 'voice_activated',
+            'speech_recognized_success', 'voice_activated', 'ask_again',
             'mpd_status', 'start_record', 'stop_record', 'start_talking', 'stop_talking',
             'volume', 'mpd_volume'
         )

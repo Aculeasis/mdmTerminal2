@@ -230,10 +230,13 @@ class SpeechToText:
     def _listen_and_take(self, hello, deaf, voice) -> str:
         ask_me_again = self._cfg.get_uint('ask_me_again')
         msg = self._listen(hello, voice)
+        again = msg is None and ask_me_again > 0
 
-        while msg is None and ask_me_again:  # Переспрашиваем
-            ask_me_again -= 1
+        while again:  # Переспрашиваем
+            self.own.ask_again_callback()
             msg = self._listen(self.sys_say.ask, False)
+            ask_me_again -= 1
+            again = msg is None and ask_me_again
         if msg is None and deaf:
             say = self.sys_say.deaf
             if say:
