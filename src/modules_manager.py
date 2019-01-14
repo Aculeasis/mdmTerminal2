@@ -12,10 +12,12 @@ from owner import Owner
 EQ = 1  # phrase equivalent
 SW = 2  # phrase startswith - by default
 EW = 3  # phrase endswith
+ALL_COMPARE_MODES = (EQ, SW, EW)
 
 NM = 'words_normal'  # normal mode
 DM = 'words_debug'  # debug mode
 ANY = 'words'  # Оба режима. by default for words
+ALL_MODES = (NM, DM, ANY)
 
 
 def get_mode_say(mode_):
@@ -62,10 +64,8 @@ class SayLow:  # Говорим с низким приоритетом
 
 
 class DynamicModule:
-    MODES = (NM, DM, ANY)
-
     def __init__(self, callback, mode_, phrases=None):
-        self._is_ok = mode_ in self.MODES and callback
+        self._is_ok = mode_ in ALL_MODES and callback
         self._cb = callback
         self._mode = mode_
         self._phrases = {}
@@ -90,7 +90,7 @@ class DynamicModule:
 
     def phrase(self, phrases, mode_=None) -> bool:
         mode_ = mode_ or ANY
-        if not (self._is_ok and mode_ in self.MODES):
+        if not (self._is_ok and mode_ in ALL_MODES):
             return False
         try:
             phrases = parse_phrases('', phrases)
@@ -249,7 +249,7 @@ class ModuleManager:
             else:
                 self._log('{} bad option type. {} must be bool, not {}'.format(name, option, type(val)), logger.ERROR)
         elif option == 'mode':
-            if val in [NM, DM, ANY]:
+            if val in ALL_MODES:
                 return True
             else:
                 self._log('{} unknown mode value - {}'.format(name, val), logger.ERROR)
@@ -466,7 +466,7 @@ class ModuleWrapper:
             for item in must_be:
                 if item not in val:
                     raise RuntimeError('Key {} not in {}'.format(item, val.get('name', key)))
-            if not [x for x in [NM, DM, ANY] if x in val]:
+            if not [x for x in ALL_MODES if x in val]:
                 raise RuntimeError('Module {} not have words'.format(val.get('name', key)))
             val['hardcoded'] = val.get('hardcoded', False)
             f_name = key.__name__
@@ -504,7 +504,7 @@ class ModuleWrapper:
         name = name.lower()
         if not name or name in self.__names:
             raise RuntimeError('Module name must be set and unique: {}'.format(name))
-        if mode_ not in [NM, DM, ANY]:
+        if mode_ not in ALL_MODES:
             raise RuntimeError('Unknown module {} mode: {}'.format(name, mode_))
         self.__names.add(name)
 
@@ -521,7 +521,7 @@ class ModuleWrapper:
         # Фразаы могут быть списком элементов. Элемент может быть фразой или фразой и режимом сравнения.
         # Пустая фраза будет триггерить все
         mode_ = mode_ or ANY
-        if mode_ not in [NM, DM, ANY]:
+        if mode_ not in ALL_MODES:
             raise RuntimeError('Unknown phrases mode: {}'.format(mode_))
 
         def wrap(f):
@@ -539,13 +539,13 @@ class ModuleWrapper:
 
 def parse_phrases(name, phrases):
     if isinstance(phrases, str) or \
-            (isinstance(phrases, (tuple, list)) and len(phrases) == 2 and phrases[1] in [EQ, SW, EW]):
+            (isinstance(phrases, (tuple, list)) and len(phrases) == 2 and phrases[1] in ALL_COMPARE_MODES):
         phrases = [phrases]
     for idx in range(len(phrases)):
         if isinstance(phrases[idx], str):
             phrases[idx] = phrases[idx].lower()
         elif isinstance(phrases[idx], (tuple, list)) and isinstance(phrases[idx][0], str) \
-                and len(phrases[idx]) == 2 and phrases[idx][1] in [EQ, SW, EW]:
+                and len(phrases[idx]) == 2 and phrases[idx][1] in ALL_COMPARE_MODES:
             phrases[idx][0] = phrases[idx][0].lower()
         else:
             raise RuntimeError('Bad word \'{}\' from \'{}\''.format(phrases[idx], name))

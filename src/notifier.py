@@ -138,6 +138,6 @@ def _get_boot_time() -> int:
             for line in fp:
                 if line.startswith('btime'):
                     return int(line.split()[1])
-        return int(time.time())
     except (IOError, IndexError, ValueError):
-        return int(time.time())
+        pass
+    return int(time.time())

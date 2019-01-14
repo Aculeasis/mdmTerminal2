@@ -18,10 +18,9 @@ from owner import Owner
 
 
 class ConfigHandler(dict):
-    API = 1
-
     def __init__(self, cfg: dict, path: dict, owner: Owner):
         super().__init__()
+        self._plugins_api = cfg['system'].pop('PLUGINS_API', 0)
         self.update(cfg)
         self.path = path
         self.__owner = owner
@@ -30,6 +29,10 @@ class ConfigHandler(dict):
         self._to_tts = []  # Пока player нет храним фразы тут.
         self._to_log = []  # А тут принты в лог
         self._config_init()
+
+    @property
+    def API(self):
+        return self._plugins_api
 
     def __print(self, msg, lvl):
         self._to_log.append((msg, lvl))
