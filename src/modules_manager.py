@@ -537,6 +537,10 @@ class ModuleWrapper:
         return wrap
 
 
+def list_to_tuple(data: list) -> tuple:
+    return tuple(key if not isinstance(key, list) else list_to_tuple(key) for key in data)
+
+
 def parse_phrases(name, phrases):
     if isinstance(phrases, str) or \
             (isinstance(phrases, (tuple, list)) and len(phrases) == 2 and phrases[1] in ALL_COMPARE_MODES):
@@ -549,4 +553,4 @@ def parse_phrases(name, phrases):
             phrases[idx][0] = phrases[idx][0].lower()
         else:
             raise RuntimeError('Bad word \'{}\' from \'{}\''.format(phrases[idx], name))
-    return phrases
+    return list_to_tuple(phrases)
