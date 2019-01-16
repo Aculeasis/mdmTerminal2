@@ -141,7 +141,7 @@ class Player:
         if alarm is None:
             alarm = self._cfg.gts('alarmtts')
 
-        file = self.own.tts(msg) if not is_file else msg
+        file = self.own.tts(msg) if not (is_file or callable(msg)) else msg
         if alarm:
             self._play(self._cfg.path['dong'])
             self._wait_popen()
