@@ -13,7 +13,7 @@
 - [Отправка уведомлений](https://github.com/Aculeasis/mdmTerminal2/wiki/callback) на сервер MajorDoMo
 - [Работа через прокси](https://github.com/Aculeasis/mdmTerminal2/wiki/proxy)
 - [Модули](https://github.com/Aculeasis/mdmTerminal2/wiki/modules)
-- [Плагины](https://github.com/Aculeasis/mdmt2-forismatic)
+- [Плагины](https://github.com/Aculeasis/mdmTerminal2/wiki/plugins)
 
 # Установка
 **Используя докер**: [Dockerfile и готовые образы под x86_64, aarch64, armv7l](https://github.com/Aculeasis/mdmt2-docker)
