@@ -27,6 +27,9 @@ class TextToSpeech:
         self._cfg = cfg
 
     def tts(self, msg, realtime: bool = True):
+        if callable(msg):
+            # Audio already synthesized
+            return msg
         return _TTSWorker(self._cfg, self._log, msg, realtime).get
 
 
