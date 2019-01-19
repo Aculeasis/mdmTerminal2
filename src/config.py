@@ -203,11 +203,7 @@ class ConfigHandler(dict):
         return False
 
     def get_allow_models(self) -> list:
-        allow = self.gt('models', 'allow')
-        if not allow:
-            return []
-        allow = [model.strip() for model in allow.split(',')]
-        return [model for model in allow if model]
+        return utils.str_to_list(self.gt('models', 'allow'))
 
     def get_all_models(self) -> list:
         return [file for file in os.listdir(self.path['models']) if self.is_model_name(file)]

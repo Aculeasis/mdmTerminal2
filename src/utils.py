@@ -274,3 +274,14 @@ def mask_off(obj):
         else:
             masked.append('**HIDDEN OBJECT**')
     return masked if iterable or not masked else masked[0]
+
+
+def str_to_list(string: str, sep=',') -> list:
+    if not (string and isinstance(string, str)):
+        return []
+    result = []
+    for el in string.split(sep):
+        el = el.strip()
+        if el and el not in result:
+            result.append(el)
+    return result
