@@ -5,6 +5,7 @@ import sys
 import threading
 
 import logger
+import utils
 
 ENTRYPOINT = 'Main'
 NAME = 'NAME'
@@ -21,25 +22,50 @@ class Plugins:
         (self.log, self._m_log) = log
         self.own = owner
         self._lock = threading.Lock()
+        self._target = None
+        self._to_blacklist, self._blacklist, self._whitelist = None, None, None
+        self._blacklist_on_failure = False
         self._init = {}
         self._modules = {}
         self._reloads = {}
 
     def start(self):
         with self._lock:
-            self.log('start.', logger.INFO)
-            self._init_all()
-            self._start_all()
+            if self.cfg.gt('plugins', 'enable'):
+                self.log('start.', logger.INFO)
+                self._to_blacklist = set()
+                self._blacklist = set(utils.str_to_list(self.cfg.gt('plugins', 'blacklist')))
+                self._whitelist = set(utils.str_to_list(self.cfg.gt('plugins', 'whitelist')))
+                self._blacklist_on_failure = self.cfg.gt('plugins', 'blacklist_on_failure')
+
+                self._init_all()
+                self._start_all()
+                self._update_blacklist()
+
+                self._to_blacklist, self._blacklist, self._whitelist = None, None, None
 
     def stop(self):
         with self._lock:
             self._stop_all()
+            if self.cfg.gt('plugins', 'enable') or self._modules:
+                self.log('stop.', logger.INFO)
             self._modules, self._reloads = {}, {}
-            self.log('stop.', logger.INFO)
 
     def reload(self, diff: dict):
         with self._lock:
             self._reload_all(diff)
+
+    def _update_blacklist(self):
+        self._to_blacklist -= self._blacklist
+        if not self._to_blacklist:
+            return
+        to_blacklist = list(self._to_blacklist)
+        to_blacklist.sort()
+        to_blacklist = ','.join(to_blacklist)
+        blacklist = self.cfg.gt('plugins', 'blacklist')
+        blacklist = '{},{}'.format(blacklist, to_blacklist) if blacklist else to_blacklist
+        self.log('Add to blacklist: {}'.format(to_blacklist), logger.INFO)
+        self.cfg.update_from_dict({'plugins': {'blacklist': blacklist}})
 
     def _get_log(self, name: str):
         name = name.capitalize()
@@ -54,10 +80,13 @@ class Plugins:
             module_name = 'plugins.{}'.format(plugin)
             if not os.path.isfile(plugin_path):
                 continue
+            self._target = None
             try:
                 self._init_plugin(plugin_path, module_name)
             except Exception as e:
                 self.log('Error init {}: {}'.format(module_name, e), logger.ERROR)
+                if self._blacklist_on_failure and self._target is not None:
+                    self._to_blacklist.add(self._target)
         if self._init:
             self.log('Init {}'.format(', '.join(key for key in self._init)))
 
@@ -78,10 +107,14 @@ class Plugins:
             raise RuntimeError('\'{}\' must be str, not {}'.format(NAME, type(name)))
         if len(name) > 30:
             raise RuntimeError('Max \'{}\' length 30, get {}'.format(NAME, len(name)))
-        if not name.islower() or name.isspace():
-            raise RuntimeError('\'{}\' must be lowered and without space: \'{}\''.format(NAME, name))
+        if not name.islower() or name.isspace() or ',' in name:
+            raise RuntimeError('\'{}\' must be lowered, without spaces and commas: \'{}\''.format(NAME, name))
         if name in self._init:
-            raise RuntimeError('Plugin \'{}\' already initialized'.format(name))
+            raise RuntimeError('Plugin named \'{}\' already initialized'.format(name))
+
+        if not self._allow_by_name(name):
+            return
+        self._target = name
 
         reload = getattr(module, RELOAD, None)
         if reload is not None and not is_iterable(reload):
@@ -106,6 +139,8 @@ class Plugins:
                 self._start_plugin(name, module)
             except Exception as e:
                 self.log('Error star \'{}\': {}'.format(name, e), logger.ERROR)
+                if self._blacklist_on_failure:
+                    self._to_blacklist.add(name)
                 continue
             self._modules[name] = module
             if reload and getattr(module, 'reload', None):
@@ -148,6 +183,15 @@ class Plugins:
     def _reload(self, name: str):
         self._modules[name].reload()
         self._log(name, 'reload.', logger.INFO)
+
+    def _allow_by_name(self, name: str) -> bool:
+        if self._whitelist and name not in self._whitelist:
+            self.log('Ignore \'{}\': not whitelisted'.format(name), logger.DEBUG)
+            return False
+        if self._blacklist and name in self._blacklist:
+            self.log('Ignore \'{}\': blacklisted'.format(name), logger.DEBUG)
+            return False
+        return True
 
 
 def import_module(path: str, module_name: str):

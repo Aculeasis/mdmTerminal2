@@ -146,8 +146,14 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'conservative': False,
         'ns_lvl': 0,
     },
+    'plugins': {
+        'enable': True,
+        'whitelist': '',
+        'blacklist': '',
+        'blacklist_on_failure': False,
+    },
     'system': {
-        'ini_version': 25,
+        'ini_version': 26,
         'ws_token': 'token_is_unset',
         'PLUGINS_API': 1,
     }
