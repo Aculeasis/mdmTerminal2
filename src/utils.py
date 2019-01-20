@@ -15,10 +15,7 @@ import requests
 import socks  # install socks-proxy dependencies - pip install requests[socks]
 import urllib3
 
-REQUEST_ERRORS = (
-    requests.exceptions.HTTPError, requests.exceptions.RequestException, urllib3.exceptions.NewConnectionError,
-    socks.ProxyError
-)
+REQUEST_ERRORS = (requests.exceptions.RequestException, urllib3.exceptions.NewConnectionError, socks.ProxyError)
 
 
 class RuntimeErrorTrace(RuntimeError):
