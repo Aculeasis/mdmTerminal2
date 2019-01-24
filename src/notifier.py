@@ -128,7 +128,7 @@ class MajordomoNotifier(threading.Thread):
         except REQUEST_ERRORS as e:
             raise RuntimeErrorTrace(e)
         if not reply.ok:
-            raise RuntimeError('Request error {}: {}'.format(reply.status_code, reply.reason))
+            raise RuntimeError('Server reply error from \'{}\'. {}: {}'.format(url, reply.status_code, reply.reason))
         return reply.request.url
 
 
