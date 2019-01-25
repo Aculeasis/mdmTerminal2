@@ -112,6 +112,10 @@ class MicrophoneStream(Microphone.MicrophoneStream):
     def reactivate(chunks):
         return chunks
 
+    @property
+    def read_available(self) -> int:
+        return self.pyaudio_stream.get_read_available()
+
 
 class MicrophoneStreamAPM(MicrophoneStream):
     def __init__(self, pyaudio_stream, width, rate, conservative):

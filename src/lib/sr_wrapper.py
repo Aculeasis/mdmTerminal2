@@ -279,14 +279,20 @@ class Recognizer(speech_recognition.Recognizer):
                 send_record_starting = True
                 self._record_callback(True)
             while voice_recognition.processing:
-                # handle phrase being too long by cutting off the audio
-                elapsed_time += seconds_per_buffer
-                if phrase_time_limit and elapsed_time - phrase_start_time > phrase_time_limit:
+                # 100% frames must be available for call read()
+                if source.stream.read_available < source.CHUNK:
+                    time.sleep(0.002)
+                    continue
+                buffer = source.stream.read(source.CHUNK)
+                if not buffer:
+                    # reached end of the stream
                     break
 
-                buffer = source.stream.read(source.CHUNK)
-                if len(buffer) == 0:
-                    break  # reached end of the stream
+                # handle phrase being too long by cutting off the audio
+                elapsed_time += seconds_per_buffer
+                if phrase_time_limit and elapsed_time - phrase_start_time >= phrase_time_limit:
+                    break
+
                 voice_recognition.write(buffer)
                 phrase_count += 1
 
