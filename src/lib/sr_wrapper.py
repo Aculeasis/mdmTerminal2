@@ -105,8 +105,8 @@ class Recognizer(speech_recognition.Recognizer):
 
         elapsed_time = 0
         seconds_per_buffer = float(source.CHUNK) / source.SAMPLE_RATE
-        # buffers capable of holding 5 seconds of original and resampled audio
-        five_seconds_buffer_count = int(math.ceil(5 / seconds_per_buffer))
+        # buffers capable of holding 3 seconds of original and resampled audio
+        five_seconds_buffer_count = int(math.ceil(3 / seconds_per_buffer))
         frames = collections.deque(maxlen=five_seconds_buffer_count)
         start_time = time.time() + 0.2
         snowboy_result = 0
@@ -238,11 +238,11 @@ class Recognizer(speech_recognition.Recognizer):
         # Use snowboy to words detecting instead of energy_threshold
         send_record_starting = False
         voice_recognition = StreamRecognition(recognition)
-        while True:
+        while voice_recognition.processing:
             if sn_time is None:
                 # store audio input until the phrase starts
                 silent_frames = collections.deque(maxlen=non_speaking_buffer_count)
-                while True:
+                while voice_recognition.processing:
                     # handle waiting too long for phrase by raising an exception
                     elapsed_time += seconds_per_buffer
                     if timeout and elapsed_time > timeout:
@@ -278,7 +278,7 @@ class Recognizer(speech_recognition.Recognizer):
             if self._record_callback and not send_record_starting:
                 send_record_starting = True
                 self._record_callback(True)
-            while True:
+            while voice_recognition.processing:
                 # handle phrase being too long by cutting off the audio
                 elapsed_time += seconds_per_buffer
                 if phrase_time_limit and elapsed_time - phrase_start_time > phrase_time_limit:

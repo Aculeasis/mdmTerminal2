@@ -279,7 +279,7 @@ class StreamRecognition(threading.Thread):
         self.sample_rate = None
         self.sample_width = None
         self.work = True
-        self._text = ''
+        self._text = None
         self._written = False
         self._block = threading.Event()
         self.__event = threading.Event()
@@ -291,6 +291,10 @@ class StreamRecognition(threading.Thread):
     @property
     def is_ok(self):
         return self._written and self.ready
+
+    @property
+    def processing(self):
+        return self._text is None
 
     def time_up(self):
         self._time.up()
