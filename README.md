@@ -16,11 +16,6 @@
 - [Плагины](https://github.com/Aculeasis/mdmTerminal2/wiki/plugins)
 
 # Установка
-## Системные требования
-- OS: Linux (рекомендую debian-based)
-- Architectures: armv7l, aarch64, x86_64
-- Python 3.5 +
-
 **Используя докер**: [Dockerfile и готовые образы под x86_64, aarch64, armv7l](https://github.com/Aculeasis/mdmt2-docker)
 
 ## Обычная установка
@@ -135,6 +130,11 @@ cd ..
 rm -rf swig/
 ```
 И снова запустить скрипт сборки модуля.
+
+# Системные требования
+- OS: Linux (рекомендую debian-based)
+- Architectures: armv7l, aarch64, x86_64
+- Python 3.5 +
 
 # Решение проблем
 - Если не работает USB микрофон, попробуйте выдернуть и вставить обратно, иногда это помогает.
