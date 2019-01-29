@@ -139,6 +139,7 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'fallback': True,
     },
     'volume': {
+        'card': 0,
         'line_out': '',
     },
     'noise_suppression': {
@@ -153,7 +154,7 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'blacklist_on_failure': False,
     },
     'system': {
-        'ini_version': 26,
+        'ini_version': 27,
         'ws_token': 'token_is_unset',
         'PLUGINS_API': 1,
     }

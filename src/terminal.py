@@ -12,7 +12,6 @@ import utils
 from languages import LANG_CODE
 from languages import STTS as LNG2
 from languages import TERMINAL as LNG
-from lib import volume
 from listener import SnowBoy, SnowBoySR
 from owner import Owner
 
@@ -277,25 +276,20 @@ class MDTerminal(threading.Thread):
         self._reload()
 
     def _set_volume(self, value):
-        control = self._cfg.gt('volume', 'line_out')
-        if not control or control == volume.UNDEFINED:
+        if value is not None:
+            if self.own.set_volume(value) == -1:
+                self.log(LNG['vol_wrong_val'].format(value), logger.WARN)
+                self.own.say(LNG['vol_wrong_val'].format(value))
+                return
+        volume = self.own.get_volume()
+        if value is not None and volume > -1:
+            self.own.volume_callback(volume)
+        if volume == -2:
             self.log(LNG['vol_not_cfg'], logger.WARN)
             self.own.say(LNG['vol_not_cfg'])
-            return
-        if value is not None:
-            try:
-                value = volume.set_volume(value, control)
-            except RuntimeError as e:
-                msg = LNG['vol_wrong_val'].format(value)
-                self.log('{}, {}'.format(msg, e), logger.WARN)
-                self.own.say(msg)
-                return
-            else:
-                self.own.volume_callback(value)
         else:
-            value = volume.get_volume(control)
-        self.log(LNG['vol_ok'].format(value))
-        self.own.say(LNG['vol_ok'].format(value))
+            self.log(LNG['vol_ok'].format(volume))
+            self.own.say(LNG['vol_ok'].format(volume))
 
     def _set_mpd_volume(self, value):
         if value is not None:

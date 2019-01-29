@@ -1,7 +1,6 @@
 from utils import Popen
 
 AMIXER = 'amixer'
-DEVICES = [AMIXER, 'scontrols']
 SET = 'sset'
 GET = 'sget'
 QUOTE = '\''
@@ -12,8 +11,16 @@ WORST = ('line', 'out')
 
 
 def extract_volume_control():
+    for card in range(_card_count()):
+        control = _extract_volume_control(card)
+        if control != UNDEFINED:
+            return card, control
+    return -1, UNDEFINED
+
+
+def _extract_volume_control(card):
     try:
-        data = _extract_values(DEVICES)
+        data = _extract_values([AMIXER, 'scontrols', '-c', str(card)])
     except RuntimeError:
         return UNDEFINED
     # find best
@@ -32,18 +39,29 @@ def extract_volume_control():
     return UNDEFINED
 
 
-def set_volume(volume, control) -> int:
+def _card_count() -> int:
+    count = 0
+    try:
+        for line in Popen(['aplay', '-l']).run().strip('\n').split('\n'):
+            if line.startswith('card '):
+                count += 1
+    except RuntimeError:
+        pass
+    return count or 1
+
+
+def set_volume(volume, control, card=0) -> int:
     volume = _clean_volume(volume)
     p_volume = '{}%'.format(volume)
 
     control = '{0}{1}{0}'.format(QUOTE, control)
-    Popen([AMIXER, SET, control, p_volume]).run()
+    Popen([AMIXER, '-c', str(card), SET, control, p_volume]).run()
     return volume
 
 
-def get_volume(control) -> int:
+def get_volume(control, card=0) -> int:
     try:
-        data = _extract_values([AMIXER, GET, control], '[', ']')
+        data = _extract_values([AMIXER, '-c', str(card), GET, control], '[', ']')
     except RuntimeError:
         return -1
     for line in data:

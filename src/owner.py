@@ -1,6 +1,6 @@
 import threading
 
-from lib.volume import get_volume
+from lib import volume
 from utils import state_cache
 
 
@@ -210,9 +210,8 @@ class Owner:
 
     @property
     def get_volume_status(self) -> dict:
-        volume = get_volume(self._cfg.gt('volume', 'line_out', ''))
         mpd_volume = self._mpd.real_volume
-        return {'volume': volume, 'mpd_volume': mpd_volume if mpd_volume is not None else -1}
+        return {'volume': self.get_volume(), 'mpd_volume': mpd_volume if mpd_volume is not None else -1}
 
     def terminal_call(self, cmd: str, data='', lvl: int=0, save_time: bool=True):
         self._terminal.call(cmd, data, lvl, save_time)
@@ -228,6 +227,34 @@ class Owner:
 
     def background_listen(self):
         return self._listen.background_listen()
+
+    def get_volume(self) -> int:
+        """
+        Вернет текущую громкость системы 0..100 или код ошибки.
+        Ошибки: -2 не настроено, -1 ошибка получения.
+        :return:  громкость или код ошибки.
+        """
+        control = self._cfg.gt('volume', 'line_out', '')
+        card = self._cfg.gt('volume', 'card', 0)
+        if not control or control == volume.UNDEFINED:
+            return -2
+        return volume.get_volume(control, card)
+
+    def set_volume(self, vol) -> int:
+        """
+        Изменяет системную громкость, вернет громкость иди код ошибки.
+        Ошибки: -2 не настроено, -1 ошибка установки.
+        :param vol: громкость 0..100, int или то что можно преобразовать в int.
+        :return:  громкость или код ошибки.
+        """
+        control = self._cfg.gt('volume', 'line_out', '')
+        card = self._cfg.gt('volume', 'card', 0)
+        if not control or control == volume.UNDEFINED:
+            return -2
+        try:
+            return volume.set_volume(vol, control, card)
+        except RuntimeError:
+            return -1
 
     def settings_from_mjd(self, cfg: str):
         # Reload modules if their settings could be changes
