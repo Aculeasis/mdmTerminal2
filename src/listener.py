@@ -110,7 +110,8 @@ class Listener:
             source=source_or_mic, energy_lvl=energy_lvl, energy_dynamic=energy_dynamic,
             lvl=vad_lvl, width=source_or_mic.SAMPLE_WIDTH, rate=source_or_mic.SAMPLE_RATE,
             resource_path=self.cfg.path['home'], snowboy_hot_word_files=self.cfg.path['models_list'],
-            sensitivity=self.cfg.gts('sensitivity'), audio_gain=self.cfg.gts('audio_gain'), another=None
+            sensitivity=self.cfg.gts('sensitivity'), audio_gain=self.cfg.gts('audio_gain'), another=None,
+            apply_frontend=self.cfg.gt('noise_suppression', 'snowboy_apply_frontend')
         )
         if isinstance(vad, sr.EnergyDetector):
             if not energy_lvl:
@@ -130,7 +131,8 @@ class Listener:
         return SnowboyDetector(
             resource_path=self.cfg.path['home'], snowboy_hot_word_files=self.cfg.path['models_list'],
             width=width, rate=rate,
-            sensitivity=self.cfg.gts('sensitivity'), audio_gain=self.cfg.gts('audio_gain'), another=another_detector
+            sensitivity=self.cfg.gts('sensitivity'), audio_gain=self.cfg.gts('audio_gain'), another=another_detector,
+            apply_frontend=self.cfg.gt('noise_suppression', 'snowboy_apply_frontend')
         )
 
     def _select_vad(self, vad_mode=None):
@@ -157,6 +159,7 @@ class SnowBoy:
             audio_gain=audio_gain,
             device_index=owner.mic_index
         )
+        self._snowboy.detector.ApplyFrontend(cfg.gt('noise_suppression', 'snowboy_apply_frontend'))
 
     def start(self):
         self._snowboy.start(detected_callback=self._callbacks, interrupt_check=self._interrupt_check)

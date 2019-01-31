@@ -197,8 +197,10 @@ class Detector:
 
 
 class SnowboyDetector(Detector):
-    def __init__(self, resource_path, snowboy_hot_word_files, sensitivity, audio_gain, width, rate, another, **_):
-        self._snowboy = SnowboyDetector._constructor(resource_path, sensitivity, audio_gain, *snowboy_hot_word_files)
+    def __init__(self, resource_path, snowboy_hot_word_files, sensitivity,
+                 audio_gain, width, rate, another, apply_frontend, **_):
+        self._snowboy = SnowboyDetector._constructor(
+            resource_path, sensitivity, audio_gain, apply_frontend, *snowboy_hot_word_files)
         super().__init__(150, width, rate, self._snowboy.SampleRate())
         self._another = another
         self._current_state = -2
@@ -229,13 +231,14 @@ class SnowboyDetector(Detector):
 
     @classmethod
     @lru_cache(maxsize=1)
-    def _constructor(cls, resource_path, sensitivity, audio_gain, *snowboy_hot_word_files):
+    def _constructor(cls, resource_path, sensitivity, audio_gain, apply_frontend, *snowboy_hot_word_files):
         sn = snowboydetect.SnowboyDetect(
             resource_filename=os.path.join(resource_path, 'resources', 'common.res').encode(),
             model_str=",".join(snowboy_hot_word_files).encode()
         )
         sn.SetAudioGain(audio_gain)
         sn.SetSensitivity(','.join([str(sensitivity)] * len(snowboy_hot_word_files)).encode())
+        sn.ApplyFrontend(apply_frontend)
         return sn
 
 
