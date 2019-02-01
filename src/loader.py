@@ -3,6 +3,7 @@
 import stts
 from config import ConfigHandler
 from languages import LOADER as LNG
+from lib import STT, TTS
 from lib.proxy import proxies
 from lib.publisher import PubSub
 from listener import Listener
@@ -22,7 +23,10 @@ class Loader(Owner):
     def __init__(self, init_cfg: dict, path: dict, die_in):
         super().__init__(die_in)
 
+        self._stt_providers = STT.PROVIDERS
+        self._tts_providers = TTS.PROVIDERS
         self._pub = PubSub()
+
         self._cfg = ConfigHandler(cfg=init_cfg, path=path, owner=self)
         self._logger = Logger(self._cfg['log'], self)
         self._cfg.configure(self._logger.add('CFG'))

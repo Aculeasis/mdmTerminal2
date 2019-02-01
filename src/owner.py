@@ -1,6 +1,6 @@
 import threading
 
-from lib import volume
+from lib import volume as volume_
 from utils import state_cache
 
 
@@ -9,6 +9,7 @@ class Owner:
         self._die_in = die_in
         self.reload = False
         self._lock = threading.Lock()
+        self._stts_lock = threading.Lock()
 
     def subscribe(self, event, callback, channel='default') -> bool:
         """
@@ -76,6 +77,58 @@ class Owner:
         :return: был ли модуль удален.
         """
         return self._mm.extract_module(callback)
+
+    def add_stt_provider(self, name: str, entrypoint) -> bool:
+        """
+        Добавляет speech-to-text провайдера.
+        :param name: имя провайдера.
+        :param entrypoint: конструктор, ожидается что это объект класса и потомок lib.STT.BaseSTT.
+        :return: успешность операции.
+        """
+        with self._stts_lock:
+            if name not in self._stt_providers:
+                self._stt_providers[name] = entrypoint
+                return True
+            return False
+
+    def remove_stt_provider(self, name: str) -> bool:
+        """
+        Удаляет speech-to-text провайдера.
+        :param name: имя провайдера.
+        :return: успешность операции.
+        """
+        with self._stts_lock:
+            try:
+                del self._stt_providers[name]
+            except KeyError:
+                return False
+            return True
+
+    def add_tts_provider(self, name: str, entrypoint) -> bool:
+        """
+        Добавляет text-to-speech провайдера.
+        :param name: имя провайдера.
+        :param entrypoint: конструктор, ожидается что это объект класса и потомок lib.TTS.BaseTTS.
+        :return: успешность операции.
+        """
+        with self._stts_lock:
+            if name not in self._tts_providers:
+                self._tts_providers[name] = entrypoint
+                return True
+            return False
+
+    def remove_tts_provider(self, name: str) -> bool:
+        """
+        Удаляет text-to-speech провайдера.
+        :param name: имя провайдера.
+        :return: успешность операции.
+        """
+        with self._stts_lock:
+            try:
+                del self._tts_providers[name]
+            except KeyError:
+                return False
+            return True
 
     def say(self, msg: str, lvl: int=2, alarm=None, wait=0, is_file: bool = False, blocking: int=0):
         self._play.say(msg, lvl, alarm, wait, is_file, blocking)
@@ -236,9 +289,9 @@ class Owner:
         """
         control = self._cfg.gt('volume', 'line_out', '')
         card = self._cfg.gt('volume', 'card', 0)
-        if not control or control == volume.UNDEFINED:
+        if not control or control == volume_.UNDEFINED:
             return -2
-        return volume.get_volume(control, card)
+        return volume_.get_volume(control, card)
 
     def set_volume(self, vol) -> int:
         """
@@ -249,10 +302,10 @@ class Owner:
         """
         control = self._cfg.gt('volume', 'line_out', '')
         card = self._cfg.gt('volume', 'card', 0)
-        if not control or control == volume.UNDEFINED:
+        if not control or control == volume_.UNDEFINED:
             return -2
         try:
-            return volume.set_volume(vol, control, card)
+            return volume_.set_volume(vol, control, card)
         except RuntimeError:
             return -1
 
