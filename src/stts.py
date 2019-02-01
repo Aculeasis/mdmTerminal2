@@ -405,7 +405,7 @@ class SpeechToText:
                 lang=LANG_CODE['IETF'],
                 url=self._cfg.gt(prov, 'server'),
                 yandex_api=self._cfg.yandex_api(prov)
-            )
+            ).text()
         except STT.UnknownValueError:
             command = ''
         except (STT.RequestError, RuntimeError) as e:

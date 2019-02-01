@@ -12,7 +12,7 @@ from .polly_boto3 import AWS as AWSBoto3
 from .polly_signing import signing as polly_signing
 from .proxy import proxies
 
-__all__ = ['support', 'GetTTS', 'gTTSError']
+__all__ = ['support', 'GetTTS', 'BaseTTS', 'gTTSError']
 
 
 class BaseTTS:
@@ -263,6 +263,7 @@ def support(name):
 
 
 def GetTTS(name, **kwargs):
-    if not support(name):
+    try:
+        return PROVIDERS[name](**kwargs)
+    except KeyError:
         raise RuntimeError('TTS {} not found'.format(name))
-    return PROVIDERS[name](**kwargs)

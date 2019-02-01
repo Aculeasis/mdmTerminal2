@@ -13,7 +13,7 @@ from .keys_utils import requests_post, xml_yandex
 from .proxy import proxies
 from .sr_wrapper import google_reply_parser, UnknownValueError, Recognizer, AudioData, RequestError
 
-__all__ = ['support', 'GetSTT', 'RequestError']
+__all__ = ['support', 'GetSTT', 'BaseSTT', 'RequestError']
 
 
 class BaseSTT:
@@ -239,11 +239,17 @@ class PocketSphinxREST(BaseSTT):
         self._text = result['text']
 
 
-def microsoft(audio_data, key, lang, **_):
-    sr = Recognizer()
-    if isinstance(audio_data, StreamRecognition):
-        audio_data = audio_data.get_audio_data()
-    return sr.recognize_bing(audio_data, key, lang)
+class Microsoft:
+    def __init__(self, audio_data, key, lang, **_):
+        sr = Recognizer()
+        if isinstance(audio_data, StreamRecognition):
+            audio_data = audio_data.get_audio_data()
+        self._text = sr.recognize_bing(audio_data, key, lang)
+
+    def text(self):
+        if not self._text:
+            raise UnknownValueError('No variants')
+        return self._text
 
 
 def yandex(yandex_api, **kwargs):
@@ -254,7 +260,7 @@ def yandex(yandex_api, **kwargs):
 
 
 PROVIDERS = {
-    'google': Google, 'yandex': yandex, 'pocketsphinx-rest': PocketSphinxREST, 'wit.ai': WitAI, 'microsoft': microsoft,
+    'google': Google, 'yandex': yandex, 'pocketsphinx-rest': PocketSphinxREST, 'wit.ai': WitAI, 'microsoft': Microsoft,
     'azure': Azure
 }
 
@@ -264,9 +270,7 @@ def support(name):
 
 
 def GetSTT(name, **kwargs):
-    if not support(name):
-        raise RuntimeError('STT {} not found'.format(name))
-    if name == 'microsoft':
+    try:
         return PROVIDERS[name](**kwargs)
-    else:
-        return PROVIDERS[name](**kwargs).text()
+    except KeyError:
+        raise RuntimeError('STT {} not found'.format(name))
