@@ -64,7 +64,7 @@ class MajordomoNotifier(threading.Thread):
             try:
                 data = self._queue.get(timeout=to_sleep)
             except queue.Empty:
-                if not self._allow_notify:
+                if not (self._allow_notify and self._api_fail_count):
                     continue
                 # Отправляем пинг на сервер мжд
                 data = self.own.get_volume_status
