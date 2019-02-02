@@ -506,16 +506,19 @@ class Phrases:
 
     @property
     def hello(self) -> str:
-        return random.SystemRandom().choice(self._phrases['hello'])
+        return self._choice('hello')
 
     @property
     def deaf(self) -> str:
-        return random.SystemRandom().choice(self._phrases['deaf'])
+        return self._choice('deaf')
 
     @property
     def ask(self) -> str:
-        return random.SystemRandom().choice(self._phrases['ask'])
+        return self._choice('ask')
 
     @property
     def chance(self) -> bool:
         return random.SystemRandom().randint(1, 100) <= self._phrases['chance']
+
+    def _choice(self, name: str) -> str:
+        return random.SystemRandom().choice(self._phrases[name])

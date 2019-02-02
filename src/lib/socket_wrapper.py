@@ -18,8 +18,6 @@ import time
 from http.server import BaseHTTPRequestHandler
 from io import BytesIO
 
-import logger
-
 _VALID_STATUS_CODES = [1000, 1001, 1002, 1003, 1007, 1008, 1009, 1010, 1011, 3000, 3999, 4000, 4999]
 
 HANDSHAKE_STR = (
@@ -61,8 +59,7 @@ MAXPAYLOAD = 33554432
 
 CRLF = b'\r\n'
 WS_MARK = b'GET '
-AUTH_FAILED = logger.colored('Terminal rejected connection (incorrect ws_token?)', logger.COLORS[logger.ERROR])
-AUTH_FAILED = '{}. {}!'.format(AUTH_FAILED, logger.colored('BYE', logger.COLORS[logger.CRIT]))
+AUTH_FAILED = 'Terminal rejected connection (incorrect ws_token?). BYE!'
 
 
 class Connect:

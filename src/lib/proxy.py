@@ -2,10 +2,9 @@ import socket
 import threading
 import urllib.parse
 from functools import lru_cache
+from logging import ERROR
 
 import socks
-
-from logger import ERROR
 
 PROXIES = {
     'tts_google': ('google_tts', 'google'),

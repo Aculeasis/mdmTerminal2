@@ -5,7 +5,7 @@ import threading
 from utils import singleton
 
 
-class AWS:
+class AWSBoto3:
     def __init__(self, text, speaker, audio_format, key, lang, *_, **__):
         if not text:
             raise RuntimeError('No text to speak')
@@ -49,7 +49,7 @@ class _SessionStorage:
     def _create_session(self, key):
         try:
             boto3 = importlib.import_module('boto3')
-        except (ImportError, ModuleNotFoundError) as e:
+        except ImportError as e:
             raise RuntimeError('Error importing boto3: {}'.format(e))
         session = boto3.Session(aws_access_key_id=key[0], aws_secret_access_key=key[1], region_name=key[2])
         polly = session.client('polly')
