@@ -12,6 +12,8 @@ from utils import REQUEST_ERRORS, RuntimeErrorTrace
 
 
 class MajordomoNotifier(threading.Thread):
+    MAX_API_FAIL_COUNT = 10
+
     def __init__(self, cfg, log, owner: Owner):
         super().__init__(name='Notifier')
         self._cfg = cfg
@@ -20,6 +22,7 @@ class MajordomoNotifier(threading.Thread):
         self._work = False
         self._queue = queue.Queue()
         self._boot_time = None
+        self._api_fail_count = self.MAX_API_FAIL_COUNT
         self._events = (
             'speech_recognized_success', 'voice_activated', 'ask_again',
             'mpd_status', 'start_record', 'stop_record', 'start_talking', 'stop_talking',
@@ -35,6 +38,7 @@ class MajordomoNotifier(threading.Thread):
         self.own.unsubscribe(self._events, self._callback)
 
     def reload(self):
+        self._api_fail_count = self.MAX_API_FAIL_COUNT
         self._unsubscribe()
         self._subscribe()
 
@@ -110,6 +114,13 @@ class MajordomoNotifier(threading.Thread):
             self._send(path, params)
         except RuntimeError as e:
             self.log(e, logger.ERROR)
+            self._api_fail_count -= 1
+            if not self._api_fail_count:
+                self._unsubscribe()
+                msg = 'MajorDoMo API call failed {} times - notifications disabled.'.format(self.MAX_API_FAIL_COUNT)
+                self.log(msg, logger.CRIT)
+        else:
+            self._api_fail_count = self.MAX_API_FAIL_COUNT
 
     def _send(self, path: str, params: dict, user=None) -> str:
         terminal = self._cfg['terminal']
