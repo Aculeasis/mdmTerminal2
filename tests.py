@@ -4,7 +4,6 @@ import os
 import sys
 import time
 import unittest
-from copy import deepcopy
 
 sys.path.insert(0, os.path.join(os.path.abspath(sys.path[0]), 'src'))
 
@@ -40,7 +39,7 @@ def tests_mono():
 
     home = main.HOME
     path = main.get_path(home)
-    cfg = deepcopy(main.CFG)
+    cfg = main.get_cfg()
     # Меняем настройки
     test_settings = '{}.test'.format(path['settings'])
     path['settings'] = test_settings
