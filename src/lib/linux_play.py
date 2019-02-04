@@ -7,6 +7,11 @@ CMD = {
     '.wav': ['aplay', '-q'],
     '.opus': ['opusdec', '--quiet', '--force-wav', '-', '-']
 }
+BACKENDS = {
+    # mplayer ведет себя странно
+    # 'mplayer': ['mplayer', '-really-quiet', '-noautosub', '-novideo', '-cache', '512', '-cache-min', '30'],
+    'mpv': ['mpv', '--really-quiet', '--no-video', '-cache', '512'],
+}
 
 
 class StreamPlayer(threading.Thread):
@@ -126,9 +131,13 @@ def _get_cmd1(path):
     return cmd
 
 
-def get_popen(ext, fp_or_file, stream, callback):
+def get_popen(ext, fp_or_file, stream, callback, backend=None):
     file_path = '-' if stream else fp_or_file
-    if ext == '.opus':
+    if backend in BACKENDS:
+        cmd1 = None
+        cmd2 = BACKENDS[backend].copy()
+        cmd2.append(file_path)
+    elif ext == '.opus':
         cmd1 = _get_cmd1(file_path)
         cmd2 = _get_cmd2('.wav', '-')
     else:

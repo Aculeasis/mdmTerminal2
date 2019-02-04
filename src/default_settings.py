@@ -24,6 +24,7 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'chrome_alarmstt': False,
         'lang': 'ru',
         'lang_check': False,
+        'software_player': '',
     },
     'listener': {
         'stream_recognition': False,
@@ -33,8 +34,6 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'energy_lvl': 0,
         'energy_dynamic': True,
         'silent_multiplier': 1.0,
-
-
     },
     'majordomo': {
         'linkedroom': '',
@@ -117,7 +116,6 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'age_group': '30_39',
         'gender': 'M',
         'microphone': 'mic',
-
     },
     'update': {
         'interval': 0,
@@ -143,7 +141,7 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'blacklist_on_failure': False,
     },
     'system': {
-        'ini_version': 28,
+        'ini_version': 29,
         'ws_token': 'token_is_unset',
         'PLUGINS_API': 1,
     }

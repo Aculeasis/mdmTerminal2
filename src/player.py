@@ -171,10 +171,10 @@ class Player:
             return self.log(LNG['unknown_type'].format(ext), logger.CRIT)
         if stream is None:
             self.log(LNG['play'].format(path, logger.DEBUG))
-            self._popen = linux_play.get_popen(ext, path, False, callback)
+            self._popen = linux_play.get_popen(ext, path, False, callback, self._cfg.gts('software_player'))
         else:
             self.log(LNG['stream'].format(path, logger.DEBUG))
-            self._popen = linux_play.get_popen(ext, stream, True, callback)
+            self._popen = linux_play.get_popen(ext, stream, True, callback, self._cfg.gts('software_player'))
 
 
 class LowPrioritySay(threading.Thread):
