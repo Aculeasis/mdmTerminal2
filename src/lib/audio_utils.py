@@ -237,7 +237,7 @@ class SnowboyDetector(Detector):
             model_str=",".join(snowboy_hot_word_files).encode()
         )
         sn.SetAudioGain(audio_gain)
-        sn.SetSensitivity(','.join([str(sensitivity)] * len(snowboy_hot_word_files)).encode())
+        sn.SetSensitivity(','.join([str(sensitivity)] * sn.NumHotwords()).encode())
         sn.ApplyFrontend(apply_frontend)
         return sn
 

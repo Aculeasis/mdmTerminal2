@@ -83,7 +83,7 @@ class HotwordDetector(object):
         self.detector.SetAudioGain(audio_gain)
         self.num_hotwords = self.detector.NumHotwords()
 
-        if len(decoder_model) > 1 and len(sensitivity) == 1:
+        if self.num_hotwords > 1 and len(sensitivity) == 1:
             sensitivity = sensitivity*self.num_hotwords
         if len(sensitivity) != 0:
             assert self.num_hotwords == len(sensitivity), \
