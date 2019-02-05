@@ -404,7 +404,8 @@ class SpeechToText:
                 key=self._cfg.key(prov, 'apikeystt'),
                 lang=LANG_CODE['IETF'],
                 url=self._cfg.gt(prov, 'server'),
-                yandex_api=self._cfg.yandex_api(prov)
+                yandex_api=self._cfg.yandex_api(prov),
+                grpc=self._cfg.gt(prov, 'grpc'),
             ).text()
         except STT.UnknownValueError:
             command = ''

@@ -12,6 +12,7 @@ from .audio_utils import StreamRecognition
 from .keys_utils import requests_post, xml_yandex
 from .proxy import proxies
 from .sr_wrapper import google_reply_parser, UnknownValueError, Recognizer, AudioData, RequestError
+from .yandex_stt_grpc import yandex_stt_grpc
 
 __all__ = ['support', 'GetSTT', 'BaseSTT', 'RequestError']
 
@@ -122,8 +123,7 @@ class YandexCloud(BaseSTT):
     URL = 'https://stt.api.cloud.yandex.net/speech/v1/stt:recognize'
 
     def __init__(self, audio_data, key, lang='ru-RU', **_):
-        if not isinstance(key, (tuple, list)) or len(key) < 2:
-            raise RuntimeError('Wrong Yandex APIv2 key')
+        check_yandex_v2_key(key)
         ext = 'opus'
         rate = 16000
         width = 2
@@ -147,6 +147,24 @@ class YandexCloud(BaseSTT):
             timeout=60,
             proxies=proxies(proxy_key)
         )
+
+    def _reply_check(self):
+        pass
+
+
+class YandexCloudGRPC(BaseSTT):
+    def __init__(self, audio_data, key, lang='ru-RU', **_):
+        check_yandex_v2_key(key)
+        ext = 'pcm'
+        rate = 16000
+        width = 2
+        self._folder_id = key[0]
+        self._iam_token = key[1]
+        self._lang = lang
+        super().__init__(None, audio_data, ext, convert_width=width, convert_rate=rate)
+
+    def _send(self, _):
+        self._text = yandex_stt_grpc(self._folder_id, self._iam_token, self._lang, self._chunks())
 
     def _reply_check(self):
         pass
@@ -252,9 +270,17 @@ class Microsoft:
         return self._text
 
 
-def yandex(yandex_api, **kwargs):
+def check_yandex_v2_key(key):
+    if not isinstance(key, (tuple, list)) or len(key) < 2:
+        raise RuntimeError('Wrong Yandex APIv2 key')
+
+
+def yandex(yandex_api, grpc, **kwargs):
     if yandex_api == 2:
-        return YandexCloud(**kwargs)
+        if grpc:
+            return YandexCloudGRPC(**kwargs)
+        else:
+            return YandexCloud(**kwargs)
     else:
         return Yandex(**kwargs)
 

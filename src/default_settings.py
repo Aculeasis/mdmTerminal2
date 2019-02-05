@@ -66,7 +66,8 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'api': 1,
         'emotion': 'good',
         'speaker': 'alyss',
-        'speed': 1.0
+        'speed': 1.0,
+        'grpc': False,
     },
     'google': {
         'slow': False,
@@ -141,7 +142,7 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'blacklist_on_failure': False,
     },
     'system': {
-        'ini_version': 29,
+        'ini_version': 30,
         'ws_token': 'token_is_unset',
         'PLUGINS_API': 1,
     }
