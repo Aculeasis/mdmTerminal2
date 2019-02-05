@@ -618,7 +618,7 @@ class ConfigUpdater:
             data.pop(key)
 
     def _print_result(self, from_, lvl=logger.DEBUG):
-        self._log('{}: \'{}\', count: {}'.format(from_, self._new_cfg, self._change_count), lvl)
+        self._log('{}: \'{}\', count: {}'.format(from_, utils.mask_cfg(self._new_cfg), self._change_count), lvl)
 
     def _update(self):
         if sum([len(val) for val in self._new_cfg.values()]) > self._change_count:

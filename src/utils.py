@@ -10,6 +10,7 @@ import subprocess
 import threading
 import time
 import traceback
+from copy import deepcopy
 
 import requests
 import socks  # install socks-proxy dependencies - pip install requests[socks]
@@ -271,6 +272,21 @@ def mask_off(obj):
         else:
             masked.append('**HIDDEN OBJECT**')
     return masked if iterable or not masked else masked[0]
+
+
+def mask_cfg(cfg: dict) -> dict:
+    """Маскируем значение ключей которые могут содержать приватную информацию"""
+    privates = ('apikeystt', 'apikeytts', 'password', 'secret_access_key', 'token', 'ws_token')
+    if not cfg:
+        return cfg
+    mask = deepcopy(cfg)
+    for section in mask:
+        if not isinstance(mask[section], dict):
+            continue
+        for key in mask[section]:
+            if key in privates:
+                mask[section][key] = mask_off(mask[section][key])
+    return mask
 
 
 def str_to_list(string: str, sep=',') -> list:
