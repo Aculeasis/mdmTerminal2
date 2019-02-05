@@ -280,8 +280,8 @@ class Recognizer(speech_recognition.Recognizer):
                 self._record_callback(True)
             while voice_recognition.processing:
                 # 100% frames must be available for call read()
-                if source.stream.read_available < source.CHUNK:
-                    time.sleep(0.002)
+                if not source.stream.read_available:
+                    time.sleep(0.004)
                     continue
                 buffer = source.stream.read(source.CHUNK)
                 if not buffer:
