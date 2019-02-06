@@ -115,7 +115,19 @@ class _WaveWrite(wave.Wave_write):
             pass
 
 
-class _StreamPipe:
+class _Stream:
+    def close(self):
+        pass
+
+    def flush(self):
+        pass
+
+    @staticmethod
+    def tell():
+        return 0
+
+
+class _StreamPipe(_Stream):
     def __init__(self):
         self._pipe = deque()
         self._event = threading.Event()
@@ -140,18 +152,8 @@ class _StreamPipe:
         self.write(b'')
         self._closed = True
 
-    def close(self):
-        pass
 
-    def flush(self):
-        pass
-
-    @staticmethod
-    def tell():
-        return 0
-
-
-class _StreamPopen(threading.Thread):
+class _StreamPopen(threading.Thread, _Stream):
     OUT_CHUNK_SIZE = 1024 * 4
     POPEN_TIMEOUT = 10
     JOIN_TIMEOUT = 10
@@ -195,13 +197,3 @@ class _StreamPopen(threading.Thread):
         self._popen.stdout.close()
         self._popen.kill()
         self._stream.end()
-
-    def close(self):
-        pass
-
-    def flush(self):
-        pass
-
-    @staticmethod
-    def tell():
-        return 0
