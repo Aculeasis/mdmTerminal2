@@ -241,12 +241,21 @@ class Owner:
     def volume_callback(self, volume: int):
         self._pub.call('volume', volume)
 
-    def send_to_mjd(self, qry: str, username=None) -> str:
+    def send_to_srv(self, qry: str, username=None) -> str:
         return self._notifier.send(qry, username)
 
+    def send_to_mjd(self, qry: str, username=None) -> str:
+        # TODO: Deprecated
+        return self.send_to_srv(qry, username)
+
     @property
-    def mjd_ip(self) ->str:
-        return self._notifier.ip
+    def srv_ip(self) -> str:
+        return self._cfg.gt('majordomo', 'ip', '')
+
+    @property
+    def mjd_ip(self) -> str:
+        # TODO: Deprecated
+        return self.srv_ip
 
     def update(self):
         self._updater.update()
@@ -309,7 +318,7 @@ class Owner:
         except RuntimeError:
             return -1
 
-    def settings_from_mjd(self, cfg: str):
+    def settings_from_srv(self, cfg: str):
         # Reload modules if their settings could be changes
         with self._lock:
             diff = self._cfg.update_from_json(cfg)
@@ -357,6 +366,10 @@ class Owner:
             self._plugins.reload(diff)
             self._cfg.print_cfg_change()
             self._cfg.config_save()
+
+    def settings_from_mjd(self, cfg: str):
+        # TODO: Deprecated
+        return self.send_to_srv(cfg)
 
 
 def is_sub_dict(key, data: dict):

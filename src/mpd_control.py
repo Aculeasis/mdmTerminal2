@@ -30,7 +30,7 @@ class MPDControl(threading.Thread):
 
     def __init__(self, cfg: dict, log, owner: Owner):
         super().__init__(name='MPDControl')
-        self._cfg = cfg  # ip, port, wait, quieter, control
+        self._cfg = cfg['mpd']  # ip, port, wait, quieter, control
         self.log = log
         self.own = owner
         self._work = False

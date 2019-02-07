@@ -16,7 +16,7 @@ class MajordomoNotifier(threading.Thread):
 
     def __init__(self, cfg, log, owner: Owner):
         super().__init__(name='Notifier')
-        self._cfg = cfg
+        self._cfg = cfg['majordomo']
         self.log = log
         self.own = owner
         self._work = False
@@ -73,10 +73,6 @@ class MajordomoNotifier(threading.Thread):
                 if not isinstance(data, dict):
                     continue
             self._send_notify(data)
-
-    @property
-    def ip(self) -> str:
-        return self._cfg['ip']
 
     def send(self, qry: str, user=None) -> str:
         # Прямая отправка

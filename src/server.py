@@ -174,7 +174,7 @@ class MDTServer(threading.Thread):
         self.own.mpd_pause()
 
     def _api_settings(self, _, cmd: str):
-        self.own.settings_from_mjd(cmd)
+        self.own.settings_from_srv(cmd)
 
     def _api_rec(self, _, cmd: str):
         param = cmd.split('_')  # должно быть вида rec_1_1, play_2_1, compile_5_1

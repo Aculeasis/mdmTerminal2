@@ -280,28 +280,28 @@ def volume(self, trigger, phrase):
         self.own.terminal_call('mpd_volume', phrase)
 
 
-@mod.name(NM, LNG['mjd_name'], LNG['mjd_desc'])
+@mod.name(NM, LNG['srv_name'], LNG['srv_desc'])
 @mod.phrase('')  # Захватит любые фразы
 def majordomo(self, _, phrase):
     if not phrase:
-        self.log(LNG['mjd_no_say'], logger.DEBUG)
+        self.log(LNG['srv_no_say'], logger.DEBUG)
         return
 
-    if not self.own.mjd_ip:
-        self.log(LNG['mjd_no_ip_log'], logger.CRIT)
-        return Say(LNG['mjd_no_ip_say'].format(self.cfg.get('ip', LNG['error'])))
+    if not self.own.srv_ip:
+        self.log(LNG['srv_no_ip_log'], logger.CRIT)
+        return Say(LNG['srv_no_ip_say'].format(self.cfg.get('ip', LNG['error'])))
 
     # FIX: 'Скажи ' -> 'скажи '
-    if phrase.startswith(LNG['mjd_rep_say'], 0, LNG['mjd_rep_say_len']):
-        phrase = LNG['mjd_rep_say_s'] + phrase[1:]
+    if phrase.startswith(LNG['srv_rep_say'], 0, LNG['srv_rep_say_len']):
+        phrase = LNG['srv_rep_say_s'] + phrase[1:]
 
     username = self.cfg.gt('persons', self.model) if self.model else None
     try:
-        self.log(LNG['mjd_ok'].format(self.own.send_to_mjd(phrase, username)), logger.DEBUG)
+        self.log(LNG['srv_ok'].format(self.own.send_to_srv(phrase, username)), logger.DEBUG)
     except RuntimeError as e:
-        e = '[{}] {}'.format(self.own.mjd_ip, e)
-        self.log(LNG['err_mjd'].format(e), logger.ERROR)
-        return Say(LNG['err_mjd'].format(''))
+        e = '[{}] {}'.format(self.own.srv_ip, e)
+        self.log(LNG['err_srv'].format(e), logger.ERROR)
+        return Say(LNG['err_srv'].format(''))
 
 
 @mod.name(ANY, LNG['terminator_name'], LNG['terminator_desc'])

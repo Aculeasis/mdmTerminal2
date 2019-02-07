@@ -103,7 +103,7 @@ class DynamicModule:
 
 
 class ModuleManager:
-    def __init__(self, log, cfg, owner: Owner):
+    def __init__(self, cfg, log, owner: Owner):
         (self._log, self._m_log) = log
         self.cfg = cfg
         self.own = owner
