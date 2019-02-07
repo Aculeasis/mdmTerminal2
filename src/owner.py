@@ -369,7 +369,7 @@ class Owner:
 
     def settings_from_mjd(self, cfg: str):
         # TODO: Deprecated
-        return self.send_to_srv(cfg)
+        return self.settings_from_srv(cfg)
 
 
 def is_sub_dict(key, data: dict):
