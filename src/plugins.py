@@ -195,14 +195,18 @@ class Plugins:
 
 
 def import_module(path: str, module_name: str):
-    if sys.version_info >= (3, 5):
-        import importlib.util
-        spec = importlib.util.spec_from_file_location(module_name, path)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-    else:
-        from importlib.machinery import SourceFileLoader
-        module = SourceFileLoader(module_name, path).load_module()
+    sys.path.insert(0, os.path.dirname(os.path.abspath(path)))
+    try:
+        if sys.version_info >= (3, 5):
+            import importlib.util
+            spec = importlib.util.spec_from_file_location(module_name, path)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+        else:
+            from importlib.machinery import SourceFileLoader
+            module = SourceFileLoader(module_name, path).load_module()
+    finally:
+        sys.path.pop(0)
     return module
 
 

@@ -318,18 +318,19 @@ class Owner:
         except RuntimeError:
             return -1
 
-    def settings_from_srv(self, cfg: str):
+    def settings_from_srv(self, cfg: str or dict) -> dict:
         # Reload modules if their settings could be changes
         with self._lock:
             diff = self._cfg.update_from_json(cfg)
             reload_terminal = False
             if diff is None:
                 self._cfg.print_cfg_no_change()
-                return
+                return {}
+            lang, lang_check = None, None
             if is_sub_dict('settings', diff) and ('lang' in diff['settings'] or 'lang_check' in diff['settings']):
                 # re-init lang
                 lang = diff['settings'].pop('lang', None)
-                diff['settings'].pop('lang_check', None)
+                lang_check = diff['settings'].pop('lang_check', None)
                 self._cfg.lang_init()
                 if lang:
                     # reload phrases
@@ -362,10 +363,18 @@ class Owner:
             if is_sub_dict('settings', diff) or is_sub_dict('listener', diff) or reload_terminal:
                 # reload terminal
                 self.terminal_call('reload', save_time=False)
+
+            # restore lang's
+            if lang is not None:
+                diff['settings']['lang'] = lang
+            if lang_check is not None:
+                diff['settings']['lang_check'] = lang_check
+
             # check and reload plugins
             self._plugins.reload(diff)
             self._cfg.print_cfg_change()
             self._cfg.config_save()
+            return diff
 
     def settings_from_mjd(self, cfg: str):
         # TODO: Deprecated

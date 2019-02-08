@@ -296,9 +296,10 @@ class ConfigHandler(dict):
             self._print(LNG['err_lng'].format(lang, err), logger.ERROR)
         self._print(LNG['lng_load_for'].format(lang, utils.pretty_time(languages.set_lang.load_time)), logger.INFO)
 
-    def update_from_json(self, data: str) -> dict or None:
+    def update_from_json(self, data: str or dict) -> dict or None:
         cu = ConfigUpdater(self, self._print)
-        if cu.from_json(data):
+        result = cu.from_dict(data) if isinstance(data, dict) else cu.from_json(data)
+        if result:
             return cu.diff
         else:
             return None
