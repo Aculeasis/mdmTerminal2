@@ -474,7 +474,7 @@ class ConfigUpdater:
         try:
             data = {key.lower(): val for key, val in json.loads(data).items()}
         except (json.decoder.JSONDecodeError, TypeError, AttributeError) as err:
-            self._log(LNG['wrong_json'].format(data, err), logger.ERROR)
+            self._log('Invalid json {}: {}'.format(repr(data), err), logger.ERROR)
             return
         self._parser(self._voice_assistant_mapping(data))
 
@@ -539,20 +539,21 @@ class ConfigUpdater:
 
     def _recursive_parser(self, cfg: dict, cfg_diff: dict, key, val, external):
         if not isinstance(key, str):
-            self._log(LNG['wrong_key'].format(type(key), key), logger.ERROR)
+            self._log('Key type must be string only, not {}. Ignore key \'{}\''.format(type(key), key), logger.ERROR)
             return
         key = key if not external else key.lower()
         if isinstance(val, dict) and isinstance(cfg.get(key, {}), dict):  # секция
             self._parse_section_element(cfg, cfg_diff, key, val, external)
         elif external and isinstance(val, (dict, list, set, tuple)):
-            self._log(LNG['wrong_val'].format(key, val), logger.ERROR)
+            msg = 'Invalid type of option \'{}:{}\' {}, from server. Ignoring.'.format(key, val, type(val))
+            self._log(msg, logger.ERROR)
         else:
             if self._parse_param_element(cfg, cfg_diff, key, val, self._source == 2):
                 self._change_count += 1
 
     def _parse_section_element(self, cfg: dict, cfg_diff: dict, key, val, external):
         if external and key not in cfg:  # Не принимаем новые секции от сервера
-            self._log(LNG['ignore_section'].format(key, val), logger.ERROR)
+            self._log('Ignore new section from server \'{}:{}\''.format(key, val), logger.ERROR)
             return
         cfg_diff[key] = cfg_diff.get(key, {})
         for key_, val_ in val.items():
@@ -570,7 +571,8 @@ class ConfigUpdater:
                 raise ValueError('Ignore \'NoneType\'')
             tmp = source_type(val) if source_type != bool else utils.bool_cast(val)
         except (ValueError, TypeError) as e:
-            self._log(LNG['wrong_type_val'].format(key, val, type(val), cfg.get(key, 'Unset'), e), logger.ERROR)
+            msg = 'Wrong type of option \'{}:{}\' {}, keep old value. {}'.format(key, val, type(val), e)
+            self._log(msg, logger.ERROR)
         else:
             if key not in cfg or tmp != cfg[key]:
                 cfg_diff[key] = tmp
