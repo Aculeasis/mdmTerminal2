@@ -321,7 +321,7 @@ class Owner:
     def settings_from_srv(self, cfg: str or dict) -> dict:
         # Reload modules if their settings could be changes
         with self._lock:
-            diff = self._cfg.update_from_json(cfg)
+            diff = self._cfg.update_from_external(cfg)
             reload_terminal = False
             if diff is None:
                 self._cfg.print_cfg_no_change()

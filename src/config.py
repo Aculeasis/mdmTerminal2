@@ -296,13 +296,23 @@ class ConfigHandler(dict):
             self._print(LNG['err_lng'].format(lang, err), logger.ERROR)
         self._print(LNG['lng_load_for'].format(lang, utils.pretty_time(languages.set_lang.load_time)), logger.INFO)
 
-    def update_from_json(self, data: str or dict) -> dict or None:
+    def update_from_external(self, data: str or dict) -> dict or None:
         cu = ConfigUpdater(self, self._print)
-        result = cu.from_dict(data) if isinstance(data, dict) else cu.from_json(data)
+        if isinstance(data, str):
+            result = cu.from_json(data)
+        elif isinstance(data, dict):
+            result = cu.from_external_dict(data)
+        else:
+            self._print('Unknown settings type: {}'.format(type(data)), logger.ERROR)
+            return None
         if result:
             return cu.diff
         else:
             return None
+
+    def update_from_json(self, data: str or dict) -> dict or None:
+        # TODO: Deprecated
+        return self.update_from_external(data)
 
     def print_cfg_change(self):
         self._print(LNG['cfg_up'])
@@ -406,14 +416,14 @@ class ConfigHandler(dict):
 class ConfigUpdater:
     SETTINGS = 'settings'
     PROVIDERS_KEYS = ('providertts', 'providerstt')
-    # Не переводим значение ключей в нижний регистр даже если они от сервера
+    # Не переводим значение ключей в нижний регистр даже если они от сервера в json
     NOT_LOWER = {
         'apikeytts', 'apikeystt',
         'speaker',
         'access_key_id', 'secret_access_key',
         'object_name', 'object_method', 'terminal', 'username', 'password'
     }
-    # Автоматически переносим ключи от сервера в подсекции из settings.
+    # Автоматически переносим ключи от сервера, в json, в подсекции из settings.
     # Ключ: (новая секция, новое имя ключа (пустое - без изменений))
     KEY_FROM_SERVER_MOVE = {
         'ip_server': ('majordomo', 'ip'),
@@ -421,6 +431,7 @@ class ConfigUpdater:
         'token': ('snowboy', ''),
         'clear_models': ('snowboy', ''),
     }
+    EXTERNALS = (2, 3)
 
     def __init__(self, cfg, log):
         self._cfg = cfg
@@ -430,7 +441,7 @@ class ConfigUpdater:
         self._updated_count = 0
         self._lock = threading.Lock()
         self._save_me = False
-        # 0 - dict, 1 - ini, 2 - server
+        # 0 - dict, 1 - ini, 2 - server json, 3 - server dict
         self._source = None
 
     def _init(self, source):
@@ -525,7 +536,7 @@ class ConfigUpdater:
             if not isinstance(val, dict):
                 self._print_result('Section must be dict. {}: {}'.format(key, val), logger.CRIT)
                 continue
-            self._recursive_parser(self._cfg, self._new_cfg, key, val, self._source == 2)
+            self._recursive_parser(self._cfg, self._new_cfg, key, val, self._source in self.EXTERNALS)
 
     def _recursive_parser(self, cfg: dict, cfg_diff: dict, key, val, external):
         if not isinstance(key, str):
@@ -537,7 +548,7 @@ class ConfigUpdater:
         elif external and isinstance(val, (dict, list, set, tuple)):
             self._log(LNG['wrong_val'].format(key, val), logger.ERROR)
         else:
-            if self._parse_param_element(cfg, cfg_diff, key, val, external):
+            if self._parse_param_element(cfg, cfg_diff, key, val, self._source == 2):
                 self._change_count += 1
 
     def _parse_section_element(self, cfg: dict, cfg_diff: dict, key, val, external):
@@ -550,8 +561,8 @@ class ConfigUpdater:
         if not cfg_diff[key] and key in cfg:  # Удаляем существующие пустые секции
             del cfg_diff[key]
 
-    def _parse_param_element(self, cfg: dict, cfg_diff: dict, key, val, external):
-        if external and isinstance(val, str) and key not in self.NOT_LOWER:
+    def _parse_param_element(self, cfg: dict, cfg_diff: dict, key, val, from_json):
+        if from_json and isinstance(val, str) and key not in self.NOT_LOWER:
             val = val.lower()
         source_type = type(cfg.get(key, ''))
         try:
@@ -660,6 +671,13 @@ class ConfigUpdater:
             self._init(0)
             self._parser(dict_)
             self._print_result('DICT')
+            return self._update()
+
+    def from_external_dict(self, dict_: dict):
+        with self._lock:
+            self._init(3)
+            self._parser(dict_)
+            self._print_result('extDICT')
             return self._update()
 
     @property
