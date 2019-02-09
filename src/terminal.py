@@ -35,6 +35,7 @@ class MDTerminal(threading.Thread):
         }
         self.DATA_CALL = {
             'volume': self._set_volume,
+            'volume_q': self._set_volume_quiet,
             'mpd_volume': self._set_mpd_volume,
         }
         self.ARGS_CALL = {
@@ -275,21 +276,27 @@ class MDTerminal(threading.Thread):
         self._cfg.models_load()
         self._reload()
 
-    def _set_volume(self, value):
+    def _set_volume_quiet(self, value):
+        self._set_volume(value, True)
+
+    def _set_volume(self, value, quiet=False):
         if value is not None:
             if self.own.set_volume(value) == -1:
                 self.log(LNG['vol_wrong_val'].format(value), logger.WARN)
-                self.own.say(LNG['vol_wrong_val'].format(value))
+                if not quiet:
+                    self.own.say(LNG['vol_wrong_val'].format(value))
                 return
         volume = self.own.get_volume()
         if value is not None and volume > -1:
             self.own.volume_callback(volume)
         if volume == -2:
             self.log(LNG['vol_not_cfg'], logger.WARN)
-            self.own.say(LNG['vol_not_cfg'])
+            if not quiet:
+                self.own.say(LNG['vol_not_cfg'])
         else:
             self.log(LNG['vol_ok'].format(volume))
-            self.own.say(LNG['vol_ok'].format(volume))
+            if not quiet:
+                self.own.say(LNG['vol_ok'].format(volume))
 
     def _set_mpd_volume(self, value):
         if value is not None:

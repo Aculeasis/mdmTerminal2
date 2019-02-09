@@ -41,6 +41,7 @@ class MDTServer(threading.Thread):
         self.MTAPI = {
             'settings': self._api_settings,
             'volume': self._api_terminal_direct,
+            'volume_q': self._api_terminal_direct,
             'rec': self._api_rec,
             'pong': self._api_pong,
             'send_model': self._api_send_model,
@@ -162,7 +163,7 @@ class MDTServer(threading.Thread):
         raise RuntimeError(LNG['no_implement'].format(name, cmd))
 
     def _api_terminal_direct(self, name: str, cmd: str):
-        # hi, voice, tts, ask, volume
+        # hi, voice, tts, ask, volume, volume_q
         if name == 'hi':
             name = 'voice'
         self.own.terminal_call(name, cmd)
