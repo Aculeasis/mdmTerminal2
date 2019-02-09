@@ -427,7 +427,6 @@ class ConfigUpdater:
     # Ключ: (новая секция, новое имя ключа (пустое - без изменений))
     KEY_FROM_SERVER_MOVE = {
         'ip_server': ('majordomo', 'ip'),
-        'linkedroom': ('majordomo', ''),
         'token': ('snowboy', ''),
         'clear_models': ('snowboy', ''),
     }

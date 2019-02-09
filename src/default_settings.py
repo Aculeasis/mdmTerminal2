@@ -36,7 +36,6 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'silent_multiplier': 1.0,
     },
     'majordomo': {
-        'linkedroom': '',
         'ip': '',
         'terminal': '',
         'username': '',
