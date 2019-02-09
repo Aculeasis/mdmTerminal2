@@ -281,12 +281,14 @@ class MDTerminal(threading.Thread):
 
     def _set_volume(self, value, quiet=False):
         if value is not None:
-            if self.own.set_volume(value) == -1:
+            volume = self.own.set_volume(value)
+            if volume == -1:
                 self.log(LNG['vol_wrong_val'].format(value), logger.WARN)
                 if not quiet:
                     self.own.say(LNG['vol_wrong_val'].format(value))
                 return
-        volume = self.own.get_volume()
+        else:
+            volume = self.own.get_volume()
         if value is not None and volume > -1:
             self.own.volume_callback(volume)
         if volume == -2:

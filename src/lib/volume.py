@@ -55,13 +55,16 @@ def set_volume(volume, control, card=0) -> int:
     p_volume = '{}%'.format(volume)
 
     control = '{0}{1}{0}'.format(QUOTE, control)
-    Popen([AMIXER, '-c', str(card), SET, control, p_volume]).run()
-    return volume
+    return _extract_system_volume([AMIXER, '-c', str(card), SET, control, p_volume])
 
 
 def get_volume(control, card=0) -> int:
+    return _extract_system_volume([AMIXER, '-c', str(card), GET, control])
+
+
+def _extract_system_volume(cmd: list) -> int:
     try:
-        data = _extract_values([AMIXER, '-c', str(card), GET, control], '[', ']')
+        data = _extract_values(cmd, '[', ']')
     except RuntimeError:
         return -1
     for line in data:
