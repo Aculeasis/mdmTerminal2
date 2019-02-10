@@ -47,7 +47,7 @@ class Listener:
                     continue
                 except RuntimeError:
                     return
-                model_name, phrase, model_msg = self.cfg.model_info_by_id(snowboy_result)
+                model_name, phrase, _ = self.cfg.model_info_by_id(snowboy_result)
                 if not phrase:
                     continue
                 if self.cfg.gts('chrome_choke'):
@@ -57,7 +57,7 @@ class Listener:
                 except (sr.WaitTimeoutError, RuntimeError):
                     continue
             energy_threshold = detector.energy_threshold if isinstance(detector, sr.EnergyDetector) else None
-            self._adata_parse(adata, model_name, phrase, model_msg, energy_threshold, callback)
+            self._adata_parse(adata, model_name, phrase, energy_threshold, callback)
 
     def get_detector(self, source_or_mic, vad_mode=None, vad_lvl=None, energy_lvl=None, energy_dynamic=None):
         detector, _ = self._get_detector(source_or_mic, vad_mode, vad_lvl, energy_lvl, energy_dynamic)
@@ -85,14 +85,20 @@ class Listener:
                 break
         return adata, detector.energy_threshold if isinstance(detector, sr.EnergyDetector) else None
 
-    def _adata_parse(self, adata, model_name, phrase, model_msg, energy_threshold, callback):
+    def _adata_parse(self, adata, model_name: str, phrases: str, energy_threshold, callback):
         msg = self._get_text(adata)
-        if msg:
+        if not msg:
+            return
+
+        for phrase in phrases.split('|'):
             clear_msg = msg_parse(msg, phrase)
-            if clear_msg is None:
-                callback(msg, phrase, None, energy_threshold)
-            else:
+            if clear_msg is not None:
+                # Нашли триггер в сообщении
+                model_msg = ': "{}"'.format(phrase)
                 callback(clear_msg, model_name, model_msg, energy_threshold)
+                return
+        # Не наши триггер в сообщении - snowboy false positive
+        callback(msg, phrases, None, energy_threshold)
 
     def _get_text(self, adata):
         if self.cfg.gts('chrome_alarmstt'):

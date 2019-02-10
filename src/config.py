@@ -87,7 +87,7 @@ class ConfigHandler(dict):
         else:
             model_name = str(model)
             phrase = ''
-            msg = 'model id out of range: {} > {}'.format(model, len(self.path['models_list']) - 1)
+            msg = ': "model id out of range: {} > {}"'.format(model, len(self.path['models_list']) - 1)
         return model_name, phrase, msg
 
     def gt(self, sec, key, default=None):
