@@ -412,6 +412,21 @@ class ConfigHandler(dict):
             self._print(LNG['say_ip'].format(self.gts('ip')), logger.WARN, 3)
         return to_save
 
+    def _cfg_as_tuple(self, data: dict) -> tuple:
+        result = []
+        for key, val in data.items():
+            if not isinstance(key, str):
+                continue
+            elif isinstance(val, dict):
+                result.append((key, self._cfg_as_tuple(val)))
+            elif isinstance(val, (bool, str, int, float, bytes)) or val is None:
+                result.append((key, val))
+        result.sort()
+        return tuple(result)
+
+    def __hash__(self):
+        return hash(self._cfg_as_tuple(self))
+
 
 class ConfigUpdater:
     SETTINGS = 'settings'
