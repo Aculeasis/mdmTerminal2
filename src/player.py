@@ -70,7 +70,7 @@ class Player:
 
     def noising(self):
         # Плеер шумит, шумел только что или скоро начнет шуметь.
-        return self.really_busy() or self.own.mpd_plays
+        return self.really_busy() or self.own.music_plays
 
     def busy(self):
         return self.popen_work() and self._work

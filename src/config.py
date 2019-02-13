@@ -310,10 +310,6 @@ class ConfigHandler(dict):
         else:
             return None
 
-    def update_from_json(self, data: str or dict) -> dict or None:
-        # TODO: Deprecated
-        return self.update_from_external(data)
-
     def print_cfg_change(self):
         self._print(LNG['cfg_up'])
 

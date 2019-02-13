@@ -25,8 +25,8 @@ class MajordomoNotifier(threading.Thread):
         self._api_fail_count = self.MAX_API_FAIL_COUNT
         self._events = (
             'speech_recognized_success', 'voice_activated', 'ask_again',
-            'mpd_status', 'start_record', 'stop_record', 'start_talking', 'stop_talking',
-            'volume', 'mpd_volume'
+            'music_status', 'start_record', 'stop_record', 'start_talking', 'stop_talking',
+            'volume', 'music_volume'
         )
 
     def _subscribe(self):
@@ -96,10 +96,10 @@ class MajordomoNotifier(threading.Thread):
         if not self._allow_notify:
             return
         kwargs = {'uptime': self._uptime}
-        if name in ('volume', 'mpd_volume'):
+        if name in ('volume', 'music_volume'):
             kwargs[name] = data
-        elif name == 'mpd_status':
-            kwargs['status'] = 'mpd_{}'.format(data)
+        elif name == 'music_status':
+            kwargs['status'] = 'music_{}'.format(data)
         else:
             kwargs['status'] = name
         self._queue.put_nowait(kwargs)

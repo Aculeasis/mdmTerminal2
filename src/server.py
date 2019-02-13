@@ -169,10 +169,10 @@ class MDTServer(threading.Thread):
         self.own.terminal_call(name, cmd)
 
     def _api_play(self, _, cmd: str):
-        self.own.mpd_play(cmd)
+        self.own.music_play(cmd)
 
     def _api_pause(self, __, _):
-        self.own.mpd_pause()
+        self.own.music_pause()
 
     def _api_settings(self, _, cmd: str):
         self.own.settings_from_srv(cmd)

@@ -36,7 +36,7 @@ MODULES = {
 }
 MODULES_MANAGER = {}
 
-MPD_CONTROL = {'err_mpd': 'Error connecting to the MPD server'}
+MUSIC_CONTROL = {'err_conn': 'Error connecting to the {} server'}
 
 PLAYER = {}
 SERVER = {}

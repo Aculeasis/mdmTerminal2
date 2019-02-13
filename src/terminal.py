@@ -36,7 +36,7 @@ class MDTerminal(threading.Thread):
         self.DATA_CALL = {
             'volume': self._set_volume,
             'volume_q': self._set_volume_quiet,
-            'mpd_volume': self._set_mpd_volume,
+            'music_volume': self._set_music_volume,
         }
         self.ARGS_CALL = {
             'rec': self._rec_rec,
@@ -300,7 +300,7 @@ class MDTerminal(threading.Thread):
             if not quiet:
                 self.own.say(LNG['vol_ok'].format(volume))
 
-    def _set_mpd_volume(self, value):
+    def _set_music_volume(self, value):
         if value is not None:
             try:
                 vol = int(value)
@@ -311,10 +311,10 @@ class MDTerminal(threading.Thread):
                 self.log('{}, {}'.format(msg, e), logger.WARN)
                 self.own.say(msg)
                 return
-            self.own.mpd_real_volume = vol
-        value = self.own.mpd_real_volume
-        self.log(LNG['vol_mpd_ok'].format(value))
-        self.own.say(LNG['vol_mpd_ok'].format(value))
+            self.own.music_real_volume = vol
+        value = self.own.music_real_volume
+        self.log(LNG['vol_music_ok'].format(value))
+        self.own.say(LNG['vol_music_ok'].format(value))
 
     def call(self, cmd: str, data='', lvl: int=0, save_time: bool=True):
         if cmd == 'tts' and not lvl:

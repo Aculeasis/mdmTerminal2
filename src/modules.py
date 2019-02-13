@@ -277,7 +277,7 @@ def volume(self, trigger, phrase):
     if trigger == LNG['volume_name']:
         self.own.terminal_call('volume', phrase)
     else:
-        self.own.terminal_call('mpd_volume', phrase)
+        self.own.terminal_call('music_volume', phrase)
 
 
 @mod.name(NM, LNG['srv_name'], LNG['srv_desc'])

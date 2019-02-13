@@ -9,7 +9,7 @@ from lib.publisher import PubSub
 from listener import Listener
 from logger import Logger
 from modules_manager import ModuleManager
-from mpd_control import MPDControl
+from music_controls import music_constructor
 from notifier import MajordomoNotifier
 from owner import Owner
 from player import Player
@@ -22,6 +22,7 @@ from updater import Updater
 class Loader(Owner):
     def __init__(self, init_cfg: dict, path: dict, die_in):
         super().__init__(die_in)
+        self._music_constructor = music_constructor
 
         self._stt_providers = STT.PROVIDERS
         self._tts_providers = TTS.PROVIDERS
@@ -36,7 +37,7 @@ class Loader(Owner):
         self._notifier = MajordomoNotifier(cfg=self._cfg, log=self._logger.add('Notifier'), owner=self)
         self._tts = stts.TextToSpeech(cfg=self._cfg, log=self._logger.add('TTS'))
         self._play = Player(cfg=self._cfg, log=self._logger.add('Player'), owner=self)
-        self._mpd = MPDControl(cfg=self._cfg, log=self._logger.add('MPD'), owner=self)
+        self._music = self._music_constructor(cfg=self._cfg, logger=self._logger, owner=self)
         self._stt = stts.SpeechToText(cfg=self._cfg, log=self._logger.add('STT'), owner=self)
         self._mm = ModuleManager(cfg=self._cfg, log=self._logger.add_plus('MM'), owner=self)
         self._updater = Updater(cfg=self._cfg, log=self._logger.add('Updater'), owner=self)
@@ -46,7 +47,7 @@ class Loader(Owner):
 
     def start_all_systems(self):
         self._pub.start()
-        self._mpd.start()
+        self._music.start()
         self._play.start()
         self._play.say_info(LNG['hello'], 0, wait=0.5)
         self._stt.start()
@@ -72,6 +73,6 @@ class Loader(Owner):
 
         self._stt.stop()
         self._play.stop()
-        self._mpd.join(20)
+        self._music.join(20)
         self._logger.join()
         self._pub.join()

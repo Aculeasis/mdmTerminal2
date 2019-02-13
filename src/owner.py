@@ -185,31 +185,31 @@ class Owner:
     def sys_say_chance(self) -> bool:
         return self._stt.sys_say.chance
 
-    def mpd_play(self, uri):
-        self._mpd.play(uri)
+    def music_play(self, uri):
+        self._music.play(uri)
 
-    def mpd_pause(self, paused=None):
-        self._mpd.pause(paused)
-
-    @property
-    def mpd_plays(self) -> bool:
-        return self._mpd.plays
+    def music_pause(self, paused=None):
+        self._music.pause(paused)
 
     @property
-    def mpd_volume(self):
-        return self._mpd.volume
-
-    @mpd_volume.setter
-    def mpd_volume(self, vol):
-        self._mpd.volume = vol
+    def music_plays(self) -> bool:
+        return self._music.plays
 
     @property
-    def mpd_real_volume(self):
-        return self._mpd.real_volume
+    def music_volume(self):
+        return self._music.volume
 
-    @mpd_real_volume.setter
-    def mpd_real_volume(self, vol):
-        self._mpd.real_volume = vol
+    @music_volume.setter
+    def music_volume(self, vol):
+        self._music.volume = vol
+
+    @property
+    def music_real_volume(self):
+        return self._music.real_volume
+
+    @music_real_volume.setter
+    def music_real_volume(self, vol):
+        self._music.real_volume = vol
 
     def tts(self, msg, realtime: bool = True):
         return self._tts.tts(msg, realtime)
@@ -232,11 +232,11 @@ class Owner:
     def speech_recognized(self, start_stop: bool):
         self._pub.call('start_recognized' if start_stop else 'stop_recognized')
 
-    def mpd_status_callback(self, status: str):
-        self._pub.call('mpd_status', status if status is not None else 'error')
+    def music_status_callback(self, status: str):
+        self._pub.call('music_status', status if status is not None else 'error')
 
-    def mpd_volume_callback(self, volume: int):
-        self._pub.call('mpd_volume', volume if volume is not None else -1)
+    def music_volume_callback(self, volume: int):
+        self._pub.call('music_volume', volume if volume is not None else -1)
 
     def volume_callback(self, volume: int):
         self._pub.call('volume', volume)
@@ -244,18 +244,9 @@ class Owner:
     def send_to_srv(self, qry: str, username=None) -> str:
         return self._notifier.send(qry, username)
 
-    def send_to_mjd(self, qry: str, username=None) -> str:
-        # TODO: Deprecated
-        return self.send_to_srv(qry, username)
-
     @property
     def srv_ip(self) -> str:
         return self._cfg.gt('majordomo', 'ip', '')
-
-    @property
-    def mjd_ip(self) -> str:
-        # TODO: Deprecated
-        return self.srv_ip
 
     def update(self):
         self._updater.update()
@@ -272,8 +263,8 @@ class Owner:
 
     @property
     def get_volume_status(self) -> dict:
-        mpd_volume = self._mpd.real_volume
-        return {'volume': self.get_volume(), 'mpd_volume': mpd_volume if mpd_volume is not None else -1}
+        music_volume = self._music.real_volume
+        return {'volume': self.get_volume(), 'music_volume': music_volume if music_volume is not None else -1}
 
     def terminal_call(self, cmd: str, data='', lvl: int=0, save_time: bool=True):
         self._terminal.call(cmd, data, lvl, save_time)
@@ -351,8 +342,9 @@ class Owner:
                 # re-init proxy
                 self._cfg.proxies_init()
             if is_sub_dict('mpd', diff):
-                # reconnect to mpd and resubscribe
-                self._mpd.reload()
+                # TODO: mpd -> music
+                # reconfigure music server
+                self.music_reload()
             if is_sub_dict('majordomo', diff):
                 # resubscribe
                 self._notifier.reload()
@@ -376,9 +368,9 @@ class Owner:
             self._cfg.config_save()
             return diff
 
-    def settings_from_mjd(self, cfg: str):
-        # TODO: Deprecated
-        return self.settings_from_srv(cfg)
+    def music_reload(self):
+        # noinspection PyAttributeOutsideInit
+        self._music = self._music_constructor(self._cfg, self._logger, self, self._music)
 
 
 def is_sub_dict(key, data: dict):

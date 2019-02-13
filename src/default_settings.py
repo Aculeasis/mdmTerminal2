@@ -45,7 +45,9 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'heartbeat_timeout': 0
     },
     'mpd': {
+        # TODO: mpd -> music
         'control': True,
+        'type': 'mpd',
         'ip': '127.0.0.1',
         'port': 6600,
         'pause': True,
@@ -141,8 +143,8 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'blacklist_on_failure': False,
     },
     'system': {
-        'ini_version': 30,
+        'ini_version': 31,
         'ws_token': 'token_is_unset',
-        'PLUGINS_API': 1,
+        'PLUGINS_API': 2,
     }
 }

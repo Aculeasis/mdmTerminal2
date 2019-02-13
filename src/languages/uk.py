@@ -177,7 +177,7 @@ MODULES_MANAGER = {
     'catch': 'Захвачено {}',
 }
 
-MPD_CONTROL = {'err_mpd': 'Ошибка подключения к MPD-серверу'}
+MUSIC_CONTROL = {'err_conn': 'Ошибка подключения к {}-серверу'}
 
 PLAYER = {
     'file_not_found': 'Файл {} не найден',
@@ -257,8 +257,8 @@ TERMINAL = {
     'vol_not_cfg': 'Не настроено',
     'vol_wrong_val': 'Недопустимое значение: {}',
     'vol_ok': 'Громкость {} процентов',
-    # _set_mpd_volume
-    'vol_mpd_ok': 'Громкость музыки {} процентов',
+    # _set_music_volume
+    'vol_music_ok': 'Громкость музыки {} процентов',
     # _detected
     'err_call2': 'Очень странный вызов от сновбоя. Это нужно исправить',
     'wrong_activation': 'Ошибка активации: \'{}\', триггер: \'{}\', energy_threshold: {}',
