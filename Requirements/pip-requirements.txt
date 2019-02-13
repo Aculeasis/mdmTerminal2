@@ -8,3 +8,4 @@ urllib3>=1.23
 wikipedia>=1.4.0
 webrtcvad>=2.0.10
 git+https://github.com/Aculeasis/python-webrtc-audio-processing.git
+git+https://github.com/Aculeasis/PyLMS.git

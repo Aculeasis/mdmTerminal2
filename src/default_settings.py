@@ -50,10 +50,13 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'type': 'mpd',
         'ip': '127.0.0.1',
         'port': 6600,
+        'username': '',
+        'password': '',
         'pause': True,
         'smoothly': False,
         'quieter': 0,
         'wait_resume': 5,
+        'lms_player': '',
     },
     'log': {
         'file_lvl' : 'debug',
@@ -143,7 +146,7 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'blacklist_on_failure': False,
     },
     'system': {
-        'ini_version': 31,
+        'ini_version': 32,
         'ws_token': 'token_is_unset',
         'PLUGINS_API': 2,
     }

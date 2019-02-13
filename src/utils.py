@@ -244,6 +244,7 @@ def base64_to_bytes(data):
 
 
 def mask_off(obj):
+    base_mask = '*' * 6
     iterable_type = (list, tuple, set, dict)
     if not obj:
         return obj
@@ -261,11 +262,11 @@ def mask_off(obj):
             if len(key_) < 3:
                 masked.append(key)
             else:
-                masked.append('*' * len(key_))
+                masked.append(base_mask)
         elif isinstance(key, str):
             key_len = len(key)
             if key_len < 14:
-                key = '*' * key_len
+                key = base_mask
             else:
                 key = '{}**LENGTH<{}>**{}'.format(key[:2], key_len, key[-2:])
             masked.append(key)

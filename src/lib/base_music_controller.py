@@ -29,7 +29,7 @@ class BaseControl(threading.Thread):
     def __init__(self, name: str, cfg: dict, log, owner: Owner):
         super().__init__(name='{}Control'.format(name.upper()))
         self._name = name
-        self._cfg = cfg  # ip, port, wait, quieter, control
+        self._cfg = cfg  # ip, port, wait, quieter, control, etc.
         self.log = log
         self.own = owner
         self._work = False
