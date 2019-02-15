@@ -21,6 +21,7 @@ class ConfigHandler(dict):
     def __init__(self, cfg: dict, path: dict, owner: Owner):
         super().__init__()
         self._plugins_api = cfg['system'].pop('PLUGINS_API', 0)
+        self._version_info = cfg['system'].pop('VERSION', (0, 0, 0))
         self.update(cfg)
         self.path = path
         self.__owner = owner
@@ -33,6 +34,14 @@ class ConfigHandler(dict):
     @property
     def API(self):
         return self._plugins_api
+
+    @property
+    def version_info(self) -> tuple:
+        return self._version_info
+
+    @property
+    def version_str(self) -> str:
+        return '.'.join(str(x) for x in self._version_info)
 
     def __print(self, msg, lvl):
         self._to_log.append((msg, lvl))

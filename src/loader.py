@@ -7,7 +7,7 @@ from lib import STT, TTS
 from lib.proxy import proxies
 from lib.publisher import PubSub
 from listener import Listener
-from logger import Logger
+from logger import Logger, INFO
 from modules_manager import ModuleManager
 from music_controls import music_constructor
 from notifier import MajordomoNotifier
@@ -29,7 +29,10 @@ class Loader(Owner):
         self._pub = PubSub()
 
         self._cfg = ConfigHandler(cfg=init_cfg, path=path, owner=self)
+
         self._logger = Logger(self._cfg['log'], self)
+        self._logger.add('mdmTerminal2')('version {} go!'.format(self._cfg.version_str), INFO)
+
         self._cfg.configure(self._logger.add('CFG'))
         self._listen = Listener(cfg=self._cfg, owner=self)
         proxies.add_logger(self._logger.add('Proxy'))
