@@ -134,7 +134,9 @@ class MajordomoNotifier(threading.Thread):
             return self._send_over_http(target, params, auth)
 
     def _send_over_http(self, target: str, params: dict, auth: tuple or None) -> str:
-        if target == 'api':
+        if self._cfg['disable_http']:
+            return 'http disabled'
+        elif target == 'api':
             path = 'api/method/{}.{}'.format(self._cfg['object_name'], self._cfg['object_method'])
         else:
             path = 'command.php'
