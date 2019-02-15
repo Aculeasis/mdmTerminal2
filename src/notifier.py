@@ -78,7 +78,7 @@ class MajordomoNotifier(threading.Thread):
         # Прямая отправка
         # Отправляет сообщение на сервер мжд, возвращает url запроса или кидает RuntimeError
         # На основе https://github.com/sergejey/majordomo-chromegate/blob/master/js/main.js#L196
-        return self._send('command.php', {'qry': qry}, user)
+        return self._send('cmd', {'qry': qry}, user)
 
     @property
     def _uptime(self) -> int:
@@ -105,9 +105,8 @@ class MajordomoNotifier(threading.Thread):
         self._queue.put_nowait(kwargs)
 
     def _send_notify(self, params: dict):
-        path = 'api/method/{}.{}'.format(self._cfg['object_name'], self._cfg['object_method'])
         try:
-            self._send(path, params)
+            self._send('api', params)
         except RuntimeError as e:
             self.log(e, logger.ERROR)
             self._api_fail_count -= 1
@@ -118,18 +117,28 @@ class MajordomoNotifier(threading.Thread):
         else:
             self._api_fail_count = self.MAX_API_FAIL_COUNT
 
-    def _send(self, path: str, params: dict, user=None) -> str:
+    def _send(self, target: str, params: dict, user=None) -> str:
         terminal = self._cfg['terminal']
         username = self._cfg['username']
         password = self._cfg['password']
         calling_user = user or username
-        url = 'http://{}/{}'.format(self._cfg['ip'], path)
 
         auth = (username, password) if username and password else None
         if terminal:
             params['terminal'] = terminal
         if calling_user:
             params['username'] = calling_user
+        if self.own.server_duplex:
+            return self._send_over_socket(target, params)
+        else:
+            return self._send_over_http(target, params, auth)
+
+    def _send_over_http(self, target: str, params: dict, auth: tuple or None) -> str:
+        if target == 'api':
+            path = 'api/method/{}.{}'.format(self._cfg['object_name'], self._cfg['object_method'])
+        else:
+            path = 'command.php'
+        url = 'http://{}/{}'.format(self._cfg['ip'], path)
         try:
             reply = requests.get(url, params=params, auth=auth, timeout=30)
         except REQUEST_ERRORS as e:
@@ -137,6 +146,10 @@ class MajordomoNotifier(threading.Thread):
         if not reply.ok:
             raise RuntimeError('Server reply error from \'{}\'. {}: {}'.format(url, reply.status_code, reply.reason))
         return reply.request.url
+
+    def _send_over_socket(self, target: str, params: dict) -> str:
+        self.own.send_on_incoming_socket({'cmd': target, 'code': 0, 'body': params})
+        return 'in socket {}: {}'.format(target, repr(params)[:300])
 
 
 def _get_boot_time() -> int:

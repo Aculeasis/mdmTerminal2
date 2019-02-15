@@ -19,13 +19,14 @@ class TestShell(cmd__.Cmd):
         self._ip = '127.0.0.1'
         self._port = 7999
 
-    def _send(self, cmd: str, is_logger=False):
+    def _send(self, cmd: str, is_logger=False, is_duplex=False):
         client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        client.settimeout(10 if not is_logger else None)
+        client.settimeout(10 if not (is_logger or is_duplex) else None)
+        cmd = '\r\n'.join(cmd.replace('\\n', '\n').split('\n')).encode() + (CRLF*2 if not is_duplex else CRLF)
         print('Отправляю {}:{} {}...'.format(self._ip, self._port, repr(cmd)))
         try:
             client.connect((self._ip, self._port))
-            client.send('\r\n'.join(cmd.replace('\\n', '\n').split('\n')).encode() + CRLF*2)
+            client.send(cmd)
         except ERRORS as err:
             print('Ошибка подключения к {}:{}. {}: {}'.format(self._ip, self._port, err.errno, err.strerror))
         else:
@@ -49,7 +50,9 @@ class TestShell(cmd__.Cmd):
                         continue
                     if line.startswith('{') and line.endswith('}'):
                         # json? json!
-                        self._parse_json(line)
+                        result = self._parse_json(line)
+                        if result:
+                            client.send(result.encode() + CRLF)
                         continue
                     if line.startswith('pong:'):
                         try:
@@ -96,6 +99,11 @@ class TestShell(cmd__.Cmd):
             result = 'Все модели: {}; разрешенные: {}'.format(
                 ', '.join(data['body']['models']), ', '.join(data['body']['allow'])
             )
+        elif data['cmd'] == 'cmd':
+            print('cmd: {}'.format(repr(data['body'])))
+            return 'tts:{}'.format(data['body']['qry'])
+        elif data['cmd'] == 'api':
+            return print('api: {}'.format(repr(data['body'])))
         else:
             result = 'Неизвестная команда: {}'.format(repr(data['cmd']))
         print('Ответ на {}: {}'.format(repr(data['cmd']), result))
@@ -205,9 +213,13 @@ class TestShell(cmd__.Cmd):
         """Запросить модель у терминала. Аргументы: имя файла"""
         self._send('recv_model:{}'.format(filename))
 
-    def do_log(self,_):
+    def do_log(self, _):
         """Подключает удаленного логгера к терминалу. Аргументы: нет"""
-        self._send('remote_log', True)
+        self._send('remote_log', is_logger=True)
+
+    def do_duplex(self, _):
+        """Один сокет для всего"""
+        self._send('upgrade duplex', is_duplex=True)
 
     def do_raw(self, arg):
         """Отправляет терминалу любые данные. Аргументы: что угодно"""

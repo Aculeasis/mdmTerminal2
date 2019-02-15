@@ -51,6 +51,7 @@ class MDTServer(threading.Thread):
             'recv_model': self._api_recv_model,
             'list_models': self._api_list_models,
             'ping': self._api_ping,
+            'upgrade duplex': self._api_upgrade_duplex,
         }
         self._cfg = cfg
         self.log = log
@@ -60,6 +61,16 @@ class MDTServer(threading.Thread):
         self._socket = socket.socket()
         self._conn = Connect(None, None, self._ws_allow)
         self._lock = Unlock()
+        self._duplex = False
+
+    def duplex(self) -> bool:
+        return self._duplex
+
+    def send_on_socket(self, data):
+        if self._duplex:
+            self._conn.write(data)
+        else:
+            raise RuntimeError('duplex disabled')
 
     def join(self, timeout=None):
         if self.work:
@@ -115,6 +126,7 @@ class MDTServer(threading.Thread):
                 for line in self._conn.read():
                     self._parse(line)
             finally:
+                self._duplex = False
                 self._conn.close()
         self._socket.close()
 
@@ -318,6 +330,15 @@ class MDTServer(threading.Thread):
                 data = time.time() - data
             if data:
                 self.log('ping {}'.format(pretty_time(data)), logger.INFO)
+
+    def _api_upgrade_duplex(self, *_):
+        """
+        Включает двухсторонний обмен данными.
+        До закрытия соединения все запросы к серверу будут идти через него.
+        """
+        self._conn.r_wait()
+        self._duplex = True
+        self._conn.write('upgrade duplex ok')
 
 
 class Unlock(threading.Event):

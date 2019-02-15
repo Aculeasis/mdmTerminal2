@@ -130,6 +130,21 @@ class Owner:
                 return False
             return True
 
+    @property
+    def server_duplex(self) -> bool:
+        """
+        Возможность отправки ответа серверу не через http, а через входящее подключение.
+        """
+        return self._server.duplex()
+
+    def send_on_incoming_socket(self, data):
+        """
+        Отправить данные во входящий сокет, только если self.server_duplex = True.
+        Может вызвать RuntimeError.
+        :param data: bytes, str или dict
+        """
+        self._server.send_on_socket(data)
+
     def say(self, msg: str, lvl: int=2, alarm=None, wait=0, is_file: bool = False, blocking: int=0):
         self._play.say(msg, lvl, alarm, wait, is_file, blocking)
 

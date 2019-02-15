@@ -72,6 +72,7 @@ class Connect:
         self._ws_allow = ws_allow
         self._work = work
         self._r_wait = False
+        self._lock = threading.Lock()
 
     def stop(self):
         self._work = False
@@ -139,7 +140,8 @@ class Connect:
         В любой непонятной ситуации кидает RuntimeError.
         """
         if self._conn:
-            self._conn_sender(data)
+            with self._lock:
+                self._conn_sender(data)
 
     def start_remote_log(self):
         """
