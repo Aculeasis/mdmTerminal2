@@ -246,7 +246,7 @@ class Owner:
 
     @property
     def srv_ip(self) -> str:
-        return self._cfg.gt('majordomo', 'ip', '')
+        return self._cfg.gt('smarthome', 'ip', '')
 
     def update(self):
         self._updater.update()
@@ -341,11 +341,10 @@ class Owner:
             if is_sub_dict('proxy', diff):
                 # re-init proxy
                 self._cfg.proxies_init()
-            if is_sub_dict('mpd', diff):
-                # TODO: mpd -> music
+            if is_sub_dict('music', diff):
                 # reconfigure music server
                 self.music_reload()
-            if is_sub_dict('majordomo', diff):
+            if is_sub_dict('smarthome', diff):
                 # resubscribe
                 self._notifier.reload()
             if is_sub_dict('noise_suppression', diff):

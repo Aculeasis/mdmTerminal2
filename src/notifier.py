@@ -16,7 +16,7 @@ class MajordomoNotifier(threading.Thread):
 
     def __init__(self, cfg, log, owner: Owner):
         super().__init__(name='Notifier')
-        self._cfg = cfg['majordomo']
+        self._cfg = cfg['smarthome']
         self.log = log
         self.own = owner
         self._work = False

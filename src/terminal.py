@@ -120,7 +120,7 @@ class MDTerminal(threading.Thread):
             elif cmd == 'voice' and not data:
                 self._detected_parse('', self.own.listen(voice=True))
             elif cmd == 'notify' and data:
-                terminal_name = self._cfg.gt('majordomo', 'terminal') or 'mdmTerminal2'
+                terminal_name = self._cfg.gt('smarthome', 'terminal') or 'mdmTerminal2'
                 self._detected_parse(None, '[{}] {}'.format(terminal_name, data))
             elif cmd in self.CALL:
                 self.CALL[cmd]()

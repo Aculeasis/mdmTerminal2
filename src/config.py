@@ -140,10 +140,10 @@ class ConfigHandler(dict):
     def allow_connect(self, ip: str) -> bool:
         if ip == '127.0.0.1':
             return True
-        if not self['majordomo'].get('ip') and self.gts('first_love'):
-            self['majordomo']['ip'] = ip
+        if not self['smarthome'].get('ip') and self.gts('first_love'):
+            self['smarthome']['ip'] = ip
             self.config_save()
-        if self.gts('last_love') and ip != self['majordomo'].get('ip'):
+        if self.gts('last_love') and ip != self['smarthome'].get('ip'):
             return False
         return True
 
@@ -413,7 +413,7 @@ class ConfigHandler(dict):
         if not self.gts('ip'):
             self['settings']['ip'] = utils.get_ip_address()
             to_save = True
-        if not self['majordomo'].get('ip'):
+        if not self['smarthome'].get('ip'):
             self._print(LNG['say_ip'].format(self.gts('ip')), logger.WARN, 3)
         return to_save
 
@@ -446,10 +446,12 @@ class ConfigUpdater:
     # Автоматически переносим ключи от сервера, в json, в подсекции из settings.
     # Ключ: (новая секция, новое имя ключа (пустое - без изменений))
     KEY_FROM_SERVER_MOVE = {
-        'ip_server': ('majordomo', 'ip'),
+        'ip_server': ('smarthome', 'ip'),
         'token': ('snowboy', ''),
         'clear_models': ('snowboy', ''),
     }
+    # Полный перенос секции для любого источника кроме dict. {from: to}
+    SECTION_TO_SECTION = {'mpd': 'music', 'majordomo': 'smarthome'}
     EXTERNALS = (2, 3)
 
     def __init__(self, cfg, log):
@@ -520,10 +522,12 @@ class ConfigUpdater:
             except ValueError:
                 continue
             section = section.replace('0', '-')
-            if not new_key or not section or section not in sections:
-                continue
             if not isinstance(data.get(section, {}), dict):
                 self._log('Conflict found, section and key name match: \'{}\''.format(section), logger.ERROR)
+                continue
+
+            section = self.SECTION_TO_SECTION.get(section, section)
+            if not new_key or not section or section not in sections:
                 continue
 
             remove_this.append(key)
@@ -549,6 +553,7 @@ class ConfigUpdater:
         return data
 
     def _parser(self, data: dict):
+        data = self._section_to_section(data)
         self._save_me |= self._ini_version_updated(data)
         self._settings_adapter(data)
         for key, val in data.items():
@@ -649,6 +654,16 @@ class ConfigUpdater:
                 self._cfg[sec] = {}
             # Удаляем перемещенный ключ из settings
             data.pop(key)
+
+    def _section_to_section(self, data: dict) -> dict:
+        if not (self._source and data and self.SECTION_TO_SECTION):
+            return data
+        for from_, to_ in self.SECTION_TO_SECTION.items():
+            if from_ in data:
+                if to_ not in data:
+                    data[to_] = {}
+                data[to_].update(data.pop(from_))
+        return data
 
     def _print_result(self, from_, lvl=logger.DEBUG):
         self._log('{}: \'{}\', count: {}'.format(from_, utils.mask_cfg(self._new_cfg), self._change_count), lvl)

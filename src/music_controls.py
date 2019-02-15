@@ -195,11 +195,10 @@ TYPE_MAP = {
 
 
 def music_constructor(cfg, logger, owner: Owner, old=None) -> BaseControl:
-    # TODO: mpd -> music
     if not (old is None or isinstance(old, BaseControl)):
         raise TypeError('Wrong type: {}'.format(type(old)))
 
-    name = cfg.gt('mpd', 'type', '').lower()
+    name = cfg.gt('music', 'type', '').lower()
     if name not in TYPE_MAP:
         name = 'mpd'
     if old:
@@ -208,8 +207,8 @@ def music_constructor(cfg, logger, owner: Owner, old=None) -> BaseControl:
             return old
         else:
             old.join(20)
-            old = TYPE_MAP[name](name, cfg['mpd'], logger.add(name.upper()), owner)
+            old = TYPE_MAP[name](name, cfg['music'], logger.add(name.upper()), owner)
             old.start()
     else:
-        old = TYPE_MAP[name](name, cfg['mpd'], logger.add(name.upper()), owner)
+        old = TYPE_MAP[name](name, cfg['music'], logger.add(name.upper()), owner)
     return old

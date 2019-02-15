@@ -35,7 +35,7 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'energy_dynamic': True,
         'silent_multiplier': 1.0,
     },
-    'majordomo': {
+    'smarthome': {
         'ip': '',
         'terminal': '',
         'username': '',
@@ -44,8 +44,7 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'object_method': '',
         'heartbeat_timeout': 0
     },
-    'mpd': {
-        # TODO: mpd -> music
+    'music': {
         'control': True,
         'type': 'mpd',
         'ip': '127.0.0.1',
@@ -146,9 +145,9 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'blacklist_on_failure': False,
     },
     'system': {
-        'ini_version': 32,
+        'ini_version': 33,
         'ws_token': 'token_is_unset',
         'PLUGINS_API': 2,
-        'VERSION': (0, 0, 1),
+        'VERSION': (0, 1, 0),
     }
 }
