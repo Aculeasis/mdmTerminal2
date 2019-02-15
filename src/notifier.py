@@ -41,6 +41,7 @@ class MajordomoNotifier(threading.Thread):
         self._api_fail_count = self.MAX_API_FAIL_COUNT
         self._unsubscribe()
         self._subscribe()
+        self._queue.put_nowait(None)
 
     def start(self):
         self._work = True
@@ -64,7 +65,7 @@ class MajordomoNotifier(threading.Thread):
             try:
                 data = self._queue.get(timeout=to_sleep)
             except queue.Empty:
-                if not (self._allow_notify and self._api_fail_count):
+                if not (self._allow_notify and self._api_fail_count and to_sleep):
                     continue
                 # Отправляем пинг на сервер мжд
                 data = self.own.get_volume_status
