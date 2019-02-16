@@ -1,19 +1,22 @@
 # mdmTerminal 2
 [![Build status](https://ci.appveyor.com/api/projects/status/v98bcj9mr2s1g13a/branch/master?svg=true)](https://ci.appveyor.com/project/Aculeasis/mdmterminal2)
 
-Голосовой терминал для [MajorDoMo](https://github.com/sergejey/majordomo), форк [mdmPiTerminal](https://github.com/devoff/mdmPiTerminal).
-
-Полностью совместим с [MDM VoiceAssistant](https://github.com/lanket/mdmPiTerminalModule).
+Голосовой терминал для домашней автоматизации, форк [mdmPiTerminal](https://github.com/devoff/mdmPiTerminal).
 
 **Возможности**
-- Запуск распознавания по любым ключевым словам
-- Передача команды в MajorDoMo
-- Взаимодействие через [MajorDroid API](http://majordomo.smartliving.ru/forum/viewtopic.php?f=5&t=518) (sayReply, ask etc.)
-- Воспроизведение музыки через MajorDroid API
-- [Отправка уведомлений](https://github.com/Aculeasis/mdmTerminal2/wiki/callback) на сервер MajorDoMo
-- [Работа через прокси](https://github.com/Aculeasis/mdmTerminal2/wiki/proxy)
-- [Модули](https://github.com/Aculeasis/mdmTerminal2/wiki/modules)
-- [Плагины](https://github.com/Aculeasis/mdmTerminal2/wiki/plugins)
+- Запуск распознавания по любым ключевым словам.
+- Передача команд на сервер.
+- Поддержка [MajorDroid API](http://majordomo.smartliving.ru/forum/viewtopic.php?f=5&t=518) (sayReply, ask etc.).
+- [Отправка уведомлений](https://github.com/Aculeasis/mdmTerminal2/wiki/callback) на сервер.
+- [Работа через прокси](https://github.com/Aculeasis/mdmTerminal2/wiki/proxy).
+- [Модули](https://github.com/Aculeasis/mdmTerminal2/wiki/modules).
+- [Плагины](https://github.com/Aculeasis/mdmTerminal2/wiki/plugins).
+
+**Интеграция**
+- [MajorDoMo](https://github.com/sergejey/majordomo): [MDM VoiceAssistant](https://github.com/lanket/mdmPiTerminalModule).
+- [intraHouse](https://github.com/intrahouseio): [plugin-voiceterminal](https://github.com/intrahouseio/intraHouse.plugin-voiceterminal) (WIP).
+- Google Home: Через [плагин](https://github.com/Aculeasis/mdmt2-google-assistant) (частично).
+- [API документация](https://github.com/Aculeasis/mdmTerminal2/wiki/API-(draft)) (WIP).
 
 # Установка
 **Используя докер**: [Dockerfile и готовые образы под x86_64, aarch64, armv7l](https://github.com/Aculeasis/mdmt2-docker)
