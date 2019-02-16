@@ -25,6 +25,7 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'lang': 'ru',
         'lang_check': False,
         'software_player': '',
+        'lazy_record': False,
     },
     'listener': {
         'stream_recognition': True,
@@ -146,9 +147,9 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'blacklist_on_failure': False,
     },
     'system': {
-        'ini_version': 34,
+        'ini_version': 35,
         'ws_token': 'token_is_unset',
         'PLUGINS_API': 2,
-        'VERSION': (0, 4, 0),
+        'VERSION': (0, 5, 0),
     }
 }

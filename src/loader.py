@@ -63,6 +63,7 @@ class Loader(Owner):
         self._plugins.start()
 
     def stop_all_systems(self):
+        self._cfg.config_save(final=True)
         self._plugins.stop()
         self._mm.stop()
         self._server.join()

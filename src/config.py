@@ -22,6 +22,7 @@ class ConfigHandler(dict):
         super().__init__()
         self._plugins_api = cfg['system'].pop('PLUGINS_API', 0)
         self._version_info = cfg['system'].pop('VERSION', (0, 0, 0))
+        self._save_me_later = False
         self.update(cfg)
         self.path = path
         self.__owner = owner
@@ -254,7 +255,18 @@ class ConfigHandler(dict):
         [self._log(msg, lvl) for (msg, lvl) in self._to_log]
         self._to_log.clear()
 
-    def config_save(self):
+    def config_save(self, final=False, forced=False):
+        if final:
+            if self._save_me_later:
+                self._save_me_later = False
+                self._config_save()
+        elif self.gts('lazy_record') and not forced:
+            self._save_me_later = True
+        else:
+            self._save_me_later = False
+            self._config_save()
+
+    def _config_save(self):
         wtime = time.time()
 
         config = ConfigParserOnOff()
