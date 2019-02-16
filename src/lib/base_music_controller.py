@@ -319,7 +319,7 @@ class BaseControl(threading.Thread):
 
     @auto_reconnect
     def _ctl_pause(self, pause=None):
-        raise NotImplemented()
+        raise NotImplemented
 
     @auto_reconnect
     def _ctl_add(self, uri):

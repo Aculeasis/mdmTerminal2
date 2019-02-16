@@ -27,6 +27,7 @@ class MDTerminal(threading.Thread):
         self._work = False
         self._snowboy = None
         self._queue = queue.Queue()
+        self._wait = threading.Event()
 
         self.CALL = {
             'reload': self._reload,
@@ -57,6 +58,7 @@ class MDTerminal(threading.Thread):
             self._snowboy = snowboy(self._cfg, detected, self._interrupt_callback, self.own)
         else:
             self._snowboy = None
+        self._wait.set()
 
     def join(self, timeout=None):
         if self._work:
@@ -81,7 +83,8 @@ class MDTerminal(threading.Thread):
 
     def _listen(self):
         if self._snowboy is None:
-            time.sleep(0.5)
+            self._wait.wait(1)
+            self._wait.clear()
         else:
             try:
                 self._snowboy.start()
@@ -324,6 +327,7 @@ class MDTerminal(threading.Thread):
                 self.own.say(data, lvl=0)
                 return
         self._queue.put_nowait((cmd, data, lvl, time.time() if save_time else 0))
+        self._wait.set()
 
     def _detected(self, model: int=0):
         if self._snowboy is not None:
