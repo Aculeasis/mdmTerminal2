@@ -145,6 +145,14 @@ class Owner:
         """
         self._server.send_on_socket(data)
 
+    def plugins_status(self, state: str) -> dict:
+        """
+        Имена и абсолютные пути до плагинов в определенном состоянии.
+        :param state: all, deprecated or broken
+        :return: {name: path,}
+        """
+        return self._plugins.status(state)
+
     def say(self, msg: str, lvl: int=2, alarm=None, wait=0, is_file: bool = False, blocking: int=0):
         self._play.say(msg, lvl, alarm, wait, is_file, blocking)
 

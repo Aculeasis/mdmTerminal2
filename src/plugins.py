@@ -28,6 +28,11 @@ class Plugins:
         self._init = {}
         self._modules = {}
         self._reloads = {}
+        self._status = {
+            'all': {},
+            'deprecated': {},
+            'broken': {}
+        }
 
     def start(self):
         with self._lock:
@@ -49,11 +54,15 @@ class Plugins:
             self._stop_all()
             if self.cfg.gt('plugins', 'enable') or self._modules:
                 self.log('stop.', logger.INFO)
+            self._status['broken'].clear(), self._status['deprecated'].clear(), self._status['all'].clear()
             self._modules, self._reloads = {}, {}
 
     def reload(self, diff: dict):
         with self._lock:
             self._reload_all(diff)
+
+    def status(self, state: str) -> dict:
+        return self._status.get(state, {})
 
     def _update_blacklist(self):
         self._to_blacklist -= self._blacklist
@@ -76,21 +85,27 @@ class Plugins:
 
     def _init_all(self):
         for plugin in os.listdir(self.cfg.path['plugins']):
-            plugin_path = os.path.join(self.cfg.path['plugins'], plugin, PLUG_FILE)
+            plugin_dir = os.path.join(self.cfg.path['plugins'], plugin)
+            plugin_path = os.path.join(plugin_dir, PLUG_FILE)
             module_name = 'plugins.{}'.format(plugin)
             if not os.path.isfile(plugin_path):
                 continue
             self._target = None
             try:
-                self._init_plugin(plugin_path, module_name)
+                self._init_plugin(plugin_path, plugin_dir, module_name)
             except Exception as e:
                 self.log('Error init {}: {}'.format(module_name, e), logger.ERROR)
-                if self._blacklist_on_failure and self._target is not None:
-                    self._to_blacklist.add(self._target)
+                if self._target is not None:
+                    if not (self._target in self._status['broken'] or self._target in self._status['deprecated']):
+                        self._status['broken'][self._target] = plugin_dir
+                    if self._blacklist_on_failure:
+                        self._to_blacklist.add(self._target)
+            if self._target is not None and self._target not in self._status['all']:
+                self._status['all'][self._target] = plugin_dir
         if self._init:
             self.log('Init {}'.format(', '.join(key for key in self._init)))
 
-    def _init_plugin(self, path: str, module_name: str):
+    def _init_plugin(self, path: str, plugin_dir: str, module_name: str):
         module = import_module(path, module_name)
         if getattr(module, DISABLE_1, None):
             return
@@ -125,6 +140,8 @@ class Plugins:
             raise RuntimeError('\'{}\' missing or not int: {}, {}'.format(API, repr(api), type(api)))
 
         if api < self.cfg.API:
+            if name not in self._status['deprecated']:
+                self._status['deprecated'][name] = plugin_dir
             msg = 'Plugin \'{}\' deprecated. Plugin api: {}, terminal api: {}. Ignore.'.format(name, api, self.cfg.API)
             self.log(msg, logger.WARN)
             return
@@ -132,26 +149,31 @@ class Plugins:
         self._init[name] = (getattr(module, ENTRYPOINT)(cfg=self.cfg, log=self._get_log(name), owner=self.own), reload)
 
     def _start_all(self):
+        # special plugin
+        plugin_updater = self._init.pop('plugin-updater', None)
         for name, (module, reload) in self._init.items():
-            if getattr(module, DISABLE_2, None):
-                continue
-            try:
-                self._start_plugin(name, module)
-            except Exception as e:
-                self.log('Error star \'{}\': {}'.format(name, e), logger.ERROR)
-                if self._blacklist_on_failure:
-                    self._to_blacklist.add(name)
-                continue
-            self._modules[name] = module
-            if reload and getattr(module, 'reload', None):
-                self._reloads[name] = reload
+            self._start_plugin(name, module, reload)
+        if plugin_updater:
+            self._start_plugin('plugin-updater', plugin_updater[0], plugin_updater[1])
         self._init = {}
 
-    def _start_plugin(self, name: str, module):
+    def _start_plugin(self, name: str, module, reload):
+        if getattr(module, DISABLE_2, None):
+            return
         try:
             module.start()
         except AttributeError:
+            pass
+        except Exception as e:
+            self.log('Error start \'{}\': {}'.format(name, e), logger.ERROR)
+            if name in self._status['all']:
+                self._status['broken'][name] = self._status['all'][name]
+            if self._blacklist_on_failure:
+                self._to_blacklist.add(name)
             return
+        self._modules[name] = module
+        if reload and getattr(module, 'reload', None):
+            self._reloads[name] = reload
         self._log(name, 'start.', logger.INFO)
 
     def _stop_all(self):
