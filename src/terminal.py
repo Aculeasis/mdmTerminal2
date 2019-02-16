@@ -63,6 +63,7 @@ class MDTerminal(threading.Thread):
     def join(self, timeout=None):
         if self._work:
             self._work = False
+            self._wait.set()
             self.log('stopping...', logger.DEBUG)
             super().join()
             self.log('stop.', logger.INFO)
@@ -83,7 +84,7 @@ class MDTerminal(threading.Thread):
 
     def _listen(self):
         if self._snowboy is None:
-            self._wait.wait(1)
+            self._wait.wait(2)
             self._wait.clear()
         else:
             try:
