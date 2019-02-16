@@ -73,8 +73,12 @@ class MDTerminal(threading.Thread):
         self.log('start', logger.INFO)
         super().start()
 
+    @utils.state_cache(interval=0.1)
+    def _no_listen(self):
+        return self._cfg['listener']['no_listen_music'] and self.own.music_plays
+
     def _interrupt_callback(self):
-        return not self._work or self._queue.qsize()
+        return not self._work or self._queue.qsize() or self._no_listen()
 
     def run(self):
         self._reload()
@@ -86,6 +90,8 @@ class MDTerminal(threading.Thread):
         if self._snowboy is None:
             self._wait.wait(2)
             self._wait.clear()
+        elif self._no_listen():
+            time.sleep(0.2)
         else:
             try:
                 self._snowboy.start()

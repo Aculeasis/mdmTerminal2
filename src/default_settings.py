@@ -35,6 +35,7 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'energy_lvl': 0,
         'energy_dynamic': True,
         'silent_multiplier': 1.0,
+        'no_listen_music': False,
     },
     'smarthome': {
         'ip': '',
@@ -147,9 +148,9 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'blacklist_on_failure': False,
     },
     'system': {
-        'ini_version': 35,
+        'ini_version': 36,
         'ws_token': 'token_is_unset',
         'PLUGINS_API': 2,
-        'VERSION': (0, 5, 2),
+        'VERSION': (0, 6, 0),
     }
 }
