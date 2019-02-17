@@ -24,7 +24,6 @@ class Updater(threading.Thread):
         self._last = {'hash': None, 'check': 0}
         self._work = False
         self._sleep = threading.Event()
-        self._send_notify = False
         self._action = None
 
         self._notify_update = self.own.registration('updater')
@@ -90,14 +89,11 @@ class Updater(threading.Thread):
 
     def _check_update(self, say=True):
         self._old_hash = None
-        self._send_notify = True
         msg = self._update()
         self._last['check'] = int(time.time())
         self._last['hash'] = self._old_hash or self._last['hash']
         self._save_cfg()
-        if not msg:
-            return
-        if say:
+        if msg and say:
             self.own.terminal_call('tts', msg)
 
     def _save_cfg(self):
@@ -128,7 +124,6 @@ class Updater(threading.Thread):
         if not up.updated():
             self._notify_update('update_nope')
             self.log(LNG['no_update'], logger.INFO)
-            self._send_notify = False
             return LNG['no_update']
         new_files = up.new_files()
         if new_files:
@@ -153,7 +148,6 @@ class Updater(threading.Thread):
             msg = LNG['update_ok']
         else:
             msg = '{} {}'.format(LNG['update_ok'], LNG['restart_required'])
-        self._send_notify = False
         return msg
 
     def _may_restart(self):
