@@ -29,12 +29,8 @@ class MDTerminal(threading.Thread):
         self._queue = queue.Queue()
         self._wait = threading.Event()
 
-        self.CALL = {
-            'reload': self._reload,
-            'update': self.own.update,
-            'rollback': self.own.manual_rollback,
-        }
         self.DATA_CALL = {
+            'reload': self._reload,
             'volume': self._set_volume,
             'volume_q': self._set_volume_quiet,
             'music_volume': self._set_music_volume,
@@ -47,7 +43,7 @@ class MDTerminal(threading.Thread):
             'send_model': self._send_model,
         }
 
-    def _reload(self):
+    def _reload(self, *_):
         if len(self._cfg.path['models_list']) and self.own.max_mic_index != -2:
             if self._cfg.gts('chrome_mode'):
                 detected = self._detected_sr
@@ -129,11 +125,6 @@ class MDTerminal(threading.Thread):
                 self._detected_parse(data, self.own.listen(data))
             elif cmd == 'voice' and not data:
                 self._detected_parse('', self.own.listen(voice=True))
-            elif cmd == 'notify' and data:
-                terminal_name = self._cfg.gt('smarthome', 'terminal') or 'mdmTerminal2'
-                self._detected_parse(None, '[{}] {}'.format(terminal_name, data))
-            elif cmd in self.CALL:
-                self.CALL[cmd]()
             elif cmd in self.DATA_CALL:
                 self.DATA_CALL[cmd](data)
             elif cmd in self.ARGS_CALL:

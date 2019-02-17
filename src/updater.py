@@ -20,12 +20,14 @@ class Updater(threading.Thread):
         self.log = log
         self.own = owner
 
-        self._lock = threading.Lock()
         self._old_hash = None
         self._last = {'hash': None, 'check': 0}
         self._work = False
         self._sleep = threading.Event()
         self._send_notify = False
+        self._action = None
+
+        self._notify_update = self.own.registration('updater')
 
     def start(self):
         self._load_cfg()
@@ -42,15 +44,19 @@ class Updater(threading.Thread):
             self.log('stop.', logger.INFO)
 
     def update(self):
+        self._action = 'update'
         self._sleep.set()
 
     def manual_rollback(self):
-        with self._lock:
-            up = self._new_worker()
-            msg = self._fallback(up, self._last['hash'])
-            if msg == LNG['rollback_yes'] and self._may_restart():
-                self.own.die_in(7)
-            self.own.terminal_call('tts', msg)
+        self._action = 'rollback'
+        self._sleep.set()
+
+    def _manual_rollback(self):
+        up = self._new_worker()
+        msg = self._fallback(up, self._last['hash'], 'rollback')
+        if msg == LNG['rollback_yes'] and self._may_restart():
+            self.own.die_in(7)
+        self.own.terminal_call('tts', msg)
 
     def run(self):
         while self._work:
@@ -60,7 +66,11 @@ class Updater(threading.Thread):
                 break
             if self._sleep.is_set():
                 self._sleep.clear()
-                self._check_update()
+                if self._action == 'update':
+                    self._check_update()
+                elif self._action == 'rollback':
+                    self._manual_rollback()
+                self._action = None
             elif to_sleep:
                 self._check_update(False)
 
@@ -79,19 +89,16 @@ class Updater(threading.Thread):
         return interval - diff
 
     def _check_update(self, say=True):
-        with self._lock:
-            self._old_hash = None
-            self._send_notify = True
-            msg = self._update()
-            self._last['check'] = int(time.time())
-            self._last['hash'] = self._old_hash or self._last['hash']
-            self._save_cfg()
-            if not msg:
-                return
-            if say:
-                self.own.terminal_call('tts', msg)
-            elif self._send_notify:
-                self.own.terminal_call('notify', msg)
+        self._old_hash = None
+        self._send_notify = True
+        msg = self._update()
+        self._last['check'] = int(time.time())
+        self._last['hash'] = self._old_hash or self._last['hash']
+        self._save_cfg()
+        if not msg:
+            return
+        if say:
+            self.own.terminal_call('tts', msg)
 
     def _save_cfg(self):
         self._cfg.save_dict(self.CFG, self._last)
@@ -108,15 +115,18 @@ class Updater(threading.Thread):
         try:
             up.pull()
         except RuntimeError as e:
+            self._notify_update('pull_failed')
             self.log('{}: {}'.format(LNG['err_update'], e), logger.CRIT)
             return '{}.'.format(LNG['err_update'])
 
         try:
             up.check_pull()
         except RuntimeError as e:
+            self._notify_update('check_pull_failed')
             return self._auto_fallback(up, e)
 
         if not up.updated():
+            self._notify_update('update_nope')
             self.log(LNG['no_update'], logger.INFO)
             self._send_notify = False
             return LNG['no_update']
@@ -125,10 +135,17 @@ class Updater(threading.Thread):
             self.log(LNG['files_upgrade'].format(new_files), logger.DEBUG)
 
         try:
-            self._up_dependencies(up)
+            self._up_dependency('apt', up.update_apt)
         except RuntimeError as e:
+            self._notify_update('apt_failed')
+            return self._auto_fallback(up, e)
+        try:
+            self._up_dependency('pip', up.update_pip)
+        except RuntimeError as e:
+            self._notify_update('pip_failed')
             return self._auto_fallback(up, e)
 
+        self._notify_update('update_yes')
         self.log(LNG['update_ok'], logger.INFO)
         self._old_hash = up.get_old_hash()
         if self._may_restart() and new_files:
@@ -153,29 +170,28 @@ class Updater(threading.Thread):
             return '{}. {}'.format(LNG['err_upgrade'], self._fallback(up))
         return '{}.'.format(LNG['err_upgrade'])
 
-    def _fallback(self, up, hash_=None):
+    def _fallback(self, up, hash_=None, mode='fallback'):
         self.log(LNG['run_rollback'], logger.DEBUG)
         try:
             if hash_:
                 up.set_old_hash(hash_)
             up.fallback()
         except RuntimeError as e:
+            self._notify_update('{}_failed'.format(mode))
             self.log(LNG['err_rollback'].format(e), logger.CRIT)
             return LNG['rollback_no']
         else:
+            self._notify_update('{}_ok'.format(mode))
             self.log(LNG['ok_rollback'], logger.INFO)
             return LNG['rollback_yes']
-
-    def _up_dependencies(self, up):
-        self._up_dependency('apt', up.update_apt)
-        self._up_dependency('pip', up.update_pip)
 
     def _up_dependency(self, name: str, updater):
         to_update = self._cfg.gt('update', name)
         packages = updater(to_update)
         if packages:
-            status = 'yes' if to_update else 'no'
-            self.log(LNG['{}_{}'.format(name, status)].format(packages), logger.DEBUG if to_update else logger.WARN)
+            event = '{}_{}'.format(name, 'yes' if to_update else 'no')
+            self._notify_update(event)
+            self.log(LNG[event].format(packages), logger.DEBUG if to_update else logger.WARN)
 
     def _new_worker(self):
         return Worker(os.path.split(self._cfg.path['home'])[0], sys.executable)

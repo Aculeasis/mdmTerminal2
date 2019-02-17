@@ -26,7 +26,8 @@ class MajordomoNotifier(threading.Thread):
         self._events = (
             'speech_recognized_success', 'voice_activated', 'ask_again',
             'music_status', 'start_record', 'stop_record', 'start_talking', 'stop_talking',
-            'volume', 'music_volume'
+            'volume', 'music_volume',
+            'updater',
         )
 
     def _subscribe(self):
@@ -97,7 +98,7 @@ class MajordomoNotifier(threading.Thread):
         if not self._allow_notify:
             return
         kwargs = {'uptime': self._uptime}
-        if name in ('volume', 'music_volume'):
+        if name in ('volume', 'music_volume', 'updater'):
             kwargs[name] = data
         elif name == 'music_status':
             kwargs['status'] = 'music_{}'.format(data)

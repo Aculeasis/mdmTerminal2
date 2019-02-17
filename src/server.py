@@ -196,10 +196,14 @@ class MDTServer(threading.Thread):
         # a = param[0]  # rec, play или compile
         # b = param[1]  # 1-6
         # c = param[2]  # 1-3
-        if param[0] in ('play', 'rec', 'compile', 'del', 'update', 'rollback'):
+        if param[0] in ('play', 'rec', 'compile', 'del'):
             self.own.terminal_call(param[0], param[1:])
         elif param[0] == 'save':
             self.own.die_in(3, True)
+        elif param[0] == 'update':
+            self.own.update()
+        elif param[0] == 'rollback':
+            self.own.manual_rollback()
         else:
             raise RuntimeError(LNG['unknown_rec_cmd'].format(param[0]))
 
