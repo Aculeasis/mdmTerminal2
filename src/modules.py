@@ -289,7 +289,7 @@ def majordomo(self, _, phrase):
 
     if not self.own.srv_ip:
         self.log(LNG['srv_no_ip_log'], logger.CRIT)
-        return Say(LNG['srv_no_ip_say'].format(self.cfg.get('ip', LNG['error'])))
+        return Say(LNG['srv_no_ip_say'].format(self.cfg.gts('ip')))
 
     # FIX: 'Скажи ' -> 'скажи '
     if phrase.startswith(LNG['srv_rep_say'], 0, LNG['srv_rep_say_len']):
