@@ -76,6 +76,17 @@ class Microphone(speech_recognition.Microphone):
         else:
             return MicrophoneStream(pyaudio_stream)
 
+    @staticmethod
+    def get_microphone_name(index=None):
+        audio = Microphone.get_pyaudio().PyAudio()
+        try:
+            info = audio.get_default_input_device_info() if index is None else audio.get_device_info_by_index(index)
+            return info['name']
+        except (IOError, KeyError, TypeError) as e:
+            return str(e)
+        finally:
+            audio.terminate()
+
 
 class Recognizer(speech_recognition.Recognizer):
     def __init__(self, record_callback=None, silent_multiplier=1.0):

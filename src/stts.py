@@ -206,6 +206,7 @@ class SpeechToText:
         self._work = True
         self.log('start.', logger.INFO)
         self._select_sample_rate()
+        self._print_mic_info()
 
     def stop(self):
         self._work = False
@@ -438,6 +439,13 @@ class SpeechToText:
                 break
         self.log(LNG['consensus'].format(', '.join([str(x) for x in result]), phrase), logger.DEBUG)
         return phrase, match_count
+
+    def _print_mic_info(self):
+        if self.max_mic_index < 0:
+            return
+        index = self._cfg.gts('mic_index', -1)
+        name = sr.Microphone.get_microphone_name(index if index > -1 else None)
+        self.log('Microphone: "{}: {}"'.format(index if index > -1 else 'Default', name), logger.INFO)
 
     def _select_sample_rate(self):
         try:
