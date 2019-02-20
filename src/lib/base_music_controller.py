@@ -38,6 +38,7 @@ class BaseControl(threading.Thread):
         self._errors_metric = 0
         self._queue = queue.Queue()
 
+        self._check_time = 0.9
         self._old_volume = None
         self._resume = False
         self._be_resumed = False
@@ -177,6 +178,7 @@ class BaseControl(threading.Thread):
             self._ctl_pause(True)
         else:
             self._old_volume = None
+            self._check_time = 0.9
             self._check_un_pause = True
             self._ctl_pause(True)
 
@@ -201,17 +203,20 @@ class BaseControl(threading.Thread):
         self._be_resumed = False
         if not self._is_auto_paused:
             self._old_volume = None
+            self._check_time = 0.9
             return
         self._is_auto_paused = False
         if self._old_volume is not None:
             self._ctl_set_volume(self._old_volume)
             self._old_volume = None
+            self._check_time = 0.9
         if self._ctl_get_state() == 'pause':
             self._ctl_pause(False)
 
     def _stop_resume(self):
         # Что-то пошло не так
         self._old_volume = None
+        self._check_time = 0.9
         self._resume = False
         self._be_resumed = False
         self._is_auto_paused = False
@@ -224,11 +229,12 @@ class BaseControl(threading.Thread):
         volume = self.volume
         if volume != self._previus_volume:
             return self._stop_resume()
-        inc = int((self._old_volume - volume) / 4)
-        volume += inc if inc > 10 else 10
+        inc = int((self._old_volume - volume) / 10)
+        volume += inc if inc > 5 else 5
         if volume >= self._old_volume:
             self._force_resume()
         else:
+            self._check_time = 0.2
             self.volume, self._previus_volume = volume, volume
 
     @property
@@ -263,7 +269,7 @@ class BaseControl(threading.Thread):
         self._subscribe()
         while self._work:
             try:
-                cmd = self._queue.get(timeout=0.9)
+                cmd = self._queue.get(timeout=self._check_time)
             except queue.Empty:
                 pass
             else:
