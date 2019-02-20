@@ -95,7 +95,6 @@ class Server(threading.Thread):
     def handler(self, client):
         stage = 0
 
-        self.send('say THIS IS TEST SERVER!')
         for line in self.reader(client):
             if self.close:
                 break
@@ -108,6 +107,7 @@ class Server(threading.Thread):
                 continue
             if not stage and line_l == 'upgrade duplex':
                 print('=== Start handshake ===')
+                self.send('say THIS IS TEST SERVER!')
                 if self.args.username:
                     self.send('LOGIN')
                     stage = 1
