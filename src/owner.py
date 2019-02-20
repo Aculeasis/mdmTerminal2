@@ -373,8 +373,12 @@ class Owner:
                 # reconfigure music server
                 self.music_reload()
             if is_sub_dict('smarthome', diff):
-                # check [smarthome] disable_server
-                self.server_reload()
+                if 'disable_server' in diff['smarthome']:
+                    # handle [smarthome] disable_server
+                    # FIXME: 'cannot join current thread' fixing hack
+                    hack = 'server_reload_hack'
+                    self.subscribe(hack, self.server_reload, hack)
+                    self.sub_call(hack, hack)
                 # resubscribe
                 self._notifier.reload(diff)
             if is_sub_dict('noise_suppression', diff):
@@ -401,7 +405,7 @@ class Owner:
         # noinspection PyAttributeOutsideInit
         self._music = self._music_constructor(self._cfg, self._logger, self, self._music)
 
-    def server_reload(self):
+    def server_reload(self, *_):
         # noinspection PyAttributeOutsideInit
         self._server = self._server_constructor(self._cfg, self._logger, self, self._server)
 
