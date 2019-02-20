@@ -158,6 +158,7 @@ class ConfigHandler(dict):
 
     def _config_init(self):
         self._cfg_check(self.config_load())
+        self._say_ip()
         self.proxies_init()
 
     def proxies_init(self):
@@ -421,13 +422,17 @@ class ConfigHandler(dict):
                     self.own.say(msg, lvl=0)
 
     def _first(self):
-        to_save = False
         if not self.gts('ip'):
             self['settings']['ip'] = utils.get_ip_address()
-            to_save = True
+            return True
+        return False
+
+    def _say_ip(self):
+        test = self['smarthome']['outgoing_socket']
+        if test and isinstance(test, str) and len(test.split(':', 1)) == 2:
+            return
         if not self['smarthome'].get('ip'):
             self._print(LNG['say_ip'].format(self.gts('ip')), logger.WARN, 3)
-        return to_save
 
     def _cfg_as_tuple(self, data: dict) -> tuple:
         result = []

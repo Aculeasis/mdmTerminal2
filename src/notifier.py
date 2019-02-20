@@ -7,6 +7,7 @@ import time
 import requests
 
 import logger
+from lib.outgoing_socket import OutgoingSocket
 from owner import Owner
 from utils import REQUEST_ERRORS, RuntimeErrorTrace
 
@@ -17,7 +18,7 @@ class MajordomoNotifier(threading.Thread):
     def __init__(self, cfg, log, owner: Owner):
         super().__init__(name='Notifier')
         self._cfg = cfg['smarthome']
-        self.log = log
+        self.log = log[0]
         self.own = owner
         self._work = False
         self._queue = queue.Queue()
@@ -29,6 +30,7 @@ class MajordomoNotifier(threading.Thread):
             'volume', 'music_volume',
             'updater',
         )
+        self.outgoing = OutgoingSocket(self._cfg, lambda msg, lvl=logger.DEBUG: log[1]('O', msg, lvl), self.own)
 
     def _subscribe(self):
         # Подписываемся на нужные события, если нужно
@@ -38,17 +40,20 @@ class MajordomoNotifier(threading.Thread):
     def _unsubscribe(self):
         self.own.unsubscribe(self._events, self._callback)
 
-    def reload(self):
+    def reload(self, diff: dict):
         self._api_fail_count = self.MAX_API_FAIL_COUNT
         self._unsubscribe()
         self._subscribe()
         self._queue.put_nowait(None)
+        if 'outgoing_socket' in diff.get('smarthome', {}):
+            self.outgoing.reload()
 
     def start(self):
         self._work = True
         self.log('start', logger.INFO)
         self._subscribe()
         super().start()
+        self.outgoing.start()
 
     def join(self, timeout=None):
         if self._work:
@@ -56,6 +61,7 @@ class MajordomoNotifier(threading.Thread):
             self._queue.put_nowait(None)
             self.log('stopping...', logger.DEBUG)
             super().join()
+            self.outgoing.join(20)
             self.log('stop.', logger.INFO)
 
     def run(self):
@@ -91,7 +97,7 @@ class MajordomoNotifier(threading.Thread):
 
     @property
     def _allow_notify(self) -> bool:
-        return self._cfg['object_name'] and self._cfg['object_method'] and self._cfg['ip']
+        return self._cfg['object_name'] and self._cfg['object_method'] and self.own.outgoing_available
 
     def _callback(self, name, data=None, *_, **__):
         # Отправляет статус на сервер мжд в порядке очереди (FIFO)
@@ -130,7 +136,7 @@ class MajordomoNotifier(threading.Thread):
             params['terminal'] = terminal
         if calling_user:
             params['username'] = calling_user
-        if self.own.server_duplex:
+        if self.own.duplex_mode_on:
             return self._send_over_socket(target, params)
         else:
             return self._send_over_http(target, params, auth)
@@ -152,7 +158,7 @@ class MajordomoNotifier(threading.Thread):
         return reply.request.url
 
     def _send_over_socket(self, target: str, params: dict) -> str:
-        self.own.send_on_incoming_socket({'cmd': target, 'code': 0, 'body': params})
+        self.own.send_on_duplex_mode({'cmd': target, 'code': 0, 'body': params})
         return 'in socket {}: {}'.format(target, repr(params)[:300])
 
 

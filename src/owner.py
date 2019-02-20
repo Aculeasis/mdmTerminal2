@@ -131,19 +131,20 @@ class Owner:
             return True
 
     @property
-    def server_duplex(self) -> bool:
+    def duplex_mode_on(self) -> bool:
         """
-        Возможность отправки ответа серверу не через http, а через входящее подключение.
+        Duplex mode активен.
         """
-        return self._server.duplex()
+        return self._duplex_mode.duplex
 
-    def send_on_incoming_socket(self, data):
+    def send_on_duplex_mode(self, data):
         """
-        Отправить данные во входящий сокет, только если self.server_duplex = True.
+        Отправить данные через подключение в duplex mode.
+        Сработает только если self.duplex_mode_on = True.
         Может вызвать RuntimeError.
-        :param data: bytes, str или dict
+        :param data: bytes, str or dict
         """
-        self._server.send_on_socket(data)
+        self._duplex_mode.send_on_socket(data)
 
     def plugins_status(self, state: str) -> dict:
         """
@@ -269,7 +270,11 @@ class Owner:
 
     @property
     def srv_ip(self) -> str:
-        return self._cfg.gt('smarthome', 'ip', '')
+        return self._cfg['smarthome']['ip']
+
+    @property
+    def outgoing_available(self) -> bool:
+        return self._cfg['smarthome']['ip'] or self._duplex_mode.duplex
 
     def update(self):
         self._updater.update()
@@ -368,8 +373,10 @@ class Owner:
                 # reconfigure music server
                 self.music_reload()
             if is_sub_dict('smarthome', diff):
+                # check [smarthome] disable_server
+                self.server_reload()
                 # resubscribe
-                self._notifier.reload()
+                self._notifier.reload(diff)
             if is_sub_dict('noise_suppression', diff):
                 # reconfigure APM. Reload terminal - later
                 self._cfg.apm_configure()
@@ -393,6 +400,10 @@ class Owner:
     def music_reload(self):
         # noinspection PyAttributeOutsideInit
         self._music = self._music_constructor(self._cfg, self._logger, self, self._music)
+
+    def server_reload(self):
+        # noinspection PyAttributeOutsideInit
+        self._server = self._server_constructor(self._cfg, self._logger, self, self._server)
 
 
 def is_sub_dict(key, data: dict):

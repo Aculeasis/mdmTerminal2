@@ -19,7 +19,7 @@ class TestShell(cmd__.Cmd):
         self._ip = '127.0.0.1'
         self._port = 7999
 
-    def _send(self, cmd: str, is_logger=False, is_duplex=False):
+    def _send(self, cmd: str, is_logger=False, is_duplex=False, auth=None):
         client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         client.settimeout(10 if not (is_logger or is_duplex) else None)
         cmd = '\r\n'.join(cmd.replace('\\n', '\n').split('\n')).encode() + (CRLF*2 if not is_duplex else CRLF)
@@ -32,6 +32,7 @@ class TestShell(cmd__.Cmd):
         else:
             print('...Успех.')
             data = b''
+            stage = 0
             while True:
                 try:
                     chunk = client.recv(1024)
@@ -47,6 +48,13 @@ class TestShell(cmd__.Cmd):
                     line = line.decode()
                     if is_logger:
                         print(line)
+                        continue
+                    if is_duplex and auth:
+                        stage = self.handshake(client, line, stage, auth)
+                        if not stage:
+                            auth = None
+                        if stage < 0:
+                            return
                         continue
                     if line.startswith('{') and line.endswith('}'):
                         # json? json!
@@ -66,6 +74,27 @@ class TestShell(cmd__.Cmd):
             client.close()
 
     @staticmethod
+    def handshake(soc, line: str, stage: int, auth):
+        line_l = line.lower()
+        if line_l == 'upgrade duplex ok':
+            return 0
+        elif line_l == 'login' and not stage:
+            soc.sendall('LOGIN {}'.format(auth[0]).encode() + CRLF)
+            return 1
+        elif line_l == 'password' and stage < 2:
+            soc.sendall('PASSWORD {}'.format(auth[1]).encode() + CRLF)
+            return 2
+        elif line_l.startswith('broken'):
+            print('broke {}'.format(line))
+            return -1
+        elif line_l.startswith('say'):
+            print(line)
+            return stage
+        else:
+            print('SURPRISE {}'.format(line))
+            return -1
+
+    @staticmethod
     def _parse_json(data: str):
         try:
             data = json.loads(data)
@@ -79,7 +108,7 @@ class TestShell(cmd__.Cmd):
                 return print('Не хватает ключа: {}'.format(key))
 
         if data['code'] != 0:
-            return print('Терминал сообщил об ошибке [{}]: {}'.format(data['code'], data.get('msg', '')))
+            return print('Терминал сообщил об ошибке {} [{}]: {}'.format(data['cmd'], data['code'], data.get('msg', '')))
 
         if 'body' not in data:
             return print('Не хватает ключа: body')
@@ -217,9 +246,12 @@ class TestShell(cmd__.Cmd):
         """Подключает удаленного логгера к терминалу. Аргументы: нет"""
         self._send('remote_log', is_logger=True)
 
-    def do_duplex(self, _):
-        """Один сокет для всего"""
-        self._send('upgrade duplex', is_duplex=True)
+    def do_duplex(self, data):
+        """Один сокет для всего. Аргументы username password"""
+        auth = data.split(' ', 1)
+        if len(auth) < 2:
+            auth.append('')
+        self._send('upgrade duplex', is_duplex=True, auth=auth)
 
     def do_raw(self, arg):
         """Отправляет терминалу любые данные. Аргументы: что угодно"""

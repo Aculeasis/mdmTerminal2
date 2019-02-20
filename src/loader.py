@@ -2,6 +2,7 @@
 
 import stts
 from config import ConfigHandler
+from duplex_mode import DuplexMode
 from languages import LOADER as LNG
 from lib import STT, TTS
 from lib.proxy import proxies
@@ -14,7 +15,7 @@ from notifier import MajordomoNotifier
 from owner import Owner
 from player import Player
 from plugins import Plugins
-from server import MDTServer
+from server import server_constructor
 from terminal import MDTerminal
 from updater import Updater
 
@@ -23,6 +24,7 @@ class Loader(Owner):
     def __init__(self, init_cfg: dict, path: dict, die_in):
         super().__init__(die_in)
         self._music_constructor = music_constructor
+        self._server_constructor = server_constructor
 
         self._stt_providers = STT.PROVIDERS
         self._tts_providers = TTS.PROVIDERS
@@ -37,7 +39,7 @@ class Loader(Owner):
         self._listen = Listener(cfg=self._cfg, owner=self)
         proxies.add_logger(self._logger.add('Proxy'))
 
-        self._notifier = MajordomoNotifier(cfg=self._cfg, log=self._logger.add('Notifier'), owner=self)
+        self._notifier = MajordomoNotifier(cfg=self._cfg, log=self._logger.add_plus('Notifier'), owner=self)
         self._tts = stts.TextToSpeech(cfg=self._cfg, log=self._logger.add('TTS'))
         self._play = Player(cfg=self._cfg, log=self._logger.add('Player'), owner=self)
         self._music = self._music_constructor(cfg=self._cfg, logger=self._logger, owner=self)
@@ -45,8 +47,9 @@ class Loader(Owner):
         self._mm = ModuleManager(cfg=self._cfg, log=self._logger.add_plus('MM'), owner=self)
         self._updater = Updater(cfg=self._cfg, log=self._logger.add('Updater'), owner=self)
         self._terminal = MDTerminal(cfg=self._cfg, log=self._logger.add('Terminal'), owner=self)
-        self._server = MDTServer(cfg=self._cfg, log=self._logger.add('Server'), owner=self)
+        self._server = self._server_constructor(cfg=self._cfg, logger=self._logger, owner=self)
         self._plugins = Plugins(cfg=self._cfg, log=self._logger.add_plus('Plugins'), owner=self)
+        self._duplex_mode = DuplexMode(cfg=self._cfg, log=self._logger.add('DuplexMode'), owner=self)
 
     def start_all_systems(self):
         self._pub.start()
@@ -70,6 +73,7 @@ class Loader(Owner):
         self._terminal.join()
         self._updater.join()
         self._notifier.join()
+        self._duplex_mode.join(20)
 
         self._play.quiet()
         self._play.kill_popen()

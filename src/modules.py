@@ -287,7 +287,7 @@ def majordomo(self, _, phrase):
         self.log(LNG['srv_no_say'], logger.DEBUG)
         return
 
-    if not self.own.srv_ip:
+    if not self.own.outgoing_available:
         self.log(LNG['srv_no_ip_log'], logger.CRIT)
         return Say(LNG['srv_no_ip_say'].format(self.cfg.gts('ip')))
 
