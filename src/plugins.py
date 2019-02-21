@@ -19,7 +19,7 @@ DISABLE_2 = 'disable'
 class Plugins:
     def __init__(self, cfg, log, owner):
         self.cfg = cfg
-        (self.log, self._m_log) = log
+        self.log = log
         self.own = owner
         self._lock = threading.Lock()
         self._target = None
@@ -77,11 +77,10 @@ class Plugins:
         self.cfg.update_from_dict({'plugins': {'blacklist': blacklist}})
 
     def _get_log(self, name: str):
-        name = name.capitalize()
-        return lambda msg, lvl=logger.DEBUG: self._m_log(name, msg, lvl)
+        return self.log.add(name.capitalize())
 
     def _log(self, name, msg, lvl=logger.DEBUG):
-        self._m_log(name.capitalize(), msg, lvl)
+        self.log.module(name.capitalize(), msg, lvl)
 
     def _init_all(self):
         for plugin in os.listdir(self.cfg.path['plugins']):

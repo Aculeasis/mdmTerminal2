@@ -21,7 +21,7 @@ class Updater(threading.Thread):
         self.own = owner
 
         self._old_hash = None
-        self._last = {'hash': None, 'check': 0}
+        self._last = self._load_cfg()
         self._work = False
         self._sleep = threading.Event()
         self._action = None
@@ -29,7 +29,6 @@ class Updater(threading.Thread):
         self._notify_update = self.own.registration('updater')
 
     def start(self):
-        self._load_cfg()
         self._work = True
         super().start()
         self.log('start', logger.INFO)
@@ -99,11 +98,9 @@ class Updater(threading.Thread):
     def _save_cfg(self):
         self._cfg.save_dict(self.CFG, self._last)
 
-    def _load_cfg(self):
-        data = self._cfg.load_dict(self.CFG)
-        if data:
-            self._last['check'] = data.get('check', 0)
-            self._last['hash'] = data.get('hash')
+    def _load_cfg(self) -> dict:
+        cfg = self._cfg.load_dict(self.CFG) or {}
+        return {'hash': cfg.get('hash'), 'check': cfg.get('check', 0)}
 
     def _update(self):
         up = self._new_worker()

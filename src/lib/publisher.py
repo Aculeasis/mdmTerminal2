@@ -9,7 +9,8 @@ class PubSub(threading.Thread):
         self._event_callbacks = {}
         # Очередь вызовов, все вызовы и изменения подписок делаем в треде
         self._queue = queue.Queue()
-        self._work = False
+        self._work = True
+        self.start()
 
     def subscribe(self, event, callback, channel='default') -> bool:
         return self._subscribe_action('add_subscribe', event, callback, channel)
@@ -35,12 +36,7 @@ class PubSub(threading.Thread):
     def _call(self, channel, name, *args, **kwargs):
         self._queue.put_nowait((channel, name, args, kwargs))
 
-    def start(self):
-        if not self._work:
-            self._work = True
-            super().start()
-
-    def join(self, timeout=None):
+    def join(self, timeout=30):
         if self._work:
             self._work = False
             self._queue.put_nowait(None)
@@ -48,21 +44,23 @@ class PubSub(threading.Thread):
 
     def run(self):
         while self._work:
-            data = self._queue.get()
-            if isinstance(data, tuple):
-                self._call_processing(*data)
-            elif isinstance(data, list):
-                (cmd, channel, data) = data
-                if cmd == 'add_subscribe':
-                    self._add_subscribe(data, channel)
-                elif cmd == 'remove_subscribe':
-                    self._remove_subscribe(data, channel)
-                else:
-                    raise RuntimeError('Wrong command: {}, {}'.format(repr(cmd), repr(data)))
-            elif data is None:
-                continue
+            self._processing(self._queue.get())
+
+    def _processing(self, data):
+        if isinstance(data, tuple):
+            self._call_processing(*data)
+        elif isinstance(data, list):
+            (cmd, channel, data) = data
+            if cmd == 'add_subscribe':
+                self._add_subscribe(data, channel)
+            elif cmd == 'remove_subscribe':
+                self._remove_subscribe(data, channel)
             else:
-                raise RuntimeError('Wrong type of data: {}'.format(repr(data)))
+                raise RuntimeError('Wrong command: {}, {}'.format(repr(cmd), repr(data)))
+        elif data is None:
+            return
+        else:
+            raise RuntimeError('Wrong type of data: {}'.format(repr(data)))
 
     def _call_processing(self, channel, name, args, kwargs):
         # Вызываем подписчиков

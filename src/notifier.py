@@ -18,7 +18,7 @@ class MajordomoNotifier(threading.Thread):
     def __init__(self, cfg, log, owner: Owner):
         super().__init__(name='Notifier')
         self._cfg = cfg['smarthome']
-        self.log = log[0]
+        self.log = log
         self.own = owner
         self._work = False
         self._queue = queue.Queue()
@@ -30,7 +30,7 @@ class MajordomoNotifier(threading.Thread):
             'volume', 'music_volume',
             'updater',
         )
-        self.outgoing = OutgoingSocket(self._cfg, lambda msg, lvl=logger.DEBUG: log[1]('O', msg, lvl), self.own)
+        self.outgoing = OutgoingSocket(self._cfg, log.add('O'), self.own)
 
     def _subscribe(self):
         # Подписываемся на нужные события, если нужно

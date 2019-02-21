@@ -11,8 +11,7 @@ from owner import Owner
 
 class MDTServer(SocketAPIHandler):
     def __init__(self, cfg, log, owner: Owner):
-        self._upgrade_log = lambda msg, lvl=logger_.DEBUG: log[1]('I', msg, lvl)
-        super().__init__(cfg, log[0], owner, name='MDTServer')
+        super().__init__(cfg, log, owner, name='MDTServer')
         self._local = ('', 7999)
         self._socket = socket.socket()
 
@@ -59,7 +58,7 @@ class MDTServer(SocketAPIHandler):
                         upgrade(line)
                         continue
                     if line == 'upgrade duplex':
-                        upgrade = UpgradeDuplexHandshake(self._cfg, self._upgrade_log, self.own, self._conn)
+                        upgrade = UpgradeDuplexHandshake(self._cfg, self.log.add('I'), self.own, self._conn)
                         continue
                     self._parse(line)
             finally:
@@ -80,9 +79,9 @@ def server_constructor(cfg, logger, owner: Owner, old=None) -> MDTServer or Dumm
     on = not cfg.gt('smarthome', 'disable_server')
 
     if old is None:
-        old = MDTServer(cfg=cfg, log=logger.add_plus('Server'), owner=owner) if on else DummyServer()
+        old = MDTServer(cfg=cfg, log=logger.add('Server'), owner=owner) if on else DummyServer()
     if isinstance(old, DummyServer):
-        old = MDTServer(cfg=cfg, log=logger.add_plus('Server'), owner=owner) if on else old
+        old = MDTServer(cfg=cfg, log=logger.add('Server'), owner=owner) if on else old
         old.start()
     elif isinstance(old, MDTServer):
         if not on:

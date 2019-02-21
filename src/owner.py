@@ -60,6 +60,19 @@ class Owner:
         """
         return self._pub.sub_call(channel, event, *args, **kwargs)
 
+    def messenger(self, call, callback, *args, **kwargs) -> bool:
+        """
+        Вызывает call (с параметрами) в специальном треде и в порядке очереди.
+        Если callback callable, вызовет его с результатом вызова (1 аргумент).
+        Можно использовать для вызова долго выполняющегося кода (например, до 0.5 сек).
+        :param call: callable.
+        :param callback: callable or None.
+        :param args: args.
+        :param kwargs: kwargs.
+        :return: Принято в обработку.
+        """
+        return self._messenger.call(call, callback, *args, **kwargs)
+
     def insert_module(self, module) -> bool:
         """
         Добавляет динамический модуль.
@@ -136,6 +149,13 @@ class Owner:
         Duplex mode активен.
         """
         return self._duplex_mode.duplex
+
+    def duplex_mode_off(self):
+        """
+        Закрыть активное соединение в duplex mode (если есть).
+        :return: None
+        """
+        return self._duplex_mode.off()
 
     def send_on_duplex_mode(self, data):
         """
@@ -375,10 +395,7 @@ class Owner:
             if is_sub_dict('smarthome', diff):
                 if 'disable_server' in diff['smarthome']:
                     # handle [smarthome] disable_server
-                    # FIXME: 'cannot join current thread' fixing hack
-                    hack = 'server_reload_hack'
-                    self.subscribe(hack, self.server_reload, hack)
-                    self.sub_call(hack, hack)
+                    self.messenger(self.server_reload, None)
                 # resubscribe
                 self._notifier.reload(diff)
             if is_sub_dict('noise_suppression', diff):
@@ -405,7 +422,7 @@ class Owner:
         # noinspection PyAttributeOutsideInit
         self._music = self._music_constructor(self._cfg, self._logger, self, self._music)
 
-    def server_reload(self, *_):
+    def server_reload(self):
         # noinspection PyAttributeOutsideInit
         self._server = self._server_constructor(self._cfg, self._logger, self, self._server)
 

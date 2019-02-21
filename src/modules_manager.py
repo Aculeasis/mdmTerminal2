@@ -104,7 +104,7 @@ class DynamicModule:
 
 class ModuleManager:
     def __init__(self, cfg, log, owner: Owner):
-        (self._log, self._m_log) = log
+        self._log = log
         self.cfg = cfg
         self.own = owner
         # Режим разработчика
@@ -270,7 +270,7 @@ class ModuleManager:
                     self.all[f_name][option] = val[option]
 
     def log(self, *args):
-        self._m_log(self._module_name, *args)
+        self._log.module(self._module_name, *args)
 
     def _set_one_way(self, f):
         self.one_way = f

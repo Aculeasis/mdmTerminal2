@@ -33,6 +33,10 @@ class DuplexMode(SocketAPIHandler):
         else:
             raise RuntimeError('duplex disabled')
 
+    def off(self):
+        if self.duplex:
+            self._conn.close()
+
     def _handle_upgrade_duplex(self, _, cmd, lock, conn):
         try:
             # Забираем сокет у сервера

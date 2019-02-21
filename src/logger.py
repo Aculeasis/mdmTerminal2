@@ -7,6 +7,7 @@ import threading
 import time
 import zlib
 from logging.handlers import RotatingFileHandler
+from functools import lru_cache
 
 from languages import LOGGER as LNG
 from owner import Owner
@@ -69,16 +70,29 @@ def _rotator(source, dest):
     os.remove(source)
 
 
+@lru_cache(maxsize=512)
+def _name_builder(names: tuple, colored_=False):
+    result = []
+    for num, name in enumerate(names):
+        result.append(colored(name, NAME_COLOR if not num else MODULE_COLOR) if colored_ else name)
+    return '->'.join(result)
+
+
 class _LogWrapper:
-    def __init__(self, name: str, print_):
+    def __init__(self, name: str or list, print_):
+        if isinstance(name, str):
+            name = [name]
         self.name = name
         self._print = print_
 
-    def p(self, msg, lvl=DEBUG):
+    def __call__(self, msg: str, lvl=DEBUG):
         self._print(self.name, msg, lvl)
 
-    def mp(self, module_name, msg, lvl=DEBUG):
-        self._print(self.name, msg, lvl, module_name)
+    def module(self, module_name: str, msg: str, lvl=DEBUG):
+        self._print(self.name + [module_name], msg, lvl)
+
+    def add(self, name: str):
+        return _LogWrapper(self.name + [name], self._print)
 
 
 class Logger(threading.Thread):
@@ -97,15 +111,16 @@ class Logger(threading.Thread):
         self._conn = None
         self._conn_raw = False
         self._queue = queue.Queue()
+        self.log = self.add('Logger')
         self._init()
-        self._print('Logger', 'start', INFO)
+        self.log('start', INFO)
         self.start()
 
     def reload(self):
         self._queue.put_nowait('reload')
 
     def join(self, timeout=None):
-        self._print('Logger', 'stop.', INFO)
+        self.log('stop.', INFO)
         self._queue.put_nowait(None)
         super().join()
 
@@ -121,12 +136,12 @@ class Logger(threading.Thread):
             elif isinstance(data, list) and len(data) == 3 and data[0] == 'remote_log':
                 self._add_connect(data[1], data[2])
             else:
-                self._print('Logger', 'Wrong data: {}'.format(repr(data)), ERROR)
+                self.log('Wrong data: {}'.format(repr(data)), ERROR)
         self._close_connect()
 
     def permission_check(self):
         if not write_permission_check(self._cfg.get('file')):
-            self._print('Logger', LNG['err_permission'].format(self._cfg.get('file')), CRIT)
+            self.log(LNG['err_permission'].format(self._cfg.get('file')), CRIT)
             return False
         return True
 
@@ -182,7 +197,7 @@ class Logger(threading.Thread):
         self._conn = conn
         self._conn_raw = raw
         self._conn.start_remote_log()
-        self._print('Logger', 'OPEN REMOTE LOG FOR {}:{}'.format(self._conn.ip, self._conn.port), WARN)
+        self.log('OPEN REMOTE LOG FOR {}:{}'.format(self._conn.ip, self._conn.port), WARN)
 
     def _close_connect(self):
         if self._conn:
@@ -194,36 +209,31 @@ class Logger(threading.Thread):
                 self._conn.close()
             except RuntimeError:
                 pass
-            self._print('Logger', 'CLOSE REMOTE LOG FOR {}:{}'.format(self._conn.ip, self._conn.port), WARN)
+                self.log('CLOSE REMOTE LOG FOR {}:{}'.format(self._conn.ip, self._conn.port), WARN)
             self._conn = None
 
-    def add(self, name):
-        return _LogWrapper(name, self._print).p
-
-    def add_plus(self, name):
-        _ = _LogWrapper(name, self._print)
-        return _.p, _.mp
+    def add(self, name) -> _LogWrapper:
+        return _LogWrapper(name, self._print)
 
     def _print(self, *args):
         self._queue.put_nowait((time.time(), *args))
 
-    def _best_print(self, l_time, name, msg, lvl, m_name=''):
+    def _best_print(self, l_time: float, names: list, msg: str, lvl: int):
+        names = tuple(names)
         if lvl not in COLORS:
             raise RuntimeError('Incorrect log level:{}'.format(lvl))
         print_line = None
         if self.in_print and lvl >= self.print_lvl:
-            print_line = self._to_print(name, msg, lvl, l_time, m_name)
+            print_line = self._to_print(names, msg, lvl, l_time)
             print(print_line)
         if self._conn:
             if self._conn_raw:
-                print_line = self._to_print_raw(name, msg, lvl, l_time, m_name)
+                print_line = self._to_print_raw(names, msg, lvl, l_time)
             elif print_line is None:
-                print_line = self._to_print(name, msg, lvl, l_time, m_name)
+                print_line = self._to_print(names, msg, lvl, l_time)
             self._to_remote_log(print_line)
         if self._app_log and lvl >= self.file_lvl:
-            if m_name:
-                name = '{}->{}'.format(name, m_name)
-            self._to_file(name, msg, lvl)
+            self._to_file(_name_builder(names), msg, lvl)
 
     def _to_file(self, name, msg, lvl):
         self._app_log.log(lvl, '{}: {}'.format(name, msg))
@@ -234,14 +244,12 @@ class Logger(threading.Thread):
             time_str += '.{:03d}'.format(int(l_time * 1000 % 1000))
         return time_str
 
-    def _to_print(self, name, msg, lvl, l_time, m_name) -> str:
-        m_name = '->{}'.format(colored(m_name, MODULE_COLOR)) if m_name else ''
+    def _to_print(self, names, msg, lvl, l_time) -> str:
         str_time = self._str_time(l_time)
-        return '{} {}{}: {}'.format(str_time, colored(name, NAME_COLOR), m_name, colored(msg, COLORS[lvl]))
+        return '{} {}: {}'.format(str_time, _name_builder(names, True), colored(msg, COLORS[lvl]))
 
-    def _to_print_raw(self, name, msg, lvl, l_time, m_name) -> str:
-        m_name = '->{}'.format(m_name) if m_name else ''
-        return '{} {} {}{}: {}'.format(self._str_time(l_time), LVL_NAME[lvl], name, m_name, msg)
+    def _to_print_raw(self, names, msg, lvl, l_time) -> str:
+        return '{} {} {}: {}'.format(self._str_time(l_time), LVL_NAME[lvl], _name_builder(names), msg)
 
     def _to_remote_log(self, line: str):
         if self._conn:
