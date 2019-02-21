@@ -5,6 +5,7 @@ from config import ConfigHandler
 from duplex_mode import DuplexMode
 from languages import LOADER as LNG
 from lib import STT, TTS
+from lib.available_version import available_version_msg
 from lib.messenger import Messenger
 from lib.proxy import proxies
 from lib.publisher import PubSub
@@ -35,7 +36,6 @@ class Loader(Owner):
         self._cfg = ConfigHandler(cfg=init_cfg, path=path, owner=self)
 
         self._logger = Logger(self._cfg['log'], self)
-        self._logger.add('mdmTerminal2')('version {} go!'.format(self._cfg.version_str), INFO)
 
         self._cfg.configure(self._logger.add('CFG'))
         self._listen = Listener(cfg=self._cfg, owner=self)
@@ -65,6 +65,7 @@ class Loader(Owner):
         self._terminal.start()
         self._server.start()
         self._plugins.start()
+        self.messenger(self._print_version, None)
 
     def stop_all_systems(self):
         self._cfg.config_save(final=True)
@@ -86,3 +87,6 @@ class Loader(Owner):
         self._logger.join()
         self._pub.join()
         self._messenger.join()
+
+    def _print_version(self):
+        self._logger.add('SYSTEM')(available_version_msg(self._cfg.version_info), INFO)
