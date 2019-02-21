@@ -11,6 +11,7 @@ echo 'After=network.target'
 
 
 echo '[Service]'
+echo 'User='${user}
 echo 'ExecStartPre=/bin/sleep 5'
 echo 'Environment=VIRTUAL_ENV='${repo_path}'/env'
 echo 'Environment=PATH='${repo_path}'/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
@@ -19,7 +20,8 @@ echo 'WorkingDirectory='${repo_path}
 echo 'StandardOutput=inherit'
 echo 'StandardError=inherit'
 echo 'Restart=always'
-echo 'User='${user}
+echo 'StartLimitInterval=300'
+echo 'StartLimitBurst=10'
 
 echo '[Install]'
 echo 'WantedBy=multi-user.target'
