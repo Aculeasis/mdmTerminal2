@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+import threading
+
 import mpd
 from pylms.server import Server as LMSServer  # install git+https://github.com/Aculeasis/PyLMS.git
 
@@ -91,16 +93,19 @@ class LMSControl(BaseControl):
         super().__init__(name, cfg, log, owner)
         self._lms = LMSServer()
         self._player = None
+        self._lock = threading.Lock()
 
     def reconnect_wrapper(self, func, *args):
         try:
-            return func(*args)
+            with self._lock:
+                return func(*args)
         except (AttributeError, IOError, EOFError, ValueError):
             self._connect()
             if not self.is_conn:
                 return None
             else:
-                return func(*args)
+                with self._lock:
+                    return func(*args)
 
     def _connect(self):
         if self.is_conn:
