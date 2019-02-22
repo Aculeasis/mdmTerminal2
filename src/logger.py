@@ -209,7 +209,7 @@ class Logger(threading.Thread):
                 self._conn.close()
             except RuntimeError:
                 pass
-                self.log('CLOSE REMOTE LOG FOR {}:{}'.format(self._conn.ip, self._conn.port), WARN)
+            self.log('CLOSE REMOTE LOG FOR {}:{}'.format(self._conn.ip, self._conn.port), WARN)
             self._conn = None
 
     def add(self, name) -> _LogWrapper:

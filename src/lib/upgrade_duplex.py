@@ -35,11 +35,11 @@ class UpgradeDuplexHandshake:
             cfg = cfg['smarthome']
         self.username = cfg.get('username', '')
         self.password = cfg.get('password', '')
-        self.address = (self.conn.ip, self.conn.port)
+        self.info = (self.conn.proto, self.conn.ip, self.conn.port)
         if incoming:
             self.__call__('upgrade duplex')
         else:
-            self.log('=== Start handshake {}:{} ==='.format(*self.address), logger.INFO)
+            self.log('=== Start handshake {}::{}:{} ==='.format(*self.info), logger.INFO)
             self.send('upgrade duplex')
 
     @property
@@ -55,12 +55,12 @@ class UpgradeDuplexHandshake:
             msg = 'BROKEN {} {}'.format(self.stage, msg)
             self.send(msg)
             self.log(msg, logger.WARN)
-        self.log('=== Broke handshake {}:{} ==='.format(*self.address), logger.WARN)
+        self.log('=== Broke handshake {}::{}:{} ==='.format(*self.info), logger.WARN)
         self.end()
 
     def get_broken(self, msg: str):
         self.log('Received: {}'.format(msg), logger.WARN)
-        self.log('=== Broke handshake {}:{} ==='.format(*self.address), logger.WARN)
+        self.log('=== Broke handshake {}::{}:{} ==='.format(*self.info), logger.WARN)
         self.end()
 
     def say(self, line: str):
@@ -79,7 +79,7 @@ class UpgradeDuplexHandshake:
         cmd = 'upgrade duplex'
         if self.own.has_subscribers(cmd, cmd):
             self._success = True
-            self.log('===== End handshake {}:{} ==='.format(*self.address), logger.INFO)
+            self.log('===== End handshake {}::{}:{} ==='.format(*self.info), logger.INFO)
             lock = Unlock()
             self.own.sub_call(cmd, cmd, 'upgrade duplex ok' if self._incoming else '', lock, self.conn)
             lock.wait(30)
@@ -112,7 +112,7 @@ class UpgradeDuplexHandshake:
             return line_[1] if len(line_) == 2 else ''
 
         if not self.stage and line_l == 'upgrade duplex':
-            self.log('=== Start handshake {}:{} ==='.format(*self.address), logger.INFO)
+            self.log('=== Start handshake {}::{}:{} ==='.format(*self.info), logger.INFO)
             if self.username:
                 self.send('LOGIN')
                 self.stage = 1

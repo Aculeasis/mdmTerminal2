@@ -1,22 +1,29 @@
-import socket
+
 import threading
 import time
 
 import logger
-from lib.socket_wrapper import Connect
+from lib.socket_wrapper import create_connection
 from lib.upgrade_duplex import UpgradeDuplexHandshake
 from owner import Owner
 
 
 def _get_address(outgoing_socket: str) -> tuple:
     try:
-        ip, port = outgoing_socket.split(':', 1)
+        data = [x for x in outgoing_socket.split(':') if x]
+        if len(data) == 3:
+            proto, ip, port = data
+            proto = proto.lower()
+        else:
+            proto, (ip, port) = 'tcp', data
+        if proto not in ('tcp', 'tls', 'ws', 'wss'):
+            raise ValueError('Unknown protocol: {}'.format(proto))
         port = int(port)
         if port < 1:
             raise ValueError('port must be positive integer: {}'.format(port))
     except (ValueError, TypeError) as e:
         raise RuntimeError(e)
-    return ip, port
+    return proto, ip, port
 
 
 class OutgoingSocket(threading.Thread):
@@ -74,21 +81,17 @@ class OutgoingSocket(threading.Thread):
         if not outgoing_socket or self.own.duplex_mode_on:
             return False
         try:
-            address = _get_address(outgoing_socket)
+            proto, *address = _get_address(outgoing_socket)
         except RuntimeError as e:
             self.log('outgoing_socket: {}'.format(e), logger.CRIT)
             return False
 
-        soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        soc.settimeout(10)
-
         try:
-            soc.connect(address)
-        except (BrokenPipeError, ConnectionResetError, ConnectionRefusedError, OSError) as e:
-            self.log('Connect to {}:{}: {}'.format(*address, e), logger.ERROR)
+            soc = create_connection(proto, *address)
+        except RuntimeError as e:
+            self.log('Connect to {}::{}:{}: {}'.format(proto.upper(), *address, e), logger.ERROR)
             return False
 
-        soc = Connect(soc, address, lambda *_, **__: False)
         upgrade = UpgradeDuplexHandshake(self.cfg, self.log, self.own, soc, incoming=False)
         try:
             upgrade.outgoing()

@@ -63,24 +63,27 @@ class DuplexMode(SocketAPIHandler):
             conn = self._queue.get()
             if not conn:
                 break
+
             self._conn, cmd = conn
+            info = (self._conn.proto.upper(), self._conn.ip, self._conn.port)
             self.duplex = True
             self._notify_duplex('open')
+
             try:
                 self._conn.write(cmd or 'ping:{}'.format(time.time()))
             except RuntimeError as e:
                 self._api_close()
-                self.log('OPEN ERROR {}:{}: {}'.format(self._conn.ip, self._conn.port, e), logger.ERROR)
+                self.log('OPEN ERROR {}::{}:{}: {}'.format(*info, e), logger.ERROR)
                 self._notify_duplex('close')
                 continue
             else:
-                self.log('OPEN {}:{}'.format(self._conn.ip, self._conn.port), logger.INFO)
+                self.log('OPEN {}::{}:{}'.format(*info), logger.INFO)
 
             try:
                 for line in self._conn.read():
                     self._parse(line)
             finally:
                 self._api_close()
-                self.log('CLOSE {}:{}'.format(self._conn.ip, self._conn.port), logger.INFO)
+                self.log('CLOSE {}::{}:{}'.format(*info), logger.INFO)
                 self._notify_duplex('close')
         self._api_close()
