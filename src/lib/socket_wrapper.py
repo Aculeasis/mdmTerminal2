@@ -246,8 +246,8 @@ class Connect:
         while self._work:
             try:
                 chunk = self._conn.read()
-                if not isinstance(chunk, str):
-                    raise RuntimeError('WebSocket support text data only, get: {}'.format(type(chunk)))
+                if chunk is None:
+                    continue
                 if not self._conn.auth:
                     if not self._ws_auth(chunk):
                         return
@@ -304,11 +304,19 @@ class WSClientAdapter(websocket.WebSocket):
 
     def read(self, *_):
         try:
-            return self.recv()
+            return self._read()
         except websocket.WebSocketTimeoutException:
             raise socket.timeout()
         except (websocket.WebSocketException, TypeError, ValueError) as e:
             raise RuntimeError(e)
+
+    def _read(self):
+        with self.readlock:
+            opcode, data = self.recv_data()
+        if opcode == websocket.ABNF.OPCODE_TEXT:
+            return data.decode("utf-8")
+        else:
+            return None
 
 
 class WSServerAdapter(WSClientAdapter):
