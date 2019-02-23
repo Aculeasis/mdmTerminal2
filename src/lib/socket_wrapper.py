@@ -329,6 +329,11 @@ class WSServerAdapter(WSClientAdapter):
         self.handshaked = False
         self.chunk_size = chunk_size
 
+    def send_frame(self, frame):
+        # A server must not mask any frames that it sends to the client.
+        frame.mask = 0
+        return super().send_frame(frame)
+
     def recv(self):
         if not self.handshaked:
             with self.readlock:
