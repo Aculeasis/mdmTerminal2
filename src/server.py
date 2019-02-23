@@ -61,6 +61,8 @@ class MDTServer(SocketAPIHandler):
                         upgrade = UpgradeDuplexHandshake(self._cfg, self.log.add('I'), self.own, self._conn)
                         continue
                     self._parse(line)
+            except RuntimeError as e:
+                self.log('Error: {}'.format(e), logger_.ERROR)
             finally:
                 upgrade = None
                 self._conn.close()

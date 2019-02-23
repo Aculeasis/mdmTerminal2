@@ -8,12 +8,12 @@ This code was modified by Aculeasis, 2019
 
 import base64
 import hashlib
+import http.client
 import json
 import socket
 import ssl
 import threading
 import time
-from http.server import BaseHTTPRequestHandler
 from io import BytesIO
 
 import websocket  # pip install websocket-client
@@ -48,7 +48,7 @@ class Connect:
 
     def __init__(self, conn, ip_info, ws_allow, work=True):
         self._conn = conn
-        self._is_ws = isinstance(conn, (WSServerAdapter, WSClientAdapter))
+        self._is_ws = isinstance(conn, websocket.WebSocket)
         self._ip_info = ip_info
         self._ws_allow = ws_allow
         self._work = work
@@ -96,7 +96,7 @@ class Connect:
             if self._is_ws:
                 try:
                     self._conn.close(timeout=0.5)
-                except (RuntimeError, AttributeError):
+                except AttributeError:
                     pass
             else:
                 try:
@@ -116,7 +116,7 @@ class Connect:
 
     def insert(self, conn, ip_info):
         self._conn = conn
-        self._is_ws = isinstance(conn, (WSServerAdapter, WSClientAdapter))
+        self._is_ws = isinstance(conn, websocket.WebSocket)
         self._ip_info = ip_info
 
     def read(self):
@@ -216,7 +216,7 @@ class Connect:
 
                 if first_line and line.startswith(WS_MARK):
                     # websocket
-                    self.insert(WSServerAdapter(self._conn, CRLF.join((line, data)), self.CHUNK_SIZE), self._ip_info)
+                    self.insert(WSServerAdapter(self._conn, data, self.CHUNK_SIZE), self._ip_info)
                     del line, data
                     for chunk in self._ws_reader():
                         yield chunk
@@ -288,15 +288,6 @@ class WebSocketCap(threading.Thread):
             time.sleep(0.3)
 
 
-class HTTPRequest(BaseHTTPRequestHandler):
-    # noinspection PyMissingConstructor
-    def __init__(self, request_text):
-        self.rfile = BytesIO(request_text)
-        self.raw_requestline = self.rfile.readline()
-        self.error_code = self.error_message = None
-        self.parse_request()
-
-
 class WSClientAdapter(websocket.WebSocket):
     def __init__(self, get_mask_key=None, sockopt=None, sslopt=None, fire_cont_frame=False, enable_multithread=False,
                  skip_utf8_validation=False, **_):
@@ -323,49 +314,45 @@ class WSClientAdapter(websocket.WebSocket):
 class WSServerAdapter(WSClientAdapter):
     def __init__(self, conn, init=b'', chunk_size=1024*4):
         super().__init__()
-        self._init_data = init
         self.sock = conn
         self.connected = True
-        self.handshaked = False
-        self.chunk_size = chunk_size
+        with self.readlock, self.lock:
+            timeout = self.sock.gettimeout()
+            self.sock.settimeout(10)
+            try:
+                self._handshake(init, chunk_size)
+            except Exception as e:
+                self.shutdown()
+                raise RuntimeError(e)
+            self.sock.settimeout(timeout)
 
     def send_frame(self, frame):
         # A server must not mask any frames that it sends to the client.
         frame.mask = 0
         return super().send_frame(frame)
 
-    def recv(self):
-        if not self.handshaked:
-            with self.readlock:
-                timeout = self.sock.gettimeout()
-                self.sock.settimeout(10)
-                self._handshake()
-                self.sock.settimeout(timeout)
-        return super().recv()
-
-    def _handshake(self):
+    def _handshake(self, init_data, chunk_size):
         def raw_send(msg):
-            with self.lock:
-                while msg:
-                    sending = self._send(msg)
-                    msg = msg[sending:]
+            while msg:
+                sending = self._send(msg)
+                msg = msg[sending:]
 
         max_header = 65536
         header_buffer = bytearray()
-        while not self.handshaked:
-            if self._init_data:
-                data, self._init_data = self._init_data, None
+        while True:
+            if init_data:
+                data, init_data = init_data, None
                 timeout = self.sock.gettimeout()
                 self.sock.settimeout(0.0)
                 try:
-                    data += self.sock.recv(self.chunk_size)
+                    data += self.sock.recv(chunk_size)
                 except socket.error:
                     pass
                 finally:
                     self.sock.settimeout(timeout)
             else:
                 try:
-                    data = self.sock.recv(self.chunk_size)
+                    data = self.sock.recv(chunk_size)
                 except Exception as e:
                     raise RuntimeError(e)
 
@@ -379,21 +366,18 @@ class WSServerAdapter(WSClientAdapter):
 
             # indicates end of HTTP header
             if b'\r\n\r\n' in header_buffer:
-                self.request = HTTPRequest(header_buffer)
-
                 # handshake rfc 6455
                 try:
-                    key = self.request.headers['Sec-WebSocket-Key']
+                    key = http.client.parse_headers(BytesIO(header_buffer))['Sec-WebSocket-Key']
                     k = key.encode('ascii') + GUID_STR.encode('ascii')
                     k_s = base64.b64encode(hashlib.sha1(k).digest()).decode('ascii')
                     raw_send(HANDSHAKE_STR.format(acceptstr=k_s))
-                    self.handshaked = True
+                    return
                 except Exception as e:
                     try:
                         raw_send(FAILED_HANDSHAKE_STR)
-                    except RuntimeError:
+                    except websocket.WebSocketException:
                         pass
-                    self.shutdown()
                     raise RuntimeError('handshake failed: {}'.format(e))
 
 
