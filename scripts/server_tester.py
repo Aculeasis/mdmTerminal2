@@ -1,12 +1,35 @@
 #!/usr/bin/env python3
 
 import argparse
+import base64
 import cmd as cmd__
+import hashlib
+import http.client
 import socket
 import threading
+import time
+from io import BytesIO
 
+import websocket
+
+HANDSHAKE_STR = (
+    "HTTP/1.1 101 Switching Protocols\r\n"
+    "Upgrade: WebSocket\r\n"
+    "Connection: Upgrade\r\n"
+    "Sec-WebSocket-Accept: {acceptstr}\r\n\r\n"
+)
+FAILED_HANDSHAKE_STR = (
+    "HTTP/1.1 426 Upgrade Required\r\n"
+    "Upgrade: WebSocket\r\n"
+    "Connection: Upgrade\r\n"
+    "Sec-WebSocket-Version: 13\r\n"
+    "Content-Type: text/plain\r\n\r\n"
+    "This service requires use of the WebSocket protocol\r\n"
+)
+GUID_STR = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
 ERRORS = (BrokenPipeError, ConnectionResetError, ConnectionRefusedError, OSError)
 CRLF = b'\r\n'
+WS_MARK = b'GET '
 
 
 def arg_parser():
@@ -23,14 +46,92 @@ def split_line(line: str) -> str:
     return line[1] if len(line) == 2 else ''
 
 
+def get_headers(request_text):
+    return http.client.parse_headers(BytesIO(request_text))
+
+
+class WebSocketServer(websocket.WebSocket):
+    def __init__(self, sock, init, fire_cont_frame=False, enable_multithread=False, skip_utf8_validation=False, **_):
+        super().__init__(fire_cont_frame, enable_multithread, skip_utf8_validation)
+        self.sock = sock
+        self.connected = True
+        self.handshake(init)
+
+    def handshake(self, init_data):
+        with self.lock, self.readlock:
+            old_timeout = self.sock.gettimeout()
+            self.sock.settimeout(5)
+            try:
+                self._handshake(init_data)
+            except Exception as e:
+                self.shutdown()
+                raise RuntimeError(e)
+            self.sock.settimeout(old_timeout)
+
+    def send_frame(self, frame):
+        # A server must not mask any frames that it sends to the client.
+        frame.mask = 0
+        return super().send_frame(frame)
+
+    def _handshake(self, init_data):
+        def raw_send(msg):
+            while msg:
+                sending = self._send(msg)
+                msg = msg[sending:]
+
+        chunk_size = 1024 * 4
+        max_header = 65536
+        header_buffer = bytearray()
+        while True:
+            if init_data:
+                data, init_data = init_data, None
+                timeout = self.sock.gettimeout()
+                self.sock.settimeout(0.0)
+                try:
+                    data += self.sock.recv(chunk_size)
+                except socket.error:
+                    pass
+                finally:
+                    self.sock.settimeout(timeout)
+            else:
+                try:
+                    data = self.sock.recv(chunk_size)
+                except Exception as e:
+                    raise RuntimeError(e)
+            if not data:
+                raise RuntimeError('Remote socket closed')
+            # accumulate
+            header_buffer.extend(data)
+
+            if len(header_buffer) >= max_header:
+                raise RuntimeError('Header exceeded allowable size')
+
+            # indicates end of HTTP header
+            if b'\r\n\r\n' in header_buffer:
+                # handshake rfc 6455
+                try:
+                    key = get_headers(header_buffer)['Sec-WebSocket-Key']
+                    k = key.encode('ascii') + GUID_STR.encode('ascii')
+                    k_s = base64.b64encode(hashlib.sha1(k).digest()).decode('ascii')
+                    raw_send(HANDSHAKE_STR.format(acceptstr=k_s))
+                    return
+                except Exception as e:
+                    try:
+                        raw_send(FAILED_HANDSHAKE_STR)
+                    except websocket.WebSocketException:
+                        pass
+                    raise RuntimeError(e)
+
+
 class Server(threading.Thread):
     def __init__(self, data):
         super().__init__()
         self.args = data
         self.socket = socket.socket()
         self.work = True
-        self.close = False
+        self.closed = False
         self.connected = None
+        self.ws = None
         self._lock = threading.Lock()
         print('Server {}:{}'.format(data.ip, data.port))
         print('username: {}'.format(data.username))
@@ -38,21 +139,46 @@ class Server(threading.Thread):
         print()
 
     def stop(self):
-        self.close = True
         self.work = False
+        self.close()
         self.join(20)
 
+    def _ws_close(self):
+        try:
+            self.ws.close()
+        except websocket.WebSocketException:
+            pass
+
+    def _sock_close(self):
+        self.connected.sendall(CRLF*2)
+        self.connected.close()
+
+    def close(self):
+        with self._lock:
+            if self.ws:
+                self._ws_close()
+            elif self.connected:
+                self._sock_close()
+            self.ws = None
+            self.connected = None
+            self.closed = True
+
     def send(self, data: str = ''):
-        data = self._send(data)
+        with self._lock:
+            data = self._send(data)
         if data:
             print('send -> {}'.format(data))
 
     def _send(self, data: str) -> str:
         if not self.connected:
-            return 'no clients'
+            return 'no clients' if data else ''
         else:
             try:
-                with self._lock:
+                if not data:
+                    self.close()
+                elif self.ws:
+                    self.ws.send(data)
+                else:
                     self.connected.sendall(data.encode() + CRLF)
             except Exception as e:
                 return 'ERROR: {}'.format(e)
@@ -72,7 +198,7 @@ class Server(threading.Thread):
             client.settimeout(2)
             print()
             print('Connected {}:{} ...'.format(*address))
-            self.close = False
+            self.closed = False
             self.connected = client
             try:
                 self.handler(client)
@@ -80,7 +206,7 @@ class Server(threading.Thread):
                 print('ERROR: {}'.format(e))
             finally:
                 self.connected = None
-                self.close = True
+                self.closed = True
                 print('Disconnected {}:{}.'.format(*address))
                 client.close()
         print()
@@ -92,11 +218,19 @@ class Server(threading.Thread):
             self.send('BROKEN {}'.format(msg))
         print('=== Broken handshake ===')
 
+    @staticmethod
+    def pong(line: str):
+        try:
+            diff_ms = int((time.time() - float(line.split(':', 1)[1])) * 1000)
+        except (TypeError, IndexError, ValueError):
+            return
+        print('PING: {} ms'.format(diff_ms))
+
     def handler(self, client):
         stage = 0
 
         for line in self.reader(client):
-            if self.close:
+            if self.closed:
                 break
             line_l = line.lower()
             if stage == 3:
@@ -104,6 +238,8 @@ class Server(threading.Thread):
                     data = line_l.split(':', 1)
                     data[0] = 'pong'
                     self.send(':'.join(data))
+                elif line_l.startswith('pong:'):
+                    self.pong(line)
                 continue
             if not stage and line_l == 'upgrade duplex':
                 print('=== Start handshake ===')
@@ -142,11 +278,12 @@ class Server(threading.Thread):
                 break
             elif line_l.startswith('say'):
                 print('SAY: {}'.format(line[3:].lstrip()))
-        self.send()
+        self.close()
 
     def reader(self, client):
         data = b''
-        while self.work and not self.close:
+        first = True
+        while self.work and not self.closed:
             try:
                 chunk = client.recv(1024)
             except socket.timeout:
@@ -160,17 +297,37 @@ class Server(threading.Thread):
                 line, data = data.split(CRLF, 1)
                 if not line:
                     return
+                if first and line.startswith(WS_MARK):
+                    self.ws = WebSocketServer(client, data, enable_multithread=True)
+                    print('UPGRADE: Socket -> WebSocket')
+                    for line in self.ws_reader():
+                        yield line
+                    return
                 try:
                     line = line.decode()
                 except UnicodeDecodeError:
                     continue
+
                 print('recv <- {}'.format(line))
                 yield line
+
+    def ws_reader(self):
+        while self.ws.connected and self.work and not self.closed:
+            try:
+                line = self.ws.recv()
+            except websocket.WebSocketTimeoutException:
+                continue
+            except websocket.WebSocketException:
+                break
+            if not line:
+                continue
+            print('recv <- {}'.format(line))
+            yield line
 
 
 class TestShell(cmd__.Cmd):
     intro = 'Welcome to the test shell. Type help or ? to list commands.\n'
-    prompt = '~# '
+    prompt = ''
 
     def __init__(self):
         super().__init__()
@@ -178,7 +335,12 @@ class TestShell(cmd__.Cmd):
         self.server.start()
 
     def default(self, line):
-        self.server.send(line)
+        if line:
+            self.server.send(line)
+
+    def do_ping(self, _):
+        """Ping."""
+        self.server.send('ping:{}'.format(time.time()))
 
     def do_exit(self, _):
         """Выход из оболочки"""
@@ -188,8 +350,7 @@ class TestShell(cmd__.Cmd):
 
     def do_close(self, _):
         """Закрыть текущее соединение"""
-        self.server.send()
-        self.server.close = True
+        self.server.close()
 
 
 if __name__ == '__main__':
