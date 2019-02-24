@@ -6,7 +6,6 @@ from duplex_mode import DuplexMode
 from languages import LOADER as LNG
 from lib import STT, TTS
 from lib.available_version import available_version_msg
-from lib.messenger import Messenger
 from lib.proxy import proxies
 from lib.publisher import PubSub
 from listener import Listener
@@ -27,7 +26,6 @@ class Loader(Owner):
         super().__init__(die_in)
         self._music_constructor = music_constructor
         self._server_constructor = server_constructor
-        self._messenger = Messenger()
         self._pub = PubSub()
 
         self._stt_providers = STT.PROVIDERS
@@ -86,7 +84,6 @@ class Loader(Owner):
         self._music.join(20)
         self._logger.join()
         self._pub.join()
-        self._messenger.join()
 
     def _print_version(self):
         self._logger.add('SYSTEM')(available_version_msg(self._cfg.version_info), INFO)

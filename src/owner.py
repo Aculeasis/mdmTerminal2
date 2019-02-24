@@ -1,7 +1,7 @@
 import threading
 
 from lib import volume as volume_
-from utils import state_cache
+from utils import state_cache, Messenger
 
 
 class Owner:
@@ -60,18 +60,18 @@ class Owner:
         """
         return self._pub.sub_call(channel, event, *args, **kwargs)
 
-    def messenger(self, call, callback, *args, **kwargs) -> bool:
+    @staticmethod
+    def messenger(call, callback, *args, **kwargs) -> bool:
         """
-        Вызывает call (с параметрами) в специальном треде и в порядке очереди.
+        Вызывает call (с параметрами) в отдельном треде.
         Если callback callable, вызовет его с результатом вызова (1 аргумент).
-        Можно использовать для вызова долго выполняющегося кода (например, до 0.5 сек).
         :param call: callable.
         :param callback: callable or None.
         :param args: args.
         :param kwargs: kwargs.
-        :return: Принято в обработку.
+        :return: запущено.
         """
-        return self._messenger.call(call, callback, *args, **kwargs)
+        return Messenger(call, callback, *args, **kwargs)()
 
     def insert_module(self, module) -> bool:
         """

@@ -93,6 +93,25 @@ class Popen:
         return self._popen.stdout.read().decode()
 
 
+class Messenger(threading.Thread):
+    def __init__(self, call, callback, *args, **kwargs):
+        super().__init__(name='Messenger')
+        self.call = call if callable(call) else None
+        self.callback = callback if callable(callback) else None
+        self.args, self.kwargs = args, kwargs
+
+    def __call__(self) -> bool:
+        if not self.call:
+            return False
+        self.start()
+        return True
+
+    def run(self):
+        result = self.call(*self.args, **self.kwargs)
+        if self.callback:
+            self.callback(result)
+
+
 def get_ip_address():
     s = socket.socket(type=socket.SOCK_DGRAM)
     s.connect(('8.8.8.8', 80))
