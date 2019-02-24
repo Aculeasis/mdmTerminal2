@@ -152,7 +152,10 @@ class Connect:
         data = {'cmd': cmd, 'code': code, 'msg': msg}
         if pmdl_name is not None:
             data['filename'] = pmdl_name
-        self.write(data)
+        try:
+            self.write(data)
+        except RuntimeError:
+            pass
         raise RuntimeError(msg)
 
     def _conn_sender(self, data):
@@ -238,14 +241,14 @@ class Connect:
     def _ws_sender(self, data):
         if self._conn.auth:
             try:
-                self._conn.write(data)
-            except AttributeError as e:
+                self._conn.send(data)
+            except ALL_EXCEPTS as e:
                 raise RuntimeError(e)
 
     def _ws_reader(self):
         while self._work:
             try:
-                chunk = self._conn.read()
+                chunk = self._conn.recv()
                 if chunk is None:
                     continue
                 if not self._conn.auth:
@@ -253,12 +256,12 @@ class Connect:
                         return
                     continue
                 yield chunk
-            except socket.timeout:
+            except websocket.WebSocketTimeoutException:
                 if self._r_wait:
                     continue
                 else:
                     break
-            except (RuntimeError, AttributeError, socket.error):
+            except (websocket.WebSocketException, TypeError, ValueError, AttributeError):
                 break
 
     def _ws_auth(self, chunk) -> bool:
@@ -266,8 +269,8 @@ class Connect:
             self._conn.auth = True
             return True
         try:
-            self._conn.write(AUTH_FAILED)
-        except RuntimeError:
+            self._conn.send(AUTH_FAILED)
+        except ALL_EXCEPTS:
             pass
         self.close()
         return False
@@ -282,8 +285,10 @@ class WebSocketCap(threading.Thread):
     def run(self):
         while self._ws.connected:
             try:
-                self._ws.read()
-            except (RuntimeError, socket.error):
+                self._ws.recv()
+            except websocket.WebSocketTimeoutException:
+                pass
+            except (websocket.WebSocketException, TypeError, ValueError, AttributeError):
                 break
             time.sleep(0.3)
 
@@ -296,21 +301,7 @@ class WSClientAdapter(websocket.WebSocket):
         self.poll = None
         self.auth = False
 
-    def write(self, data):
-        try:
-            self.send(data)
-        except ALL_EXCEPTS as e:
-            raise RuntimeError(e)
-
-    def read(self, *_):
-        try:
-            return self._read()
-        except websocket.WebSocketTimeoutException:
-            raise socket.timeout()
-        except (websocket.WebSocketException, TypeError, ValueError) as e:
-            raise RuntimeError(e)
-
-    def _read(self):
+    def recv(self):
         with self.readlock:
             opcode, data = self.recv_data()
         if opcode == websocket.ABNF.OPCODE_TEXT:

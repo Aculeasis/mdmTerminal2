@@ -21,7 +21,7 @@ REQUEST_ERRORS = (requests.exceptions.RequestException, urllib3.exceptions.NewCo
 
 class RuntimeErrorTrace(RuntimeError):
     def __init__(self, *args):
-        super().__init__('{}: {}'.format(' '.join([repr(arg) for arg in args]), traceback.format_exc()))
+        super().__init__('{},  Traceback: \n{}'.format(args, traceback.format_exc()))
 
 
 class SignalHandler:
