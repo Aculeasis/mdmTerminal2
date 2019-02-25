@@ -148,16 +148,6 @@ class Connect:
         if self._is_ws and self._conn.poll is None:
             self._conn.poll = WebSocketCap(self._conn)
 
-    def raise_recv_err(self, cmd, code, msg, pmdl_name=None):
-        data = {'cmd': cmd, 'code': code, 'msg': msg}
-        if pmdl_name is not None:
-            data['filename'] = pmdl_name
-        try:
-            self.write(data)
-        except RuntimeError:
-            pass
-        raise RuntimeError(msg)
-
     def _conn_sender(self, data):
         if not data:
             data = ''

@@ -16,7 +16,7 @@ class MDTServer(SocketAPIHandler):
         self._socket = socket.socket()
 
     def do_ws_allow(self, ip, port, token):
-        ws_token = self._cfg.gt('system', 'ws_token')
+        ws_token = self.cfg.gt('system', 'ws_token')
         allow = ws_token and ws_token == token
         msg = '{} upgrade socket to webSocket from {}:{}'.format('Allow' if allow else 'Ignore', ip, port)
         self.log(msg, logger_.DEBUG if allow else logger_.WARN)
@@ -47,7 +47,7 @@ class MDTServer(SocketAPIHandler):
                 self._conn.settimeout(5.0)
             except socket.timeout:
                 continue
-            allow = self._cfg.allow_connect(self._conn.ip)
+            allow = self.cfg.allow_connect(self._conn.ip)
             msg = '{} new connection from {}:{}'.format('Allow' if allow else 'Ignore', self._conn.ip, self._conn.port)
             self.log(msg, logger_.DEBUG if allow else logger_.WARN)
             try:
@@ -56,11 +56,10 @@ class MDTServer(SocketAPIHandler):
                 for line in self._conn.read():
                     if upgrade:
                         upgrade(line)
-                        continue
-                    if line == 'upgrade duplex':
-                        upgrade = UpgradeDuplexHandshake(self._cfg, self.log.add('I'), self.own, self._conn)
-                        continue
-                    self._parse(line)
+                    elif line == 'upgrade duplex':
+                        upgrade = UpgradeDuplexHandshake(self.cfg, self.log.add('I'), self.own, self._conn)
+                    else:
+                        self.parse(line)
             except RuntimeError as e:
                 self.log('Error: {}'.format(e), logger_.ERROR)
             finally:

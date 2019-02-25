@@ -133,6 +133,17 @@ class TestShell(cmd__.Cmd):
             return 'tts:{}'.format(data['body']['qry'])
         elif data['cmd'] == 'api':
             return print('api: {}'.format(repr(data['body'])))
+        elif data['cmd'] == 'info':
+            for key in ('cmd', 'msg'):
+                if key not in data['body']:
+                    return print('Не хватает ключа в body: {}'.format(key))
+            if isinstance(data['body']['cmd'], (list, dict)):
+                data['body']['cmd'] = ', '.join(x for x in data['body']['cmd'])
+            if isinstance(data['body']['msg'], str) and '\n' in data['body']['msg']:
+                data['body']['msg'] = '\n' + data['body']['msg']
+            print('\nINFO: {}'.format(data['body']['cmd']))
+            print('MSG: {}\n'.format(data['body']['msg']))
+            return
         else:
             result = 'Неизвестная команда: {}'.format(repr(data['cmd']))
         print('Ответ на {}: {}'.format(repr(data['cmd']), result))

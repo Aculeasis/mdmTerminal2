@@ -81,7 +81,7 @@ class DuplexMode(SocketAPIHandler):
 
             try:
                 for line in self._conn.read():
-                    self._parse(line)
+                    self.parse(line)
             finally:
                 self._api_close()
                 self.log('CLOSE {}::{}:{}'.format(*info), logger.INFO)
