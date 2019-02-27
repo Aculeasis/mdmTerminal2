@@ -205,12 +205,6 @@ SERVER = {
     'err_start_say': 'Ошибка запуска сервера{}.',
     'err_already_use': ' - адрес уже используется',
     'err_start': 'Ошибка запуска сервера на {}:{}: {}',
-    'no_data': 'Нет данных',
-    'get_data': 'Получены данные: {}',
-    'unknown_cmd': 'Неизвестная команда: {}',
-    'no_implement': 'Not implemented yet - {}:{}',
-    'err_rec_param': 'Ошибка разбора параметров для \'rec\': {}',
-    'unknown_rec_cmd': 'Неизвестная команда для rec: {}',
 }
 
 STTS = {

@@ -6,7 +6,6 @@ import threading
 import time
 
 import logger
-from languages import SERVER as LNG
 from lib.socket_wrapper import Connect
 from owner import Owner
 from utils import file_to_base64, pretty_time
@@ -52,12 +51,10 @@ class InternalException(BaseAPIException):
 
 class ReturnException(BaseAPIException):
     RETURN = True
-    pass
 
 
 class NoReturnException(BaseAPIException):
     RETURN = False
-    pass
 
 
 class API:
@@ -152,10 +149,10 @@ class API:
         cmd = repr(cmd)[:100] if cmd else '\'Unknown\''
         self.log('API.{} Received reply to {}: {}'.format(name, cmd, result), logger.INFO)
 
-    def _api_no_implement(self, name: str, cmd: str):
+    def _api_no_implement(self, cmd: str, _):
         """NotImplemented"""
         # home, url, rtsp, run
-        raise InternalException(msg=LNG['no_implement'].format(name, cmd))
+        raise InternalException(msg='Not implemented yet - {}'.format(cmd))
 
     def _api_terminal_direct(self, name: str, cmd: str):
         # hi, voice, tts, ask, volume, volume_q
@@ -175,7 +172,7 @@ class API:
     def _api_rec(self, _, cmd: str):
         param = cmd.split('_')  # должно быть вида rec_1_1, play_2_1, compile_5_1
         if len(param) != 3 or sum([1 if len(x) else 0 for x in param]) != 3:
-            raise InternalException(mgs=LNG['err_rec_param'].format(param))
+            raise InternalException(msg='Error parsing parameters for \'rec\': {}'.format(repr(param)[:1500]))
         # a = param[0]  # rec, play или compile
         # b = param[1]  # 1-6
         # c = param[2]  # 1-3
@@ -188,7 +185,7 @@ class API:
         elif param[0] == 'rollback':
             self.own.manual_rollback()
         else:
-            raise InternalException(2, LNG['unknown_rec_cmd'].format(param[0]))
+            raise InternalException(2, 'Unknown command for \'rec\': {}'.format(repr(param[0])[:100]))
 
     def _api_send_model(self, _, data: str):
         """
@@ -403,10 +400,10 @@ class SocketAPIHandler(threading.Thread, API):
     def parse(self, data: str):
         if not data:
             self._internal_error_reply(5001, '', 'no data')
-            self.log(LNG['no_data'])
+            self.log('No data')
             return
         else:
-            self.log(LNG['get_data'].format(data[:1500]))
+            self.log('Received data: {}'.format(repr(data)[:1500]))
 
         if data.startswith('{') and data.endswith('}'):
             cmd = (self.REPLY, data)
@@ -434,7 +431,7 @@ class SocketAPIHandler(threading.Thread, API):
         elif cmd[0] in self.API:
             self._call_api(*cmd)
         else:
-            msg = LNG['unknown_cmd'].format(cmd[0])
+            msg = 'Unknown command: {}'.format(repr(cmd[0])[:100])
             self.log(msg, logger.WARN)
             self._internal_error_reply(5002, cmd[0], msg)
 
