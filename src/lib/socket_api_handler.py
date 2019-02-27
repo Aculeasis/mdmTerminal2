@@ -1,4 +1,5 @@
 import base64
+import hashlib
 import json
 import os
 import threading
@@ -9,6 +10,16 @@ from languages import SERVER as LNG
 from lib.socket_wrapper import Connect
 from owner import Owner
 from utils import file_to_base64, pretty_time
+
+
+def upgrade_duplex(own: Owner, soc: Connect, msg=''):
+    cmd = 'upgrade duplex'
+    if own.has_subscribers(cmd, cmd):
+        lock = Unlock()
+        own.sub_call(cmd, cmd, msg, lock, soc)
+        lock.wait(30)
+    else:
+        raise RuntimeError('No subscribers: {}'.format(cmd))
 
 
 class BaseAPIException(Exception):
@@ -72,6 +83,13 @@ class API:
         self.cfg = cfg
         self.log = log
         self.own = owner
+
+    def add_api(self, name: str, call) -> bool:
+        if name in self.API:
+            return False
+        self.API[name] = call
+        self.API_CODE = {name: index for index, name in enumerate(self.API.keys(), 1)}
+        return True
 
     def _api_no_implement(self, name: str, cmd: str):
         """NotImplemented"""
@@ -266,6 +284,34 @@ class SocketAPIHandler(threading.Thread, API):
         self.work = False
         self._conn = Connect(None, None, self.do_ws_allow)
         self._lock = Unlock()
+        # Команды API не требующие авторизации
+        self.NON_AUTH = {
+            'authorization', 'hi', 'voice', 'play', 'pause', 'tts', 'ask', 'settings', 'volume', 'volume_q', 'rec',
+            'remote_log'
+        }
+        self.add_api('authorization', self._authorization)
+        self.add_api('deauthorization', self._deauthorization)
+
+    def _authorization(self, cmd, remote_hash):
+        if not self._conn.auth:
+            token = self.cfg.gt('smarthome', 'token')
+            if token:
+                local_hash = hashlib.sha3_512(token.encode()).hexdigest()
+                if local_hash != remote_hash:
+                    raise ReturnException(msg='forbidden: wrong hash')
+            self._conn.auth = True
+            msg = 'authorized'
+            self.log('API.{} {}'.format(cmd, msg), logger.INFO)
+            return {'msg': msg}
+        return {'msg': 'already'}
+
+    def _deauthorization(self, cmd, _):
+        if self._conn.auth:
+            self._conn.auth = False
+            msg = 'deauthorized'
+            self.log('API.{} {}'.format(cmd, msg), logger.INFO)
+            return {'msg': msg}
+        return {'msg': 'already'}
 
     def join(self, timeout=None):
         if self.work:
@@ -288,9 +334,29 @@ class SocketAPIHandler(threading.Thread, API):
     def run(self):
         raise NotImplemented
 
+    def _call_api(self, cmd: str, data: str):
+        try:
+            result = self.API[cmd](cmd, data)
+        except RuntimeError as e:
+            self.log('Error {}: {}'.format(cmd, e), logger.ERROR)
+        except (ReturnException, InternalException) as e:
+            self._handle_exception(cmd, e)
+        else:
+            if result:
+                if isinstance(result, dict):
+                    result.update({'cmd': cmd, 'code': 0})
+                self._write(result)
+
+    def _handle_exception(self, cmd, e, code=0):
+        e.up(cmd=cmd)
+        e.cmd_code(code or self.API_CODE.get(cmd, 1000))
+        self.log('API.{}'.format(e), logger.WARN)
+        if self._duplex_mode or isinstance(e, ReturnException):
+            self._write(e.data)
+
     def parse(self, data: str):
         if not data:
-            self._internal_error_reply(5000, '', 'no data')
+            self._internal_error_reply(5001, '', 'no data')
             self.log(LNG['no_data'])
             return
         else:
@@ -300,7 +366,13 @@ class SocketAPIHandler(threading.Thread, API):
         if len(cmd) != 2:
             cmd.append('')
 
-        if self.own.has_subscribers(cmd[0], self.NET):
+        if not self._conn.auth and cmd[0] not in self.NON_AUTH:
+            self._handle_exception(
+                cmd[0],
+                ReturnException(code=0, msg='forbidden: authorization is necessary'),
+                self.API_CODE.get('authorization', 1000)
+            )
+        elif self.own.has_subscribers(cmd[0], self.NET):
             self.log('Command {} intercepted'.format(repr(cmd[0])))
             self.own.sub_call(self.NET, cmd[0], cmd[1])
         elif self.own.has_subscribers(cmd[0], self.NET_BLOCK):
@@ -311,25 +383,11 @@ class SocketAPIHandler(threading.Thread, API):
             # 1 минуты хватит?
             self._lock.wait(60)
         elif cmd[0] in self.API:
-            try:
-                result = self.API[cmd[0]](cmd[0], cmd[1])
-            except RuntimeError as e:
-                self.log('Error {}: {}'.format(cmd[0], e), logger.ERROR)
-            except (ReturnException, InternalException) as e:
-                e.up(cmd=cmd[0])
-                e.cmd_code(self.API_CODE.get(cmd[0], 1000))
-                self.log('API.{}'.format(e), logger.WARN)
-                if self._duplex_mode or isinstance(e, ReturnException):
-                    self._write(e.data)
-            else:
-                if result:
-                    if isinstance(result, dict):
-                        result.update({'cmd': cmd[0], 'code': 0})
-                    self._write(result)
+            self._call_api(*cmd)
         else:
             msg = LNG['unknown_cmd'].format(cmd[0])
             self.log(msg, logger.WARN)
-            self._internal_error_reply(5001, cmd[0], msg)
+            self._internal_error_reply(5002, cmd[0], msg)
 
     def _write(self, data, quite=False):
         try:

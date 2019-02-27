@@ -2,6 +2,7 @@
 
 import base64
 import cmd as cmd__
+import hashlib
 import json
 import socket
 import time
@@ -18,12 +19,15 @@ class TestShell(cmd__.Cmd):
         super().__init__()
         self._ip = '127.0.0.1'
         self._port = 7999
+        self._token = ''
 
     def _send(self, cmd: str, is_logger=False, is_duplex=False, auth=None):
         client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         client.settimeout(10 if not (is_logger or is_duplex) else None)
         cmd = '\r\n'.join(cmd.replace('\\n', '\n').split('\n')).encode() + (CRLF*2 if not is_duplex else CRLF)
         print('Отправляю {}:{} {}...'.format(self._ip, self._port, repr(cmd)))
+        if self._token:
+            cmd = b'authorization:' + hashlib.sha3_512(self._token.encode()).hexdigest().encode() + CRLF + cmd
         try:
             client.connect((self._ip, self._port))
             client.send(cmd)
@@ -50,7 +54,7 @@ class TestShell(cmd__.Cmd):
                         print(line)
                         continue
                     if is_duplex and auth:
-                        stage = self.handshake(client, line, stage, auth)
+                        stage = self.handshake(line, stage)
                         if not stage:
                             auth = None
                         if stage < 0:
@@ -74,25 +78,19 @@ class TestShell(cmd__.Cmd):
             client.close()
 
     @staticmethod
-    def handshake(soc, line: str, stage: int, auth):
-        line_l = line.lower()
-        if line_l == 'upgrade duplex ok':
+    def handshake(line: str, stage: int):
+        if line == 'upgrade duplex ok':
             return 0
-        elif line_l == 'login' and not stage:
-            soc.sendall('LOGIN {}'.format(auth[0]).encode() + CRLF)
-            return 1
-        elif line_l == 'password' and stage < 2:
-            soc.sendall('PASSWORD {}'.format(auth[1]).encode() + CRLF)
-            return 2
-        elif line_l.startswith('broken'):
-            print('broke {}'.format(line))
-            return -1
-        elif line_l.startswith('say'):
-            print(line)
-            return stage
         else:
-            print('SURPRISE {}'.format(line))
-            return -1
+            try:
+                data = json.loads(line)
+                if not isinstance(data, dict):
+                    raise TypeError('Data must be dict type')
+            except (json.decoder.JSONDecodeError, TypeError, ValueError) as e:
+                print('Ошибка декодирования: {}'.format(e))
+                return -1
+            print('Reply: {}'.format(repr(data)))
+            return -1 if data.get('code', -1) else stage
 
     @staticmethod
     def _parse_json(data: str):
@@ -108,9 +106,12 @@ class TestShell(cmd__.Cmd):
                 return print('Не хватает ключа: {}'.format(key))
 
         if data['code'] != 0:
-            return print('Терминал сообщил об ошибке {} [{}]: {}'.format(data['cmd'], data['code'], data.get('msg', '')))
+            print('Терминал сообщил об ошибке {} [{}]: {}'.format(data['cmd'], data['code'], data.get('msg', '')))
+            return
 
         if 'body' not in data:
+            if 'msg' in data:
+                return print('{}: {}'.format(data['cmd'], data['msg']))
             return print('Не хватает ключа: body')
         if data['cmd'] == 'recv_model':
             if 'filename' not in data:
@@ -257,12 +258,9 @@ class TestShell(cmd__.Cmd):
         """Подключает удаленного логгера к терминалу. Аргументы: нет"""
         self._send('remote_log', is_logger=True)
 
-    def do_duplex(self, data):
-        """Один сокет для всего. Аргументы username password"""
-        auth = data.split(' ', 1)
-        if len(auth) < 2:
-            auth.append('')
-        self._send('upgrade duplex', is_duplex=True, auth=auth)
+    def do_duplex(self, _):
+        """Один сокет для всего."""
+        self._send('upgrade duplex', is_duplex=True, auth=True)
 
     def do_raw(self, arg):
         """Отправляет терминалу любые данные. Аргументы: что угодно"""
@@ -270,6 +268,10 @@ class TestShell(cmd__.Cmd):
             print('Вы забыли данные')
         else:
             self._send(arg)
+
+    def do_token(self, token: str):
+        """Задать токен для авторизации. Аргументы: токен"""
+        self._token = token
 
 
 def num_check(cmd):

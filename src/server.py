@@ -4,8 +4,7 @@ import socket
 
 import logger as logger_
 from languages import SERVER as LNG
-from lib.socket_api_handler import SocketAPIHandler
-from lib.upgrade_duplex import UpgradeDuplexHandshake
+from lib.socket_api_handler import SocketAPIHandler, ReturnException, upgrade_duplex
 from owner import Owner
 
 
@@ -14,6 +13,13 @@ class MDTServer(SocketAPIHandler):
         super().__init__(cfg, log, owner, name='MDTServer')
         self._local = ('', 7999)
         self._socket = socket.socket()
+        self.add_api('upgrade duplex', self._upgrade_duplex)
+
+    def _upgrade_duplex(self, *_):
+        try:
+            upgrade_duplex(self.own, self._conn, 'upgrade duplex ok')
+        except RuntimeError as e:
+            raise ReturnException(msg=str(e))
 
     def do_ws_allow(self, ip, port, token):
         ws_token = self.cfg.gt('system', 'ws_token')
@@ -38,7 +44,6 @@ class MDTServer(SocketAPIHandler):
         return True
 
     def run(self):
-        upgrade = None
         if not self._open_socket():
             return
         while self.work:
@@ -54,16 +59,10 @@ class MDTServer(SocketAPIHandler):
                 if not allow:
                     continue
                 for line in self._conn.read():
-                    if upgrade:
-                        upgrade(line)
-                    elif line == 'upgrade duplex':
-                        upgrade = UpgradeDuplexHandshake(self.cfg, self.log.add('I'), self.own, self._conn)
-                    else:
-                        self.parse(line)
+                    self.parse(line)
             except RuntimeError as e:
                 self.log('Error: {}'.format(e), logger_.ERROR)
             finally:
-                upgrade = None
                 self._conn.close()
         self._socket.close()
 

@@ -40,18 +40,19 @@ GUID_STR = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
 CRLF = b'\r\n'
 WS_MARK = b'GET '
 AUTH_FAILED = 'Terminal rejected connection (incorrect ws_token?). BYE!'
-ALL_EXCEPTS = (ConnectionError, OSError, websocket.WebSocketException, TypeError, ValueError)
+ALL_EXCEPTS = (OSError, websocket.WebSocketException, TypeError, ValueError)
 
 
 class Connect:
     CHUNK_SIZE = 1024 * 4
 
-    def __init__(self, conn, ip_info, ws_allow, work=True):
+    def __init__(self, conn, ip_info, ws_allow, work=True, auth=False):
         self._conn = conn
         self._is_ws = isinstance(conn, websocket.WebSocket)
         self._ip_info = ip_info
         self._ws_allow = ws_allow
         self._work = work
+        self.auth = auth
         self._r_wait = False
         self._send_lock = threading.Lock()
         self._recv_lock = threading.Lock()
@@ -96,7 +97,7 @@ class Connect:
             if self._is_ws:
                 try:
                     self._conn.close(timeout=0.5)
-                except AttributeError:
+                except (AttributeError, BrokenPipeError):
                     pass
             else:
                 try:
@@ -105,19 +106,22 @@ class Connect:
                 except RuntimeError:
                     pass
                 self._conn.close()
+        self.auth = False
 
     def extract(self):
         if self._conn:
             try:
-                return Connect(self._conn, self._ip_info, self._work)
+                return Connect(self._conn, self._ip_info, self._ws_allow, self._work, self.auth)
             finally:
                 self._conn = None
                 self._ip_info = None
+                self.auth = False
 
     def insert(self, conn, ip_info):
         self._conn = conn
         self._is_ws = isinstance(conn, websocket.WebSocket)
         self._ip_info = ip_info
+        self.auth = False
 
     def read(self):
         """
@@ -194,7 +198,7 @@ class Connect:
                     continue
                 else:
                     break
-            except (socket.error, RuntimeError, AttributeError):
+            except (socket.error, AttributeError, OSError):
                 break
             if not chunk:
                 # сокет закрыли, пустой объект
@@ -251,7 +255,7 @@ class Connect:
                     continue
                 else:
                     break
-            except (websocket.WebSocketException, TypeError, ValueError, AttributeError):
+            except (websocket.WebSocketException, TypeError, ValueError, AttributeError, OSError):
                 break
 
     def _ws_auth(self, chunk) -> bool:

@@ -1,10 +1,13 @@
 
+import hashlib
+import json
+import os
 import threading
 import time
 
 import logger
+from lib.socket_api_handler import upgrade_duplex
 from lib.socket_wrapper import create_connection
-from lib.upgrade_duplex import UpgradeDuplexHandshake
 from owner import Owner
 
 
@@ -86,18 +89,51 @@ class OutgoingSocket(threading.Thread):
             self.log('outgoing_socket: {}'.format(e), logger.CRIT)
             return False
 
+        address = tuple([proto.upper()] + address)
         try:
-            soc = create_connection(proto, *address)
+            soc = create_connection(proto, *address[1:])
         except RuntimeError as e:
-            self.log('Connect to {}::{}:{}: {}'.format(proto.upper(), *address, e), logger.ERROR)
+            self.log('Connect to {}::{}:{}: {}'.format(*address, e), logger.ERROR)
             return False
 
-        upgrade = UpgradeDuplexHandshake(self.cfg, self.log, self.own, soc, incoming=False)
+        token = self.cfg['token']
+        hash_ = hashlib.sha3_512(token.encode() if token else os.urandom(64)).hexdigest()
+        stage = 1
         try:
-            upgrade.outgoing()
-            if upgrade.success:
-                # FIXME: race condition
-                time.sleep(0.1)
+            soc.write('authorization:{}'.format(hash_))
+            for line in soc.read():
+                try:
+                    if stage == 1:
+                        self._check_stage_1(line)
+                        self.log('Authorized {}::{}:{}'.format(*address), logger.INFO)
+                        stage = 2
+                        soc.write('upgrade duplex')
+                    else:
+                        if line.lower() != 'upgrade duplex ok':
+                            raise ValueError('Surprise: {}'.format(repr(line)))
+                        soc.auth = True
+                        upgrade_duplex(self.own, soc)
+                        self.log('Upgrade duplex ok {}::{}:{}'.format(*address), logger.INFO)
+                        # FIXME: race condition
+                        time.sleep(0.1)
+                        return True
+                except (ValueError, TypeError) as e:
+                    self.log('Wrong reply {}::{}:{}: {}'.format(*address, e), logger.WARN)
+                    continue
+        except RuntimeError as e:
+            self.log('Error {}::{}:{}: {}'.format(*address, e), logger.ERROR)
         finally:
             soc.close()
-        return upgrade.success
+        return False
+
+    @staticmethod
+    def _check_stage_1(line):
+        data = json.loads(line)
+        if not isinstance(data, dict):
+            raise ValueError('Not a dict: {}'.format(type(data)))
+        cmd = data.get('cmd', 'Unset')
+        code = data.get('code', -1)
+        if cmd.lower() != 'authorization':
+            raise ValueError('Surprise: {}'.format(repr(data)))
+        if code:
+            raise RuntimeError('Authorization failed: {} [{}] {}'.format(cmd, code, data.get('msg', '')))

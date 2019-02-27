@@ -5,6 +5,7 @@ import base64
 import cmd as cmd__
 import hashlib
 import http.client
+import json
 import socket
 import threading
 import time
@@ -36,8 +37,7 @@ def arg_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', '--ip', default='127.0.0.1', help='Server IP (127.0.0.1)')
     parser.add_argument('-p', '--port', type=int, default=7575, help='Server Port (7575)')
-    parser.add_argument('-u', '--username', default='root', help='username ("root")')
-    parser.add_argument('-a', '--password', default='toor', help='password ("toor")')
+    parser.add_argument('-t', '--token', default='hello', help='auth token ("hello")')
     return parser.parse_args()
 
 
@@ -133,9 +133,9 @@ class Server(threading.Thread):
         self.connected = None
         self.ws = None
         self._lock = threading.Lock()
+        self.token = data.token
         print('Server {}:{}'.format(data.ip, data.port))
-        print('username: {}'.format(data.username))
-        print('password: {}'.format(data.password))
+        print('token: {}'.format(data.token))
         print()
 
     def stop(self):
@@ -163,7 +163,10 @@ class Server(threading.Thread):
             self.connected = None
             self.closed = True
 
-    def send(self, data: str = ''):
+    def send(self, data: dict or str=None):
+        data = data or ''
+        if isinstance(data, dict):
+            data = json.dumps(data)
         with self._lock:
             data = self._send(data)
         if data:
@@ -213,72 +216,50 @@ class Server(threading.Thread):
         print('BYE!')
         self.socket.close()
 
-    def broken(self, msg: str = ''):
-        if msg:
-            self.send('BROKEN {}'.format(msg))
-        print('=== Broken handshake ===')
-
     @staticmethod
-    def pong(line: str):
+    def pong(data: str):
         try:
-            diff_ms = int((time.time() - float(line.split(':', 1)[1])) * 1000)
+            diff_ms = int((time.time() - float(data)) * 1000)
         except (TypeError, IndexError, ValueError):
             return
         print('PING: {} ms'.format(diff_ms))
 
     def handler(self, client):
         stage = 0
-
         for line in self.reader(client):
             if self.closed:
                 break
-            line_l = line.lower()
-            if stage == 3:
-                if line_l.startswith('ping:'):
-                    data = line_l.split(':', 1)
-                    data[0] = 'pong'
-                    self.send(':'.join(data))
-                elif line_l.startswith('pong:'):
-                    self.pong(line)
-                continue
-            if not stage and line_l == 'upgrade duplex':
-                print('=== Start handshake ===')
-                self.send('say THIS IS TEST SERVER!')
-                if self.args.username:
-                    self.send('LOGIN')
+            cmd = line.split(':', 1)
+            if len(cmd) < 2:
+                cmd.append('')
+            cmd, data = cmd[0].lower(), cmd[1]
+
+            if stage == 2:
+                if cmd == 'ping':
+                    self.send(':'.join(('pong', data)))
+                elif cmd == 'pong':
+                    self.pong(data)
+            elif not stage and cmd == 'authorization':
+                if not self._auth(data):
+                    self.send({'code': 101, 'cmd': cmd, 'msg': 'forbidden: wrong hash'})
+                else:
                     stage = 1
-                elif self.args.password:
-                    self.send('PASSWORD')
+                    self.send({'code': 0, 'cmd': cmd, 'msg': 'authorized'})
+            elif stage == 1:
+                if cmd == 'upgrade duplex':
+                    self.send('upgrade duplex ok')
                     stage = 2
                 else:
-                    stage = 3
-                    self.send('upgrade duplex ok')
-            elif stage == 1 and line_l.startswith('login'):
-                login = split_line(line)
-                if self.args.username and self.args.username != login:
-                    self.broken('wrong login: {}'.format(login))
-                    break
-                elif self.args.password:
-                    self.send('PASSWORD')
-                    stage = 2
-                else:
-                    stage = 3
-                    self.send('upgrade duplex ok')
-                    print('=== End handshake ===')
-            elif stage == 2 and line_l.startswith('password'):
-                password = split_line(line)
-                if not password or password != self.args.password:
-                    self.broken('WRONG PASSWORD: {}'.format(password))
-                    break
-                stage = 3
-                self.send('upgrade duplex ok')
-                print('=== End handshake ===')
-            elif line_l.startswith('broken'):
-                self.broken()
-                break
-            elif line_l.startswith('say'):
-                print('SAY: {}'.format(line[3:].lstrip()))
+                    self.send({'cmd': cmd, 'code': 102, 'msg': 'I wait upgrade duplex'})
+            else:
+                self.send({'code': 100, 'cmd': cmd, 'msg': 'forbidden: authorization is necessary'})
         self.close()
+
+    def _auth(self, token) -> bool:
+        if self.token:
+            if not token or hashlib.sha3_512(self.token.encode()).hexdigest() != token:
+                return False
+        return True
 
     def reader(self, client):
         data = b''
@@ -351,6 +332,11 @@ class TestShell(cmd__.Cmd):
     def do_close(self, _):
         """Закрыть текущее соединение"""
         self.server.close()
+
+    def do_token(self, token):
+        """Сменить токен. Аргументы: токен"""
+        self.server.token = token
+        print('set: {}'.format(token))
 
 
 if __name__ == '__main__':

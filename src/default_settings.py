@@ -40,6 +40,7 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
     'smarthome': {
         'ip': '',
         'outgoing_socket': '',
+        'token': '',
         'terminal': '',
         'username': '',
         'password': '',
@@ -150,9 +151,9 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'blacklist_on_failure': False,
     },
     'system': {
-        'ini_version': 37,
+        'ini_version': 38,
         'ws_token': 'token_is_unset',
         'PLUGINS_API': 2,
-        'VERSION': (0, 8, 8),
+        'VERSION': (0, 8, 9),
     }
 }
