@@ -23,6 +23,8 @@ def upgrade_duplex(own: Owner, soc: Connect, msg=''):
 
 
 class BaseAPIException(Exception):
+    RETURN = None
+
     def __init__(self, code: int=1, msg=None, **kwargs):
         # 0-9 код ошибки от команды
         code = code if 10 > code > -1 else 1
@@ -49,10 +51,18 @@ class InternalException(BaseAPIException):
 
 
 class ReturnException(BaseAPIException):
+    RETURN = True
+    pass
+
+
+class NoReturnException(BaseAPIException):
+    RETURN = False
     pass
 
 
 class API:
+    REPLY = 'reply'
+
     def __init__(self, cfg, log, owner: Owner):
         self.API = {
             # Базовое, MajorDroid, API
@@ -78,6 +88,7 @@ class API:
             'list_models': self._api_list_models,
             'ping': self._api_ping,
             'info': self._api_info,
+            self.REPLY: self._api_reply_check,
         }
         self.API_CODE = {name: index for index, name in enumerate(self.API.keys(), 1)}
         self.cfg = cfg
@@ -90,6 +101,56 @@ class API:
         self.API[name] = call
         self.API_CODE = {name: index for index, name in enumerate(self.API.keys(), 1)}
         return True
+
+    @staticmethod
+    def json_parser(data: str, cmd: str= '', body_keys: tuple=()) -> dict:
+        check_keys = []
+        if cmd:
+            check_keys.append('cmd')
+        if body_keys:
+            check_keys.append('body')
+        try:
+            data = json.loads(data)
+            if not isinstance(data, dict):
+                raise TypeError('Data must be dict type')
+        except (json.decoder.JSONDecodeError, TypeError) as e:
+            raise InternalException(msg=e)
+
+        if 'code' not in data:
+            raise InternalException(2, msg='Missing key: code')
+        if data['code']:
+            cmd_ = repr(data.get('cmd', ''))[:100]
+            code_ = repr(data['code'])[:10]
+            msg_ = repr(data.get('msg', ''))[:1000]
+            raise NoReturnException(code=0, msg='Received error to {}. {}: {} '.format(cmd_, code_, msg_))
+        for key in check_keys:
+            if key not in data:
+                raise InternalException(2, msg='Missing key: {}'.format(key))
+        if cmd:
+            if 'cmd' != data['cmd']:
+                raise InternalException(3, 'Wrong value in cmd: {} != {}'.format(data['cmd'], cmd))
+        if body_keys:
+            if not isinstance(data['body'], dict):
+                raise InternalException(4, 'body must be dict type, not \'{}\''.format(type(data['body'])))
+            for key in body_keys:
+                if key not in data['body']:
+                    raise InternalException(5, 'Missing key in body: {}'.format(key))
+            return data['body']
+        return data
+
+    def _api_reply_check(self, name, data):
+        data = self.json_parser(data)
+        cmd = data.get('cmd')
+        result = None
+        for key in ('msg', 'body'):
+            if key in data:
+                result = repr(data[key])[:1500]
+                break
+        if result is None and cmd is None:
+            return
+        result = result or '\'Unknown\''
+        cmd = repr(cmd)[:100] if cmd else '\'Unknown\''
+        self.log('API.{} Received reply to {}: {}'.format(name, cmd, result), logger.INFO)
 
     def _api_no_implement(self, name: str, cmd: str):
         """NotImplemented"""
@@ -136,45 +197,29 @@ class API:
         Т.к. перезапись существующей модели может уронить сноубоя
         отпарсим данные и передадим их терминалу.
 
-        Все данные распаковываются из json:
-        code: если не 0, произошла ошибка, обязательно, число.
+        Все данные распаковываются из json, где в body:
         filename: валидное имя файла модели, обязательно.
-        msg: сообщение об ошибке, если это ошибка.
-        body: файл модели завернутый в base64, обязательно если code 0
+        data: файл модели завернутый в base64, обязательно если code 0
         phrase: ключевая фраза модели.
         username: пользователь модели.
         """
-        try:
-            data = json.loads(data)
-            if not isinstance(data, dict):
-                raise TypeError('Data must be dict type')
-        except (json.decoder.JSONDecodeError, TypeError) as e:
-            raise InternalException(msg=e)
-        # Проверяем ключи
-        for key in ('filename', 'code'):
-            if key not in data:
-                raise InternalException(2, 'Missing key: {}'.format(repr(key)))
-        # Ошибка?
-        if not isinstance(data['code'], int) or data['code']:
-            raise InternalException(3, 'Transfer error [{}]: {}'.format(data['code'], data.get('msg', '')))
+        data = self.json_parser(data, body_keys=('filename', 'data'))
         # Недопустимое имя модели?
         if not self.cfg.is_model_name(data['filename']):
-            raise InternalException(4, 'Wrong model name: {}'.format(data['filename']))
+            raise InternalException(6, 'Wrong model name: {}'.format(data['filename']))
         # И значения на корректность
         for key in ('username', 'phrase'):
             if key in data and not isinstance(data[key], str):
-                raise InternalException(5, 'Wrong value type in {}: {}'.format(repr(key), repr(type(data[key]))))
+                raise InternalException(3, 'Wrong value type in {}: {}'.format(repr(key), repr(type(data[key]))))
 
-        if 'body' not in data:
-            raise InternalException(6, 'Missing key: body')
         # Переводим файл в байты, будем считать что файл не может быть меньше 3 кбайт
         try:
-            data['body'] = base64.b64decode(data['body'])
+            data['data'] = base64.b64decode(data['data'])
         except (ValueError, TypeError) as e:
-            raise InternalException(7, 'Wrong body: {}'.format(e))
-        if len(data['body']) < 1024 * 3:
-            raise InternalException(8, 'File too small: {}'.format(len(data['body'])))
-        data = (data.get(key, '') for key in ('filename', 'body', 'username', 'phrase'))
+            raise InternalException(7, 'Invalid file data: {}'.format(e))
+        if len(data['data']) < 1024 * 3:
+            raise InternalException(8, 'File too small: {}'.format(len(data['data'])))
+        data = (data.get(key, '') for key in ('filename', 'data', 'username', 'phrase'))
         self.own.terminal_call('send_model', data, save_time=False)
 
     def _api_recv_model(self, _, pmdl_name: str):
@@ -197,19 +242,19 @@ class API:
             raise ReturnException(2, 'File {} not found'.format(pmdl_name), filename=pmdl_name)
 
         try:
-            body = file_to_base64(pmdl_path)
+            data = file_to_base64(pmdl_path)
         except IOError as e:
             raise ReturnException(3, 'IOError: {}'.format(e), filename=pmdl_name)
 
         phrase = self.cfg.gt('models', pmdl_name)
         username = self.cfg.gt('persons', pmdl_name)
 
-        data = {'filename': pmdl_name, 'body': body}
+        body = {'filename': pmdl_name, 'data': data}
         if phrase:
-            data['phrase'] = phrase
+            body['phrase'] = phrase
         if username:
-            data['username'] = username
-        return data
+            body['username'] = username
+        return {'body': body}
 
     def _api_list_models(self, *_):
         """
@@ -287,7 +332,7 @@ class SocketAPIHandler(threading.Thread, API):
         # Команды API не требующие авторизации
         self.NON_AUTH = {
             'authorization', 'hi', 'voice', 'play', 'pause', 'tts', 'ask', 'settings', 'volume', 'volume_q', 'rec',
-            'remote_log'
+            'remote_log', self.REPLY,
         }
         self.add_api('authorization', self._authorization)
         self.add_api('deauthorization', self._deauthorization)
@@ -339,7 +384,7 @@ class SocketAPIHandler(threading.Thread, API):
             result = self.API[cmd](cmd, data)
         except RuntimeError as e:
             self.log('Error {}: {}'.format(cmd, e), logger.ERROR)
-        except (ReturnException, InternalException) as e:
+        except BaseAPIException as e:
             self._handle_exception(cmd, e)
         else:
             if result:
@@ -347,11 +392,12 @@ class SocketAPIHandler(threading.Thread, API):
                     result.update({'cmd': cmd, 'code': 0})
                 self._write(result)
 
-    def _handle_exception(self, cmd, e, code=0):
+    def _handle_exception(self, cmd: str, e: BaseAPIException, code=0):
         e.up(cmd=cmd)
         e.cmd_code(code or self.API_CODE.get(cmd, 1000))
         self.log('API.{}'.format(e), logger.WARN)
-        if self._duplex_mode or isinstance(e, ReturnException):
+        return_ = e.RETURN if e.RETURN is not None else self._duplex_mode
+        if return_:
             self._write(e.data)
 
     def parse(self, data: str):
@@ -362,9 +408,12 @@ class SocketAPIHandler(threading.Thread, API):
         else:
             self.log(LNG['get_data'].format(data[:1500]))
 
-        cmd = data.split(':', 1)
-        if len(cmd) != 2:
-            cmd.append('')
+        if data.startswith('{') and data.endswith('}'):
+            cmd = (self.REPLY, data)
+        else:
+            cmd = data.split(':', 1)
+            if len(cmd) != 2:
+                cmd.append('')
 
         if not self._conn.auth and cmd[0] not in self.NON_AUTH:
             self._handle_exception(

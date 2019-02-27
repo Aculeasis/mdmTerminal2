@@ -113,41 +113,48 @@ class TestShell(cmd__.Cmd):
             if 'msg' in data:
                 return print('{}: {}'.format(data['cmd'], data['msg']))
             return print('Не хватает ключа: body')
-        if data['cmd'] == 'recv_model':
-            if 'filename' not in data:
-                return print('Не хватает ключа: filename')
+        cmd = data['cmd']
+        body = data['body']
+        del data
+
+        if not isinstance(body, dict):
+            return print('body должен быть dict, не {}'.format(type(body)))
+        if cmd == 'recv_model':
+            for key in ('filename', 'data'):
+                if key not in body:
+                    return print('Не хватает ключа: {}'.format(key))
             try:
-                file_size = len(base64_to_bytes(data['body']))
+                file_size = len(base64_to_bytes(body['data']))
             except RuntimeError as e:
-                return print('Ошибка декодирования body: {}'.format(e))
-            optional = ', '.join(['{}={}'.format(k, repr(data[k])) for k in ('username', 'phrase') if k in data])
-            result = 'Получен файл {}; данные: {}; размер {} байт'.format(data['filename'], optional, file_size)
-        elif data['cmd'] == 'list_models':
-            if not isinstance(data['body'], dict) or \
-                    len([k for k in ('models', 'allow') if isinstance(data['body'].get(k, ''), list)]) < 2:
-                return print('Недопустимое body: {}'.format(repr(data.get('body'))))
+                return print('Ошибка декодирования data: {}'.format(e))
+
+            optional = ', '.join(['{}={}'.format(k, repr(body[k])) for k in ('username', 'phrase') if k in body])
+            result = 'Получен файл {}; данные: {}; размер {} байт'.format(body['filename'], optional, file_size)
+        elif cmd == 'list_models':
+            if len([k for k in ('models', 'allow') if isinstance(body.get(k, ''), list)]) < 2:
+                return print('Недопустимое body: {}'.format(repr(body)))
             result = 'Все модели: {}; разрешенные: {}'.format(
-                ', '.join(data['body']['models']), ', '.join(data['body']['allow'])
+                ', '.join(body['models']), ', '.join(body['allow'])
             )
-        elif data['cmd'] == 'cmd':
-            print('cmd: {}'.format(repr(data['body'])))
-            return 'tts:{}'.format(data['body']['qry'])
-        elif data['cmd'] == 'api':
-            return print('api: {}'.format(repr(data['body'])))
-        elif data['cmd'] == 'info':
+        elif cmd == 'cmd':
+            print('cmd: {}'.format(repr(body)))
+            return 'tts:{}'.format(body.get('qry', 'ничего'))
+        elif cmd == 'api':
+            return print('api: {}'.format(repr(body)))
+        elif cmd == 'info':
             for key in ('cmd', 'msg'):
-                if key not in data['body']:
+                if key not in body:
                     return print('Не хватает ключа в body: {}'.format(key))
-            if isinstance(data['body']['cmd'], (list, dict)):
-                data['body']['cmd'] = ', '.join(x for x in data['body']['cmd'])
-            if isinstance(data['body']['msg'], str) and '\n' in data['body']['msg']:
-                data['body']['msg'] = '\n' + data['body']['msg']
-            print('\nINFO: {}'.format(data['body']['cmd']))
-            print('MSG: {}\n'.format(data['body']['msg']))
+            if isinstance(body['cmd'], (list, dict)):
+                body['cmd'] = ', '.join(x for x in body['cmd'])
+            if isinstance(body['msg'], str) and '\n' in body['msg']:
+                body['msg'] = '\n' + body['msg']
+            print('\nINFO: {}'.format(body['cmd']))
+            print('MSG: {}\n'.format(body['msg']))
             return
         else:
-            result = 'Неизвестная команда: {}'.format(repr(data['cmd']))
-        print('Ответ на {}: {}'.format(repr(data['cmd']), result))
+            result = 'Неизвестная команда: {}'.format(repr(cmd))
+        print('Ответ на {}: {}'.format(repr(cmd), result))
 
     def do_connect(self, arg):
         """Проверяет подключение к терминалу и позволяет задать его адрес. Аргументы: IP:PORT"""
