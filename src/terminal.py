@@ -34,6 +34,7 @@ class MDTerminal(threading.Thread):
             'volume': self._set_volume,
             'volume_q': self._set_volume_quiet,
             'music_volume': self._set_music_volume,
+            'music_volume_q': self._set_music_volume_quiet,
         }
         self.ARGS_CALL = {
             'rec': self._rec_rec,
@@ -280,6 +281,9 @@ class MDTerminal(threading.Thread):
     def _set_volume_quiet(self, value):
         self._set_volume(value, True)
 
+    def _set_music_volume_quiet(self, value):
+        self._set_music_volume(value, True)
+
     def _set_volume(self, value, quiet=False):
         if value is not None:
             volume = self.own.set_volume(value)
@@ -301,7 +305,7 @@ class MDTerminal(threading.Thread):
             if not quiet:
                 self.own.say(LNG['vol_ok'].format(volume))
 
-    def _set_music_volume(self, value):
+    def _set_music_volume(self, value, quiet=False):
         if value is not None:
             try:
                 vol = int(value)
@@ -310,12 +314,14 @@ class MDTerminal(threading.Thread):
             except (TypeError, ValueError) as e:
                 msg = LNG['vol_wrong_val'].format(value)
                 self.log('{}, {}'.format(msg, e), logger.WARN)
-                self.own.say(msg)
+                if not quiet:
+                    self.own.say(msg)
                 return
             self.own.music_real_volume = vol
         value = self.own.music_real_volume
         self.log(LNG['vol_music_ok'].format(value))
-        self.own.say(LNG['vol_music_ok'].format(value))
+        if not quiet:
+            self.own.say(LNG['vol_music_ok'].format(value))
 
     def call(self, cmd: str, data='', lvl: int=0, save_time: bool=True):
         if cmd == 'tts' and not lvl:

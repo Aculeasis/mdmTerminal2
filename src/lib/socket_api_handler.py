@@ -84,6 +84,8 @@ class API:
             'settings': self._api_settings,
             'volume': self._api_terminal_direct,
             'volume_q': self._api_terminal_direct,
+            'music_volume': self._api_terminal_direct,
+            'music_volume_q': self._api_terminal_direct,
             'rec': self._api_rec,
             'pong': self._api_pong,
             'send_model': self._api_send_model,
