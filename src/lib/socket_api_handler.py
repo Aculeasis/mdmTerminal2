@@ -11,6 +11,16 @@ from owner import Owner
 from utils import file_to_base64, pretty_time
 
 
+def api_commands(*commands):
+    def wrapper(f):
+        for command in commands:
+            if not (isinstance(command, str) and command):
+                raise RuntimeError('{} command must be a non empty string: {}'.format(f, command))
+        f.api_commands = commands
+        return f
+    return wrapper
+
+
 def upgrade_duplex(own: Owner, soc: Connect, msg=''):
     cmd = 'upgrade duplex'
     if own.has_subscribers(cmd, cmd):
@@ -68,58 +78,50 @@ class InternalException(Exception):
 
 class API:
     def __init__(self, cfg, log, owner: Owner):
-        self.API = {
-            # Базовое, MajorDroid, API
-            'hi': self._api_terminal_direct,
-            'voice': self._api_terminal_direct,
-            'home': self._api_no_implement,
-            'url': self._api_no_implement,
-            'play': self._api_play,
-            'pause': self._api_pause,
-            'tts': self._api_terminal_direct,
-            'ask': self._api_terminal_direct,
-            'rtsp': self._api_no_implement,
-            'run': self._api_no_implement,
-            # API терминала для получения данных
-            'settings': self._api_settings,
-            'volume': self._api_terminal_direct,
-            'volume_q': self._api_terminal_direct,
-            'music_volume': self._api_terminal_direct,
-            'music_volume_q': self._api_terminal_direct,
-            'rec': self._api_rec,
-            'pong': self._api_pong,
-            'send_model': self._api_send_model,
-            # API терминала для двухстороннего обмена различными данными
-            'recv_model': self._api_recv_model,
-            'list_models': self._api_list_models,
-            'ping': self._api_ping,
-            'info': self._api_info,
-        }
-        self.API_CODE = {name: index for index, name in enumerate(self.API.keys(), 1)}
+        self.API, self.API_CODE = {}, {}
+        self._collector()
         self.cfg = cfg
         self.log = log
         self.own = owner
 
+    def _collector(self):
+        for attr in dir(self):
+            if attr.startswith('__'):
+                continue
+            obj = getattr(self, attr)
+            commands = getattr(obj, 'api_commands', None)
+            if not (commands and isinstance(commands, tuple)):
+                continue
+            for command in commands:
+                if command in self.API:
+                    raise RuntimeError('command {} already linked to {}'.format(command, self.API[command]))
+                self.API[command] = obj
+        self.API_CODE = {name: index for index, name in enumerate(self.API.keys(), 1)}
+
+    @api_commands('home', 'url', 'rts', 'run')
     def _api_no_implement(self, cmd: str, _):
         """NotImplemented"""
-        # home, url, rtsp, run
         raise InternalException(msg='Not implemented yet - {}'.format(cmd))
 
+    @api_commands('hi', 'voice', 'tts', 'ask', 'volume', 'volume_q', 'music_volume', 'music_volume_q')
     def _api_terminal_direct(self, name: str, cmd: str):
-        # hi, voice, tts, ask, volume, volume_q
         if name == 'hi':
             name = 'voice'
         self.own.terminal_call(name, cmd)
 
+    @api_commands('play')
     def _api_play(self, _, cmd: str):
         self.own.music_play(cmd)
 
+    @api_commands('pause')
     def _api_pause(self, __, _):
         self.own.music_pause()
 
+    @api_commands('settings')
     def _api_settings(self, _, cmd: str) -> dict:
         return self.own.settings_from_srv(cmd)
 
+    @api_commands('rec')
     def _api_rec(self, _, cmd: str):
         param = cmd.split('_')  # должно быть вида rec_1_1, play_2_1, compile_5_1
         if len(param) != 3 or sum([1 if len(x) else 0 for x in param]) != 3:
@@ -138,6 +140,7 @@ class API:
         else:
             raise InternalException(2, 'Unknown command for \'rec\': {}'.format(repr(param[0])[:100]))
 
+    @api_commands('send_model')
     def _api_send_model(self, _, data: str):
         """
         Получение модели от сервера.
@@ -170,6 +173,7 @@ class API:
         data = (data.get(key, '') for key in ('filename', 'data', 'username', 'phrase'))
         self.own.terminal_call('send_model', data, save_time=False)
 
+    @api_commands('recv_model')
     def _api_recv_model(self, _, pmdl_name: str):
         """
         Отправка модели на сервер.
@@ -200,6 +204,7 @@ class API:
             result['username'] = username
         return result
 
+    @api_commands('list_models')
     def _api_list_models(self, *_):
         """
         Отправка на сервер моделей которые есть у терминала.
@@ -210,6 +215,7 @@ class API:
         return {'models': self.cfg.get_all_models(), 'allow': self.cfg.get_allow_models()}
 
     @staticmethod
+    @api_commands('ping')
     def _api_ping(_, data: str):
         """
         Пустая команды для поддержания и проверки соединения,
@@ -217,6 +223,7 @@ class API:
         """
         return data
 
+    @api_commands('pong')
     def _api_pong(self, _, data: str):
         if data:
             # Считаем пинг
@@ -229,6 +236,7 @@ class API:
             if data:
                 self.log('ping {}'.format(pretty_time(data)), logger.INFO)
 
+    @api_commands('info')
     def _api_info(self, _, cmd: str) -> dict:
         """
         Возвращает справку по команде из __doc__ или список доступных команд если команда не задана.
@@ -249,16 +257,6 @@ class API:
 
 
 class APIHandler(API):
-    def __init__(self, cfg, log, owner: Owner):
-        super().__init__(cfg, log, owner)
-
-    def add_api(self, name: str, call) -> bool:
-        if name in self.API:
-            return False
-        self.API[name] = call
-        self.API_CODE = {name: index for index, name in enumerate(self.API.keys(), 1)}
-        return True
-
     def extract(self, line: str) -> tuple:
         if line.startswith('{'):
             return self._extract_json(line)
@@ -345,9 +343,8 @@ class SocketAPIHandler(threading.Thread, APIHandler):
             'authorization', 'hi', 'voice', 'play', 'pause', 'tts', 'ask', 'settings', 'volume', 'volume_q', 'rec',
             'remote_log', 'music_volume', 'music_volume_q',
         }
-        self.add_api('authorization', self._authorization)
-        self.add_api('deauthorization', self._deauthorization)
 
+    @api_commands('authorization')
     def _authorization(self, cmd, remote_hash):
         if not self._conn.auth:
             token = self.cfg.gt('smarthome', 'token')
@@ -361,6 +358,7 @@ class SocketAPIHandler(threading.Thread, APIHandler):
             return msg
         return 'already'
 
+    @api_commands('deauthorization')
     def _deauthorization(self, cmd, _):
         if self._conn.auth:
             self._conn.auth = False

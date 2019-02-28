@@ -4,7 +4,7 @@ import socket
 
 import logger as logger_
 from languages import SERVER as LNG
-from lib.socket_api_handler import SocketAPIHandler, InternalException, upgrade_duplex
+from lib.socket_api_handler import SocketAPIHandler, InternalException, upgrade_duplex, api_commands
 from owner import Owner
 
 
@@ -13,8 +13,8 @@ class MDTServer(SocketAPIHandler):
         super().__init__(cfg, log, owner, name='MDTServer')
         self._local = ('', 7999)
         self._socket = socket.socket()
-        self.add_api('upgrade duplex', self._upgrade_duplex)
 
+    @api_commands('upgrade duplex')
     def _upgrade_duplex(self, *_):
         try:
             upgrade_duplex(self.own, self._conn, self.id)
