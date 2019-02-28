@@ -117,8 +117,8 @@ class API:
     def _api_pause(self, __, _):
         self.own.music_pause()
 
-    def _api_settings(self, _, cmd: str):
-        self.own.settings_from_srv(cmd)
+    def _api_settings(self, _, cmd: str) -> dict:
+        return self.own.settings_from_srv(cmd)
 
     def _api_rec(self, _, cmd: str):
         param = cmd.split('_')  # должно быть вида rec_1_1, play_2_1, compile_5_1
@@ -343,7 +343,7 @@ class SocketAPIHandler(threading.Thread, APIHandler):
         # Команды API не требующие авторизации
         self.NON_AUTH = {
             'authorization', 'hi', 'voice', 'play', 'pause', 'tts', 'ask', 'settings', 'volume', 'volume_q', 'rec',
-            'remote_log',
+            'remote_log', 'music_volume', 'music_volume_q',
         }
         self.add_api('authorization', self._authorization)
         self.add_api('deauthorization', self._deauthorization)
