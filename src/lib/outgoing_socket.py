@@ -100,17 +100,16 @@ class OutgoingSocket(threading.Thread):
         hash_ = hashlib.sha3_512(token.encode() if token else os.urandom(64)).hexdigest()
         stage = 1
         try:
-            soc.write('authorization:{}'.format(hash_))
+            soc.write({'method': 'authorization', 'params': [hash_], 'id': 'authorization'})
             for line in soc.read():
                 try:
                     if stage == 1:
-                        self._check_stage_1(line)
+                        self._check_stage(line, 'authorization')
                         self.log('Authorized {}::{}:{}'.format(*address), logger.INFO)
                         stage = 2
-                        soc.write('upgrade duplex')
+                        soc.write({'method': 'upgrade duplex', 'id': 'upgrade duplex'})
                     else:
-                        if line.lower() != 'upgrade duplex ok':
-                            raise ValueError('Surprise: {}'.format(repr(line)))
+                        self._check_stage(line, 'upgrade duplex')
                         soc.auth = True
                         upgrade_duplex(self.own, soc)
                         self.log('Upgrade duplex ok {}::{}:{}'.format(*address), logger.INFO)
@@ -127,13 +126,12 @@ class OutgoingSocket(threading.Thread):
         return False
 
     @staticmethod
-    def _check_stage_1(line):
+    def _check_stage(line, id_):
         data = json.loads(line)
         if not isinstance(data, dict):
             raise ValueError('Not a dict: {}'.format(type(data)))
-        cmd = data.get('cmd', 'Unset')
-        code = data.get('code', -1)
-        if cmd.lower() != 'authorization':
+        if data.get('id') != id_:
             raise ValueError('Surprise: {}'.format(repr(data)))
-        if code:
-            raise RuntimeError('Authorization failed: {} [{}] {}'.format(cmd, code, data.get('msg', '')))
+        if 'error' in data:
+            msg = 'Failed {}: [{}] {}'.format(id_, data['error'].get('code'), data['error'].get('message'))
+            raise RuntimeError(msg)

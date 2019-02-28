@@ -176,8 +176,19 @@ class Connect:
 
         data += CRLF
         with self._send_lock:
+            timeout = 0
             while data:
-                sending = self._socket_send(data)
+                try:
+                    sending = self._conn.send(data)
+                except socket.timeout as e:
+                    timeout += 1
+                    if timeout > 5:
+                        raise RuntimeError(e)
+                    time.sleep(0.1)
+                    continue
+                except (socket.error, AttributeError) as e:
+                    raise RuntimeError(e)
+                timeout = 0
                 data = data[sending:]
 
     def _socket_send(self, data: bytes) -> int:

@@ -158,7 +158,7 @@ class MajordomoNotifier(threading.Thread):
         return reply.request.url
 
     def _send_over_socket(self, target: str, params: dict) -> str:
-        self.own.send_on_duplex_mode({'cmd': target, 'code': 0, 'body': params})
+        self.own.send_on_duplex_mode({'method': target, 'params': params})
         return 'in socket {}: {}'.format(target, repr(params)[:300])
 
 

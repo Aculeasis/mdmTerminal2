@@ -20,6 +20,10 @@ class TestShell(cmd__.Cmd):
         self._ip = '127.0.0.1'
         self._port = 7999
         self._token = ''
+        self.chunk_size = 1024
+
+    def _send_json(self, cmd: str, data='', is_logger=False, is_duplex=False, auth=None):
+        self._send(json.dumps({'method': cmd, 'params': [data], 'id': cmd}), is_logger, is_duplex, auth)
 
     def _send(self, cmd: str, is_logger=False, is_duplex=False, auth=None):
         client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -39,7 +43,7 @@ class TestShell(cmd__.Cmd):
             stage = 0
             while True:
                 try:
-                    chunk = client.recv(1024)
+                    chunk = client.recv(self.chunk_size)
                 except ERRORS:
                     break
                 if not chunk:
@@ -75,25 +79,69 @@ class TestShell(cmd__.Cmd):
                             line = 'ping {} ms'.format(int(diff * 1000))
                     print('Ответ: {}'.format(line))
         finally:
+            self.chunk_size = 1024
             client.close()
 
     @staticmethod
     def handshake(line: str, stage: int):
-        if line == 'upgrade duplex ok':
+        try:
+            data = json.loads(line)
+            if not isinstance(data, dict):
+                raise TypeError('Data must be dict type')
+        except (json.decoder.JSONDecodeError, TypeError, ValueError) as e:
+            print('Ошибка декодирования: {}'.format(e))
+            return -1
+        if 'result' in data and data.get('id') == 'upgrade duplex':
             return 0
-        else:
-            try:
-                data = json.loads(line)
-                if not isinstance(data, dict):
-                    raise TypeError('Data must be dict type')
-            except (json.decoder.JSONDecodeError, TypeError, ValueError) as e:
-                print('Ошибка декодирования: {}'.format(e))
-                return -1
-            print('Reply: {}'.format(repr(data)))
-            return -1 if data.get('code', -1) else stage
+        return stage
 
     @staticmethod
-    def _parse_json(data: str):
+    def _parse_dict(cmd, data):
+        if cmd == 'recv_model':
+            for key in ('filename', 'data'):
+                if key not in data:
+                    return print('Не хватает ключа: {}'.format(key))
+            try:
+                file_size = len(base64_to_bytes(data['data']))
+            except RuntimeError as e:
+                return print('Ошибка декодирования data: {}'.format(e))
+
+            optional = ', '.join(['{}={}'.format(k, repr(data[k])) for k in ('username', 'phrase') if k in data])
+            result = 'Получен файл {}; данные: {}; размер {} байт'.format(data['filename'], optional, file_size)
+        elif cmd == 'list_models':
+            if len([k for k in ('models', 'allow') if isinstance(data.get(k, ''), list)]) < 2:
+                return print('Недопустимое body: {}'.format(repr(data)))
+            result = 'Все модели: {}; разрешенные: {}'.format(
+                ', '.join(data['models']), ', '.join(data['allow'])
+            )
+        elif cmd == 'info':
+            for key in ('cmd', 'msg'):
+                if key not in data:
+                    return print('Не хватает ключа в body: {}'.format(key))
+            if isinstance(data['cmd'], (list, dict)):
+                data['cmd'] = ', '.join(x for x in data['cmd'])
+            if isinstance(data['msg'], str) and '\n' in data['msg']:
+                data['msg'] = '\n' + data['msg']
+            print('\nINFO: {}'.format(data['cmd']))
+            print('MSG: {}\n'.format(data['msg']))
+            return
+        else:
+            return cmd, data
+        return result
+
+    @staticmethod
+    def _parse_str(cmd, data):
+        if cmd == 'ping':
+            try:
+                diff = time.time() - float(data)
+            except (ValueError, TypeError):
+                pass
+            else:
+                print('ping {} ms'.format(int(diff * 1000)))
+                return
+        return cmd, data
+
+    def _parse_json(self, data: str):
         try:
             data = json.loads(data)
             if not isinstance(data, dict):
@@ -101,60 +149,31 @@ class TestShell(cmd__.Cmd):
         except (json.decoder.JSONDecodeError, TypeError) as e:
             return print('Ошибка декодирования: {}'.format(e))
 
-        for key in ('cmd', 'code'):
-            if key not in data:
-                return print('Не хватает ключа: {}'.format(key))
-
-        if data['code'] != 0:
-            print('Терминал сообщил об ошибке {} [{}]: {}'.format(data['cmd'], data['code'], data.get('msg', '')))
+        if 'error' in data:
+            result = (data.get('id', 'null'), data['error'].get('code'), data['error'].get('message'))
+            print('Терминал сообщил об ошибке {} [{}]: {}'.format(*result))
             return
-
-        if 'body' not in data:
-            if 'msg' in data:
-                return print('{}: {}'.format(data['cmd'], data['msg']))
-            return print('Не хватает ключа: body')
-        cmd = data['cmd']
-        body = data['body']
-        del data
-
-        if not isinstance(body, dict):
-            return print('body должен быть dict, не {}'.format(type(body)))
-        if cmd == 'recv_model':
-            for key in ('filename', 'data'):
-                if key not in body:
-                    return print('Не хватает ключа: {}'.format(key))
-            try:
-                file_size = len(base64_to_bytes(body['data']))
-            except RuntimeError as e:
-                return print('Ошибка декодирования data: {}'.format(e))
-
-            optional = ', '.join(['{}={}'.format(k, repr(body[k])) for k in ('username', 'phrase') if k in body])
-            result = 'Получен файл {}; данные: {}; размер {} байт'.format(body['filename'], optional, file_size)
-        elif cmd == 'list_models':
-            if len([k for k in ('models', 'allow') if isinstance(body.get(k, ''), list)]) < 2:
-                return print('Недопустимое body: {}'.format(repr(body)))
-            result = 'Все модели: {}; разрешенные: {}'.format(
-                ', '.join(body['models']), ', '.join(body['allow'])
-            )
-        elif cmd == 'cmd':
-            print('cmd: {}'.format(repr(body)))
-            return 'tts:{}'.format(body.get('qry', 'ничего'))
-        elif cmd == 'api':
-            return print('api: {}'.format(repr(body)))
-        elif cmd == 'info':
-            for key in ('cmd', 'msg'):
-                if key not in body:
-                    return print('Не хватает ключа в body: {}'.format(key))
-            if isinstance(body['cmd'], (list, dict)):
-                body['cmd'] = ', '.join(x for x in body['cmd'])
-            if isinstance(body['msg'], str) and '\n' in body['msg']:
-                body['msg'] = '\n' + body['msg']
-            print('\nINFO: {}'.format(body['cmd']))
-            print('MSG: {}\n'.format(body['msg']))
+        if 'method' in data:
+            print('{}: {}, id: {}'.format(data['method'], data.get('params'), data.get('id')))
+            if data['method'] == 'cmd':
+                tts = data.get('params', {}).get('qry', '')
+                if tts:
+                    return 'tts:{}'.format(tts)
             return
+        cmd = data.get('id')
+        data = data.get('result')
+        if isinstance(data, dict):
+            result = self._parse_dict(cmd, data)
+        elif isinstance(data, str):
+            result = self._parse_str(cmd, data)
         else:
-            result = 'Неизвестная команда: {}'.format(repr(cmd))
-        print('Ответ на {}: {}'.format(repr(cmd), result))
+            result = (cmd, data)
+        if result is None:
+            pass
+        elif isinstance(result, str):
+            print('Ответ на {}: {}'.format(repr(cmd), result))
+        else:
+            print('Неизвестная команда: {}'.format(repr(result)))
 
     def do_connect(self, arg):
         """Проверяет подключение к терминалу и позволяет задать его адрес. Аргументы: IP:PORT"""
@@ -251,15 +270,16 @@ class TestShell(cmd__.Cmd):
 
     def do_ping(self, _):
         """Пинг. Аргументы: нет"""
-        self._send('ping:{}'.format(time.time()))
+        self._send_json('ping', str(time.time()))
 
     def do_list_models(self, _):
         """Список моделей. Аргументы: нет"""
-        self._send('list_models')
+        self._send_json('list_models')
 
     def do_recv_model(self, filename):
         """Запросить модель у терминала. Аргументы: имя файла"""
-        self._send('recv_model:{}'.format(filename))
+        self.chunk_size = 1024 * 1024
+        self._send_json('recv_model', filename)
 
     def do_log(self, _):
         """Подключает удаленного логгера к терминалу. Аргументы: нет"""
@@ -267,7 +287,7 @@ class TestShell(cmd__.Cmd):
 
     def do_duplex(self, _):
         """Один сокет для всего."""
-        self._send('upgrade duplex', is_duplex=True, auth=True)
+        self._send_json('upgrade duplex', is_duplex=True, auth=True)
 
     def do_raw(self, arg):
         """Отправляет терминалу любые данные. Аргументы: что угодно"""

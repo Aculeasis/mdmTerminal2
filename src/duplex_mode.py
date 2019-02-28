@@ -68,9 +68,12 @@ class DuplexMode(SocketAPIHandler):
             info = (self._conn.proto.upper(), self._conn.ip, self._conn.port)
             self.duplex = True
             self._notify_duplex('open')
-
+            if cmd:
+                cmd = {'result': 'ok', 'id': cmd}
+            else:
+                cmd = {'method': 'ping', 'params': [str(time.time())], 'id': 'pong'}
             try:
-                self._conn.write(cmd or 'ping:{}'.format(time.time()))
+                self._conn.write(cmd)
             except RuntimeError as e:
                 self._api_close()
                 self.log('OPEN ERROR {}::{}:{}: {}'.format(*info, e), logger.ERROR)

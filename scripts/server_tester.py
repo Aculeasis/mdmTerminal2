@@ -50,6 +50,27 @@ def get_headers(request_text):
     return http.client.parse_headers(BytesIO(request_text))
 
 
+def json_parse(line):
+    try:
+        line = json.loads(line)
+    except (ValueError, TypeError) as e:
+        print('Broken JSON: {}'.format(e))
+        return None, None, None
+    if 'error' in line:
+        print('Error: {}'.format(line['error']))
+        return None, None, None
+    params = line.get('params')
+    if isinstance(params, list) and len(params) == 1:
+        params = params[0]
+    else:
+        params = ''
+    if 'method' in line:
+        return line['method'], params, line.get('id')
+    if 'result' in line:
+        return line.get('id'), line['result'], None
+    return None, None, None
+
+
 class WebSocketServer(websocket.WebSocket):
     def __init__(self, sock, init, fire_cont_frame=False, enable_multithread=False, skip_utf8_validation=False, **_):
         super().__init__(fire_cont_frame, enable_multithread, skip_utf8_validation)
@@ -217,7 +238,7 @@ class Server(threading.Thread):
         self.socket.close()
 
     @staticmethod
-    def pong(data: str):
+    def pong(data):
         try:
             diff_ms = int((time.time() - float(data)) * 1000)
         except (TypeError, IndexError, ValueError):
@@ -229,30 +250,28 @@ class Server(threading.Thread):
         for line in self.reader(client):
             if self.closed:
                 break
-            cmd = line.split(':', 1)
-            if len(cmd) < 2:
-                cmd.append('')
-            cmd, data = cmd[0].lower(), cmd[1]
-
+            cmd, params, id_ = json_parse(line)
+            if not cmd:
+                continue
             if stage == 2:
                 if cmd == 'ping':
-                    self.send(':'.join(('pong', data)))
+                    self.send({'result': params, 'id': id_})
                 elif cmd == 'pong':
-                    self.pong(data)
+                    self.pong(params)
             elif not stage and cmd == 'authorization':
-                if not self._auth(data):
-                    self.send({'code': 101, 'cmd': cmd, 'msg': 'forbidden: wrong hash'})
+                if not self._auth(params):
+                    self.send({'error': {'code': 102, 'message': 'forbidden: wrong hash'}, 'id': id_})
                 else:
                     stage = 1
-                    self.send({'code': 0, 'cmd': cmd, 'msg': 'authorized'})
+                    self.send({'result': 'ok', 'id': id_})
             elif stage == 1:
                 if cmd == 'upgrade duplex':
-                    self.send('upgrade duplex ok')
+                    self.send({'result': 'ok', 'id': id_})
                     stage = 2
                 else:
-                    self.send({'cmd': cmd, 'code': 102, 'msg': 'I wait upgrade duplex'})
+                    self.send({'error': {'code': 101, 'message': 'I wait upgrade duplex'}, 'id': id_})
             else:
-                self.send({'code': 100, 'cmd': cmd, 'msg': 'forbidden: authorization is necessary'})
+                self.send({'error': {'code': 100, 'message': 'forbidden: authorization is necessary'}, 'id': id_})
         self.close()
 
     def _auth(self, token) -> bool:
@@ -262,11 +281,12 @@ class Server(threading.Thread):
         return True
 
     def reader(self, client):
+        chunk_size = 1024 * 4
         data = b''
         first = True
         while self.work and not self.closed:
             try:
-                chunk = client.recv(1024)
+                chunk = client.recv(chunk_size)
             except socket.timeout:
                 continue
             except ERRORS:
@@ -321,7 +341,7 @@ class TestShell(cmd__.Cmd):
 
     def do_ping(self, _):
         """Ping."""
-        self.server.send('ping:{}'.format(time.time()))
+        self.server.send({'method': 'ping', 'params': [str(time.time())], 'id': 'pong'})
 
     def do_exit(self, _):
         """Выход из оболочки"""

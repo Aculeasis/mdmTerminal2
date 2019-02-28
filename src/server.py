@@ -4,7 +4,7 @@ import socket
 
 import logger as logger_
 from languages import SERVER as LNG
-from lib.socket_api_handler import SocketAPIHandler, ReturnException, upgrade_duplex
+from lib.socket_api_handler import SocketAPIHandler, InternalException, upgrade_duplex
 from owner import Owner
 
 
@@ -17,9 +17,9 @@ class MDTServer(SocketAPIHandler):
 
     def _upgrade_duplex(self, *_):
         try:
-            upgrade_duplex(self.own, self._conn, 'upgrade duplex ok')
+            upgrade_duplex(self.own, self._conn, self.id)
         except RuntimeError as e:
-            raise ReturnException(msg=str(e))
+            raise InternalException(msg=str(e))
 
     def do_ws_allow(self, ip, port, token):
         ws_token = self.cfg.gt('system', 'ws_token')

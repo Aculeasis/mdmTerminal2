@@ -21,45 +21,52 @@ def upgrade_duplex(own: Owner, soc: Connect, msg=''):
         raise RuntimeError('No subscribers: {}'.format(cmd))
 
 
-class BaseAPIException(Exception):
-    RETURN = None
+def json_parser(data: str, keys: tuple=()) -> dict:
+    try:
+        data = json.loads(data)
+        if not isinstance(data, dict):
+            raise TypeError('Data must be dict type')
+    except (json.decoder.JSONDecodeError, TypeError) as e:
+        raise InternalException(msg=e)
 
-    def __init__(self, code: int=1, msg=None, **kwargs):
+    for key in keys:
+        if key not in data:
+            raise InternalException(5, 'Missing key: {}'.format(key))
+    return data
+
+
+class Null:
+    def __repr__(self):
+        return 'null'
+
+
+class InternalException(Exception):
+    def __init__(self, code: int=1, msg=None, id_=None, method='method'):
         # 0-9 код ошибки от команды
-        code = code if 10 > code > -1 else 1
+        code = code if code < 10 else 1
         # 4000 - ошибка API
-        code += 4000
+        if code > -1:
+            code += 4000
         msg = self.__class__.__name__ if msg is None else str(msg)
 
-        self.data = {'code': code, 'cmd': '', 'msg': msg}
-        self.data.update(kwargs)
-
-    def up(self, **kwargs):
-        self.data.update(kwargs)
+        self.error = {'code': code, 'message': msg}
+        self.id = id_
+        self.method = method
 
     def cmd_code(self, code):
         # 10-990 код команды
-        self.data['code'] += code * 10
+        if self.error['code'] > -1:
+            self.error['code'] += code * 10
+
+    @property
+    def data(self):
+        return {'error': self.error, 'id': self.id if not isinstance(self.id, Null) else None}
 
     def __str__(self):
-        return '{cmd} {code}: {msg}'.format(**self.data)
-
-
-class InternalException(BaseAPIException):
-    pass
-
-
-class ReturnException(BaseAPIException):
-    RETURN = True
-
-
-class NoReturnException(BaseAPIException):
-    RETURN = False
+        return '{} {code}: {message}'.format(self.method, **self.error)
 
 
 class API:
-    REPLY = 'reply'
-
     def __init__(self, cfg, log, owner: Owner):
         self.API = {
             # Базовое, MajorDroid, API
@@ -85,69 +92,11 @@ class API:
             'list_models': self._api_list_models,
             'ping': self._api_ping,
             'info': self._api_info,
-            self.REPLY: self._api_reply_check,
         }
         self.API_CODE = {name: index for index, name in enumerate(self.API.keys(), 1)}
         self.cfg = cfg
         self.log = log
         self.own = owner
-
-    def add_api(self, name: str, call) -> bool:
-        if name in self.API:
-            return False
-        self.API[name] = call
-        self.API_CODE = {name: index for index, name in enumerate(self.API.keys(), 1)}
-        return True
-
-    @staticmethod
-    def json_parser(data: str, cmd: str= '', body_keys: tuple=()) -> dict:
-        check_keys = []
-        if cmd:
-            check_keys.append('cmd')
-        if body_keys:
-            check_keys.append('body')
-        try:
-            data = json.loads(data)
-            if not isinstance(data, dict):
-                raise TypeError('Data must be dict type')
-        except (json.decoder.JSONDecodeError, TypeError) as e:
-            raise InternalException(msg=e)
-
-        if 'code' not in data:
-            raise InternalException(2, msg='Missing key: code')
-        if data['code']:
-            cmd_ = repr(data.get('cmd', ''))[:100]
-            code_ = repr(data['code'])[:10]
-            msg_ = repr(data.get('msg', ''))[:1000]
-            raise NoReturnException(code=0, msg='Received error to {}. {}: {} '.format(cmd_, code_, msg_))
-        for key in check_keys:
-            if key not in data:
-                raise InternalException(2, msg='Missing key: {}'.format(key))
-        if cmd:
-            if 'cmd' != data['cmd']:
-                raise InternalException(3, 'Wrong value in cmd: {} != {}'.format(data['cmd'], cmd))
-        if body_keys:
-            if not isinstance(data['body'], dict):
-                raise InternalException(4, 'body must be dict type, not \'{}\''.format(type(data['body'])))
-            for key in body_keys:
-                if key not in data['body']:
-                    raise InternalException(5, 'Missing key in body: {}'.format(key))
-            return data['body']
-        return data
-
-    def _api_reply_check(self, name, data):
-        data = self.json_parser(data)
-        cmd = data.get('cmd')
-        result = None
-        for key in ('msg', 'body'):
-            if key in data:
-                result = repr(data[key])[:1500]
-                break
-        if result is None and cmd is None:
-            return
-        result = result or '\'Unknown\''
-        cmd = repr(cmd)[:100] if cmd else '\'Unknown\''
-        self.log('API.{} Received reply to {}: {}'.format(name, cmd, result), logger.INFO)
 
     def _api_no_implement(self, cmd: str, _):
         """NotImplemented"""
@@ -194,13 +143,13 @@ class API:
         Т.к. перезапись существующей модели может уронить сноубоя
         отпарсим данные и передадим их терминалу.
 
-        Все данные распаковываются из json, где в body:
+        Все данные распаковываются из json, где:
         filename: валидное имя файла модели, обязательно.
-        data: файл модели завернутый в base64, обязательно если code 0
+        data: файл модели завернутый в base64, обязательно.
         phrase: ключевая фраза модели.
         username: пользователь модели.
         """
-        data = self.json_parser(data, body_keys=('filename', 'data'))
+        data = json_parser(data, keys=('filename', 'data'))
         # Недопустимое имя модели?
         if not self.cfg.is_model_name(data['filename']):
             raise InternalException(6, 'Wrong model name: {}'.format(data['filename']))
@@ -223,59 +172,48 @@ class API:
         """
         Отправка модели на сервер.
         Все данные пакуются в json:
-        cmd: команда на которую отвечаем (без параметра), обязательно.
-        code: если не 0, произошла ошибка, обязательно, число.
         filename: валидное имя файла модели, обязательно.
-        msg: сообщение об ошибке, если это ошибка.
-        body: файл модели завернутый в base64, обязательно если code 0
+        data: файл модели завернутый в base64, обязательно если code 0
         phrase: ключевая фраза модели, если есть.
         username: пользователь модели, если есть.
         """
         if not self.cfg.is_model_name(pmdl_name):
-            raise ReturnException(msg='Wrong model name: {}'.format(pmdl_name), filename=pmdl_name)
+            raise InternalException(msg='Wrong model name: {}'.format(pmdl_name))
 
         pmdl_path = os.path.join(self.cfg.path['models'], pmdl_name)
         if not os.path.isfile(pmdl_path):
-            raise ReturnException(2, 'File {} not found'.format(pmdl_name), filename=pmdl_name)
+            raise InternalException(2, 'File {} not found'.format(pmdl_name))
 
         try:
-            data = file_to_base64(pmdl_path)
+            result = {'filename': pmdl_name, 'data': file_to_base64(pmdl_path)}
         except IOError as e:
-            raise ReturnException(3, 'IOError: {}'.format(e), filename=pmdl_name)
+            raise InternalException(3, 'IOError: {}'.format(e))
 
         phrase = self.cfg.gt('models', pmdl_name)
         username = self.cfg.gt('persons', pmdl_name)
 
-        body = {'filename': pmdl_name, 'data': data}
         if phrase:
-            body['phrase'] = phrase
+            result['phrase'] = phrase
         if username:
-            body['username'] = username
-        return {'body': body}
+            result['username'] = username
+        return result
 
     def _api_list_models(self, *_):
         """
         Отправка на сервер моделей которые есть у терминала.
         Все данные пакуются в json:
-        cmd: команда на которую отвечаем (без параметра), обязательно.
-        code: если не 0, произошла ошибка, обязательно, число.
-        msg: сообщение об ошибке, если это ошибка.
-        body: json-объект типа dict, содержит 2 списка:
         - models: список всех моделей которые есть, может быть пустым, обязательно если code 0.
         - allow: список моделей из [models] allow, может быть пустым, обязательно если code 0.
         """
-        return {'body': {'models': self.cfg.get_all_models(), 'allow': self.cfg.get_allow_models()}}
+        return {'models': self.cfg.get_all_models(), 'allow': self.cfg.get_allow_models()}
 
     @staticmethod
     def _api_ping(_, data: str):
         """
         Пустая команды для поддержания и проверки соединения,
-        на 'ping' терминал пришлет 'pong'. Если пинг с данными,
-        то он вернет их (можно сохранить туда время).
-        Также терминал будет ожидать pong в ответ на ping.
+        вернет данные
         """
-        cmd = 'pong'
-        return '{}:{}'.format(cmd, data) if data else cmd
+        return data
 
     def _api_pong(self, _, data: str):
         if data:
@@ -294,21 +232,94 @@ class API:
         Возвращает справку по команде из __doc__ или список доступных команд если команда не задана.
         Учитывает только команды представленные в API, подписчики не проверяются.
         """
-        result = {'body': {'cmd': cmd}}
+        result = {'cmd': cmd}
         if not cmd:
-            result['body'].update(cmd=[x for x in self.API], msg='Available commands')
+            result.update(cmd=[x for x in self.API], msg='Available commands')
         elif cmd not in self.API:
-            raise ReturnException(msg='Unknown command: {}'.format(cmd))
+            raise InternalException(msg='Unknown command: {}'.format(cmd))
         else:
             if self.API[cmd].__doc__:
                 clear_doc = self.API[cmd].__doc__.split('\n\n')[0].rstrip().strip('\n')
             else:
                 clear_doc = 'Undocumented'
-            result['body']['msg'] = clear_doc
+            result['msg'] = clear_doc
         return result
 
 
-class SocketAPIHandler(threading.Thread, API):
+class APIHandler(API):
+    def __init__(self, cfg, log, owner: Owner):
+        super().__init__(cfg, log, owner)
+
+    def add_api(self, name: str, call) -> bool:
+        if name in self.API:
+            return False
+        self.API[name] = call
+        self.API_CODE = {name: index for index, name in enumerate(self.API.keys(), 1)}
+        return True
+
+    def extract(self, line: str) -> tuple:
+        if line.startswith('{'):
+            return self._extract_json(line)
+        else:
+            return self._extract_str(line)
+
+    def _extract_json(self, line: str) -> tuple:
+        null = Null()
+        try:
+            line = json.loads(line)
+            if not isinstance(line, dict):
+                raise TypeError('must be a dict type')
+        except (json.decoder.JSONDecodeError, TypeError) as e:
+            raise InternalException(code=-32700, msg=str(e), id_=null)
+
+        # Хак для ошибок парсинга, null != None
+        id_ = line['id'] if line.get('id') is not None else null
+
+        # Получили ответ с ошибкой.
+        if 'error' in line and isinstance(line['error'], dict):
+            code_ = repr(line['error'].get('code'))
+            msg_ = repr(line['error'].get('message'))
+            self.log('Error message received. code: {}, msg: {}, id: {}'.format(code_, msg_, repr(id_)), logger.WARN)
+            raise RuntimeError
+
+        # Получили ответ с результатом.
+        if 'result' in line:
+            result_ = line['result']
+            if result_ and id_ == 'pong':
+                self._api_pong(None, result_)
+            else:
+                self.log('Response message received. result: {}, id: {}'.format(repr(result_), repr(id_)), logger.INFO)
+            raise RuntimeError
+
+        # Запрос.
+        method = line.get('method')
+        if not method:
+            raise InternalException(code=-32600, msg='method missing', id_=id_)
+        if not isinstance(method, str):
+            raise InternalException(code=-32600, msg='method must be a str', id_=id_)
+        params = line.get('params')
+        if params:
+            # FIXME: legacy
+            if isinstance(params, list) and len(params) == 1 and isinstance(params[0], str):
+                params = params[0]
+            else:
+                raise InternalException(code=-32602, msg='legacy, params must be a list[str]', id_=id_, method=method)
+        else:
+            params = ''
+
+        # null == None
+        id_ = None if isinstance(id_, Null) else id_
+        return method, params, id_
+
+    @staticmethod
+    def _extract_str(line: str) -> tuple:
+        line = line.split(':', 1)
+        if len(line) != 2:
+            line.append('')
+        return line[0], line[1], None
+
+
+class SocketAPIHandler(threading.Thread, APIHandler):
     # Канал для неблокирующих команд
     # Вызов: команда, данные
     NET = 'net'
@@ -319,17 +330,18 @@ class SocketAPIHandler(threading.Thread, API):
 
     def __init__(self, cfg, log, owner: Owner, name, duplex_mode=False):
         threading.Thread.__init__(self, name=name)
-        API.__init__(self, cfg, log, owner)
+        APIHandler.__init__(self, cfg, log, owner)
 
         # Клиент получит ответ на все ошибки коммуникации
         self._duplex_mode = duplex_mode
         self.work = False
         self._conn = Connect(None, None, self.do_ws_allow)
         self._lock = Unlock()
+        self.id = None
         # Команды API не требующие авторизации
         self.NON_AUTH = {
             'authorization', 'hi', 'voice', 'play', 'pause', 'tts', 'ask', 'settings', 'volume', 'volume_q', 'rec',
-            'remote_log', self.REPLY,
+            'remote_log',
         }
         self.add_api('authorization', self._authorization)
         self.add_api('deauthorization', self._deauthorization)
@@ -340,20 +352,20 @@ class SocketAPIHandler(threading.Thread, API):
             if token:
                 local_hash = hashlib.sha3_512(token.encode()).hexdigest()
                 if local_hash != remote_hash:
-                    raise ReturnException(msg='forbidden: wrong hash')
+                    raise InternalException(msg='forbidden: wrong hash')
             self._conn.auth = True
             msg = 'authorized'
             self.log('API.{} {}'.format(cmd, msg), logger.INFO)
-            return {'msg': msg}
-        return {'msg': 'already'}
+            return msg
+        return 'already'
 
     def _deauthorization(self, cmd, _):
         if self._conn.auth:
             self._conn.auth = False
             msg = 'deauthorized'
             self.log('API.{} {}'.format(cmd, msg), logger.INFO)
-            return {'msg': msg}
-        return {'msg': 'already'}
+            return msg
+        return 'already'
 
     def join(self, timeout=None):
         if self.work:
@@ -376,64 +388,68 @@ class SocketAPIHandler(threading.Thread, API):
     def run(self):
         raise NotImplemented
 
-    def _call_api(self, cmd: str, data: str):
+    def _call_api(self, cmd: str, data, id_):
+        self.id = id_
         try:
             result = self.API[cmd](cmd, data)
         except RuntimeError as e:
             self.log('Error {}: {}'.format(cmd, e), logger.ERROR)
-        except BaseAPIException as e:
-            self._handle_exception(cmd, e)
+        except InternalException as e:
+            e.id = id_
+            self._handle_exception(e, cmd)
+        except Exception as e:
+            self._handle_exception(InternalException(code=0, msg=str(e), id_=id_), cmd)
         else:
-            if result:
-                if isinstance(result, dict):
-                    result.update({'cmd': cmd, 'code': 0})
-                self._write(result)
+            if id_ is not None:
+                self._write({'result': result, 'id': id_})
 
-    def _handle_exception(self, cmd: str, e: BaseAPIException, code=0):
-        e.up(cmd=cmd)
+    def _handle_exception(self, e: InternalException, cmd='method', code=0):
+        e.method = cmd
         e.cmd_code(code or self.API_CODE.get(cmd, 1000))
         self.log('API.{}'.format(e), logger.WARN)
-        return_ = e.RETURN if e.RETURN is not None else self._duplex_mode
-        if return_:
+        if e.id is not None:
             self._write(e.data)
 
     def parse(self, data: str):
         if not data:
-            self._internal_error_reply(5001, '', 'no data')
-            self.log('No data')
+            self._handle_exception(InternalException(code=-32600, msg='no data'))
             return
         else:
             self.log('Received data: {}'.format(repr(data)[:1500]))
+        try:
+            cmd, data, id_ = self.extract(data)
+        except InternalException as e:
+            self._handle_exception(e, e.method)
+            return
+        except RuntimeError:
+            return
 
-        if data.startswith('{') and data.endswith('}'):
-            cmd = (self.REPLY, data)
-        else:
-            cmd = data.split(':', 1)
-            if len(cmd) != 2:
-                cmd.append('')
-
-        if not self._conn.auth and cmd[0] not in self.NON_AUTH:
+        if not self._conn.auth and cmd not in self.NON_AUTH:
             self._handle_exception(
-                cmd[0],
-                ReturnException(code=0, msg='forbidden: authorization is necessary'),
+                InternalException(code=0, msg='forbidden: authorization is necessary', id_=id_),
+                cmd,
                 self.API_CODE.get('authorization', 1000)
             )
-        elif self.own.has_subscribers(cmd[0], self.NET):
-            self.log('Command {} intercepted'.format(repr(cmd[0])))
-            self.own.sub_call(self.NET, cmd[0], cmd[1])
-        elif self.own.has_subscribers(cmd[0], self.NET_BLOCK):
-            self.log('Command {} intercepted in blocking mode'.format(repr(cmd[0])))
+        elif self.own.has_subscribers(cmd, self.NET):
+            self.log('Command {} intercepted'.format(repr(cmd)))
+            self.own.sub_call(self.NET, cmd, data)
+            if id_ is not None:
+                self._write({'result': None, 'id': id_})
+        elif self.own.has_subscribers(cmd, self.NET_BLOCK):
+            self.log('Command {} intercepted in blocking mode'.format(repr(cmd)))
             self._lock.clear()
-            self.own.sub_call(self.NET_BLOCK, cmd[0], cmd[1], self._lock, self._conn)
+            self.own.sub_call(self.NET_BLOCK, cmd, data, self._lock, self._conn)
             # Приостанавливаем выполнение, ждем пока обработчик нас разблокирует
             # 1 минуты хватит?
             self._lock.wait(60)
-        elif cmd[0] in self.API:
-            self._call_api(*cmd)
+            if id_ is not None:
+                self._write({'result': None, 'id': id_})
+        elif cmd in self.API:
+            self._call_api(cmd, data, id_)
         else:
-            msg = 'Unknown command: {}'.format(repr(cmd[0])[:100])
+            msg = 'Unknown command: {}'.format(repr(cmd)[:100])
             self.log(msg, logger.WARN)
-            self._internal_error_reply(5002, cmd[0], msg)
+            self._handle_exception(InternalException(code=-32600, msg=msg, id_=id_), cmd)
 
     def _write(self, data, quite=False):
         try:
@@ -442,10 +458,6 @@ class SocketAPIHandler(threading.Thread, API):
             self._conn.close()
             if not quite:
                 self.log('Write error: {}'.format(e), logger.ERROR)
-
-    def _internal_error_reply(self, code: int, cmd: str, msg: str):
-        if self._duplex_mode:
-            self._write({'cmd': cmd, 'code': code, 'msg': msg}, True)
 
 
 class Unlock(threading.Event):
