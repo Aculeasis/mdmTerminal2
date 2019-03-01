@@ -242,9 +242,9 @@ def yandex_speed_normalization(speed):
 def singleton(cls):
     instances = {}
 
-    def get_instance():
+    def get_instance(*args, **kwargs):
         if cls not in instances:
-            instances[cls] = cls()
+            instances[cls] = cls(*args, **kwargs)
         return instances[cls]
 
     return get_instance

@@ -13,6 +13,7 @@ from languages import CONFIG as LNG, LANG_CODE
 from lib import volume
 from lib.audio_utils import APMSettings
 from lib.keys_utils import Keystore
+from lib.map_settings.wiki_parser import WikiParser
 from lib.proxy import proxies
 from owner import Owner
 
@@ -43,6 +44,10 @@ class ConfigHandler(dict):
     @property
     def version_str(self) -> str:
         return '.'.join(str(x) for x in self._version_info)
+
+    @property
+    def wiki_desc(self) -> dict:
+        return WikiParser(self, self._print).get()
 
     def __print(self, msg, lvl):
         self._to_log.append((msg, lvl))

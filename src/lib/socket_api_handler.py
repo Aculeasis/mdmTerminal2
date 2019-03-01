@@ -6,6 +6,7 @@ import threading
 import time
 
 import logger
+from lib.map_settings.map_settings import make_map_settings
 from lib.socket_wrapper import Connect
 from owner import Owner
 from utils import file_to_base64, pretty_time
@@ -254,6 +255,10 @@ class API:
                 clear_doc = 'Undocumented'
             result['msg'] = clear_doc
         return result
+
+    @api_commands('get_map_settings')
+    def _api_get_map_settings(self, *_):
+        return make_map_settings(self.cfg.wiki_desc)
 
 
 class APIHandler(API):
