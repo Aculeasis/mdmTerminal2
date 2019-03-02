@@ -376,7 +376,6 @@ class SocketAPIHandler(threading.Thread, APIHandler):
         if self.work:
             self.work = False
             self._conn.stop()
-            # self._lock()
             self.log('stopping...')
             super().join(timeout)
             self.log('stop.', logger.INFO)
@@ -403,15 +402,15 @@ class SocketAPIHandler(threading.Thread, APIHandler):
             e.id = id_
             self._handle_exception(e, cmd)
         except Exception as e:
-            self._handle_exception(InternalException(code=0, msg=str(e), id_=id_), cmd)
+            self._handle_exception(InternalException(code=-32603, msg=str(e), id_=id_), cmd, logger.CRIT)
         else:
             if id_ is not None:
                 self._write({'result': result, 'id': id_})
 
-    def _handle_exception(self, e: InternalException, cmd='method', code=0):
+    def _handle_exception(self, e: InternalException, cmd='method', code=0, log_lvl=logger.WARN):
         e.method = cmd
         e.cmd_code(code or self.API_CODE.get(cmd, 1000))
-        self.log('API.{}'.format(e), logger.WARN)
+        self.log('API.{}'.format(e), log_lvl)
         if e.id is not None:
             self._write(e.data)
 
@@ -454,7 +453,7 @@ class SocketAPIHandler(threading.Thread, APIHandler):
         else:
             msg = 'Unknown command: {}'.format(repr(cmd)[:100])
             self.log(msg, logger.WARN)
-            self._handle_exception(InternalException(code=-32600, msg=msg, id_=id_), cmd)
+            self._handle_exception(InternalException(code=-32601, msg=msg, id_=id_), cmd)
 
     def _write(self, data, quite=False):
         try:
