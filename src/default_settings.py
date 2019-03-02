@@ -16,6 +16,7 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'quiet': False,
         'no_hello': False,
         'blocking_listener': True,
+        'say_stt_error': False,
         'audio_gain': 1.0,
         'phrase_time_limit': 12,
         'no_background_play': False,
@@ -151,9 +152,9 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'blacklist_on_failure': False,
     },
     'system': {
-        'ini_version': 38,
+        'ini_version': 39,
         'ws_token': 'token_is_unset',
         'PLUGINS_API': 2,
-        'VERSION': (0, 9, 4),
+        'VERSION': (0, 9, 5),
     }
 }

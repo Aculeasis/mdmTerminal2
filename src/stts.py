@@ -392,9 +392,14 @@ class SpeechToText:
             self.own.speech_recognized(False)
 
     def _voice_recognition(self, audio, quiet: bool=False, fusion=None) -> str:
+        def say(text: str):
+            if not quiet:
+                self.own.say(text)
+        quiet = quiet or not self._cfg.gts('say_stt_error')
         prov = self._cfg.gts('providerstt', 'unset')
         if not STT.support(prov):
             self.log(LNG['err_unknown_prov'].format(prov), logger.CRIT)
+            say(LNG['err_unknown_prov'].format(''))
             return ''
         self.log(LNG['recognized_from'].format(prov), logger.DEBUG)
         wtime = time.time()
@@ -411,8 +416,7 @@ class SpeechToText:
         except STT.UnknownValueError:
             command = ''
         except (STT.RequestError, RuntimeError) as e:
-            if not quiet:
-                self.own.say(LNG['err_stt_say'])
+            say(LNG['err_stt_say'])
             self.log(LNG['err_stt_log'].format(e), logger.ERROR)
             return ''
         if fusion:

@@ -344,7 +344,7 @@ class StreamRecognition(threading.Thread):
     def run(self):
         self.time_up()
         try:
-            self._text = self._voice_recognition(self, True, self._time)
+            self._text = self._voice_recognition(self, False, self._time)
         finally:
             self._block.set()
 

@@ -103,7 +103,7 @@ class Listener:
     def _get_text(self, adata):
         if self.cfg.gts('chrome_alarmstt'):
             self.own.play(self.cfg.path['dong'])
-        return self.own.voice_recognition(adata, True)
+        return self.own.voice_recognition(adata)
 
     def _get_detector(self, source_or_mic, vad_mode=None, vad_lvl=None, energy_lvl=None, energy_dynamic=None):
         vad = self._select_vad(vad_mode)
