@@ -25,6 +25,7 @@ def str_to_int(val: str) -> int or None:
 class BaseControl(threading.Thread):
     START_DELAY = 6
     MAX_ERRORS = 5
+    CHECK_INTERVAL = 0.9
 
     def __init__(self, name: str, cfg: dict, log, owner: Owner):
         super().__init__(name='{}Control'.format(name.upper()))
@@ -38,7 +39,7 @@ class BaseControl(threading.Thread):
         self._errors_metric = 0
         self._queue = queue.Queue()
 
-        self._check_time = 0.9
+        self._check_time = self.CHECK_INTERVAL
         self._old_volume = None
         self._resume = False
         self._be_resumed = False
@@ -46,6 +47,7 @@ class BaseControl(threading.Thread):
         self._resume_time = None
         self._previus_volume = None
         self._check_un_pause = False
+        self._starting_unpause_volume = None
 
         self._saved_volume = None
         self._saved_state = None
@@ -177,12 +179,12 @@ class BaseControl(threading.Thread):
         elif self._cfg['smoothly']:
             if self._old_volume is None:
                 self._old_volume = self.volume
-            self.volume, self._previus_volume = 0, 0
+            self._starting_unpause_volume = 0
             self._check_un_pause = True
             self._ctl_pause(True)
         else:
             self._old_volume = None
-            self._check_time = 0.9
+            self._check_time = self.CHECK_INTERVAL
             self._check_un_pause = True
             self._ctl_pause(True)
 
@@ -191,6 +193,10 @@ class BaseControl(threading.Thread):
         if is_paused == self._check_un_pause:
             if self._check_un_pause:
                 self._check_un_pause = False
+                if self._starting_unpause_volume is not None:
+                    self.volume = self._starting_unpause_volume
+                    self._starting_unpause_volume = None
+                    self._previus_volume = self.volume
                 self._ctl_pause(False)
         else:
             return self._stop_resume()
@@ -205,22 +211,24 @@ class BaseControl(threading.Thread):
 
         self._resume = False
         self._be_resumed = False
+        self._starting_unpause_volume = None
         if not self._is_auto_paused:
             self._old_volume = None
-            self._check_time = 0.9
+            self._check_time = self.CHECK_INTERVAL
             return
         self._is_auto_paused = False
         if self._old_volume is not None:
             self._ctl_set_volume(self._old_volume)
             self._old_volume = None
-            self._check_time = 0.9
+            self._check_time = self.CHECK_INTERVAL
         if self._ctl_get_state() == 'pause':
             self._ctl_pause(False)
 
     def _stop_resume(self):
         # Что-то пошло не так
+        self._starting_unpause_volume = None
         self._old_volume = None
-        self._check_time = 0.9
+        self._check_time = self.CHECK_INTERVAL
         self._resume = False
         self._be_resumed = False
         self._is_auto_paused = False
