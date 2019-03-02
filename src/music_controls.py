@@ -87,6 +87,14 @@ class MPDControl(BaseControl):
     def _ctl_get_status(self) -> dict:
         return self._mpd.status()
 
+    @auto_reconnect
+    def _ctl_get_track_name(self):
+        song = self._mpd.currentsong()
+        try:
+            return '{title} from {artist}'.format(**song)
+        except (KeyError, TypeError):
+            pass
+
 
 class LMSControl(BaseControl):
     def __init__(self, name, cfg: dict, log, owner: Owner):
@@ -170,6 +178,10 @@ class LMSControl(BaseControl):
 
     def _ctl_get_status(self) -> dict:
         return {'state': self._ctl_get_state(), 'volume': self._ctl_get_volume()}
+
+    @auto_reconnect
+    def _ctl_get_track_name(self) -> str or None:
+        return self._player.get_track_title()
 
     @staticmethod
     def _lms_player_match(player, uid: str) -> bool:

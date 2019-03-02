@@ -255,6 +255,10 @@ class Owner:
     def music_real_volume(self, vol):
         self._music.real_volume = vol
 
+    @property
+    def music_track_name(self) -> str or None:
+        return self._music.get_track_name()
+
     def tts(self, msg, realtime: bool = True):
         return self._tts.tts(msg, realtime)
 

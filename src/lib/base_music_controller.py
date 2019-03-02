@@ -126,6 +126,10 @@ class BaseControl(threading.Thread):
                 self.own.say(LNG['err_conn'].format(self._name.upper()), 0)
         self.log('start', logger.INFO)
 
+    def get_track_name(self) -> str or None:
+        if self.allow():
+            return self._ctl_get_track_name()
+
     def play(self, uri):
         if not self.allow():
             return
@@ -348,4 +352,8 @@ class BaseControl(threading.Thread):
 
     @auto_reconnect
     def _ctl_get_status(self) -> dict:
+        raise NotImplementedError
+
+    @auto_reconnect
+    def _ctl_get_track_name(self) -> str or None:
         raise NotImplementedError
