@@ -97,7 +97,7 @@ class OutgoingSocket(threading.Thread):
             return False
 
         token = self.cfg['token']
-        hash_ = hashlib.sha3_512(token.encode() if token else os.urandom(64)).hexdigest()
+        hash_ = hashlib.sha512(token.encode() if token else os.urandom(64)).hexdigest()
         stage = 1
         try:
             soc.write({'method': 'authorization', 'params': [hash_], 'id': 'authorization'})

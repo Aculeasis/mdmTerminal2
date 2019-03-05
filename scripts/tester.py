@@ -31,7 +31,7 @@ class TestShell(cmd__.Cmd):
         cmd = '\r\n'.join(cmd.replace('\\n', '\n').split('\n')).encode() + (CRLF*2 if not is_duplex else CRLF)
         print('Отправляю {}:{} {}...'.format(self._ip, self._port, repr(cmd)))
         if self._token:
-            cmd = b'authorization:' + hashlib.sha3_512(self._token.encode()).hexdigest().encode() + CRLF + cmd
+            cmd = b'authorization:' + hashlib.sha512(self._token.encode()).hexdigest().encode() + CRLF + cmd
         try:
             client.connect((self._ip, self._port))
             client.send(cmd)

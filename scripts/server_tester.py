@@ -276,7 +276,7 @@ class Server(threading.Thread):
 
     def _auth(self, token) -> bool:
         if self.token:
-            if not token or hashlib.sha3_512(self.token.encode()).hexdigest() != token:
+            if not token or hashlib.sha512(self.token.encode()).hexdigest() != token:
                 return False
         return True
 

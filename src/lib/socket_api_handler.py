@@ -229,12 +229,10 @@ class API:
         if data:
             # Считаем пинг
             try:
-                data = float(data)
+                data = time.time() - float(data)
             except (ValueError, TypeError):
-                data = None
+                pass
             else:
-                data = time.time() - data
-            if data:
                 self.log('ping {}'.format(pretty_time(data)), logger.INFO)
 
     @api_commands('info')
@@ -354,7 +352,7 @@ class SocketAPIHandler(threading.Thread, APIHandler):
         if not self._conn.auth:
             token = self.cfg.gt('smarthome', 'token')
             if token:
-                local_hash = hashlib.sha3_512(token.encode()).hexdigest()
+                local_hash = hashlib.sha512(token.encode()).hexdigest()
                 if local_hash != remote_hash:
                     raise InternalException(msg='forbidden: wrong hash')
             self._conn.auth = True
@@ -415,6 +413,10 @@ class SocketAPIHandler(threading.Thread, APIHandler):
             self._write(e.data)
 
     def parse(self, data: str):
+        def write_none():
+            if id_ is not None:
+                self._write({'result': None, 'id': id_})
+
         if not data:
             self._handle_exception(InternalException(code=-32600, msg='no data'))
             return
@@ -437,8 +439,7 @@ class SocketAPIHandler(threading.Thread, APIHandler):
         elif self.own.has_subscribers(cmd, self.NET):
             self.log('Command {} intercepted'.format(repr(cmd)))
             self.own.sub_call(self.NET, cmd, data)
-            if id_ is not None:
-                self._write({'result': None, 'id': id_})
+            write_none()
         elif self.own.has_subscribers(cmd, self.NET_BLOCK):
             self.log('Command {} intercepted in blocking mode'.format(repr(cmd)))
             self._lock.clear()
@@ -446,8 +447,7 @@ class SocketAPIHandler(threading.Thread, APIHandler):
             # Приостанавливаем выполнение, ждем пока обработчик нас разблокирует
             # 1 минуты хватит?
             self._lock.wait(60)
-            if id_ is not None:
-                self._write({'result': None, 'id': id_})
+            write_none()
         elif cmd in self.API:
             self._call_api(cmd, data, id_)
         else:
