@@ -299,12 +299,11 @@ class SpeechToText:
 
         listener = self.own.background_listen()
 
-        if self._cfg.gts('alarmtts') and not hello:
-            self.own.play(self._cfg.path['dong'], lvl)
-
         start_wait = time.time()
         if file_path:
-            self.own.play(file_path, lvl)
+            self.own.say(file_path, lvl, False if hello else None, is_file=True)
+        elif self._cfg.gts('alarmtts') and not hello:
+            self.own.say(self._cfg.path['dong'], lvl, False, is_file=True)
 
         # Начинаем фоновое распознавание голосом после того как запустился плей.
         listener.start()
@@ -329,11 +328,19 @@ class SpeechToText:
     def _block_listen(self, hello, lvl, file_path, self_call=False):
         r = sr.Recognizer(self.own.record_callback, self._cfg.gt('listener', 'silent_multiplier'))
         mic = sr.Microphone(device_index=self.get_mic_index())
-        if self._cfg.gts('alarmtts') and not hello:
-            self.own.play(self._cfg.path['dong'], lvl, blocking=2)
-        detector = self.own.get_detector(mic)
-        if file_path:
-            self.own.play(file_path, lvl, blocking=120)
+        alarm = self._cfg.gts('alarmtts') and not hello
+
+        if alarm or file_path:
+            self.own.say_callback(True)
+        try:
+            if alarm:
+                self.own.play(self._cfg.path['dong'], lvl, blocking=2)
+            detector = self.own.get_detector(mic)
+            if file_path:
+                self.own.play(file_path, lvl, blocking=120)
+        finally:
+            if alarm or file_path:
+                self.own.say_callback(False)
 
         audio, record_time, energy_threshold = self.own.listener_listen(r, mic, detector)
         if record_time < 0.5 and not self_call:
