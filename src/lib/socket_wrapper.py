@@ -8,13 +8,11 @@ This code was modified by Aculeasis, 2019
 
 import base64
 import hashlib
-import http.client
 import json
 import socket
 import ssl
 import threading
 import time
-from io import BytesIO
 
 import websocket  # pip install websocket-client
 
@@ -34,13 +32,30 @@ FAILED_HANDSHAKE_STR = (
     "See https://github.com/Aculeasis/mdmTerminal2/wiki/API-(draft)\r\n"
 )
 
-GUID_STR = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
+GUID_STR = b'258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
 
 
 CRLF = b'\r\n'
-WS_MARK = b'GET '
 AUTH_FAILED = 'Terminal rejected connection (incorrect ws_token?). BYE!'
 ALL_EXCEPTS = (OSError, websocket.WebSocketException, TypeError, ValueError)
+
+
+def is_http(conn: socket.socket) -> bool:
+    try:
+        return conn.recv(4, socket.MSG_PEEK | socket.MSG_DONTWAIT) == b'GET '
+    except socket.error:
+        pass
+    return False
+
+
+def get_headers(request_text: bytearray) -> dict:
+    result = {}
+    for line in request_text.split(b'\r\n'):
+        if line:
+            line = line.split(b': ', 1)
+            if len(line) == 2:
+                result[line[0].decode()] = line[1]
+    return result
 
 
 class Connect:
@@ -198,9 +213,13 @@ class Connect:
             raise RuntimeError(e)
 
     def _conn_reader(self):
+        if not self.auth and is_http(self._conn):
+            self.insert(WSServerAdapter(self._conn, self.CHUNK_SIZE), self._ip_info)
+            for chunk in self._ws_reader():
+                yield chunk
+            return
         data = b''
         this_legacy = True
-        first_line = True
         while self._work:
             try:
                 chunk = self._conn.recv(self.CHUNK_SIZE)
@@ -221,16 +240,6 @@ class Connect:
                 line, data = data.split(CRLF, 1)
                 if not line:
                     return
-
-                if first_line and line.startswith(WS_MARK):
-                    # websocket
-                    self.insert(WSServerAdapter(self._conn, data, self.CHUNK_SIZE), self._ip_info)
-                    del line, data
-                    for chunk in self._ws_reader():
-                        yield chunk
-                    return
-                first_line = False
-
                 try:
                     yield line.decode()
                 except UnicodeDecodeError:
@@ -316,7 +325,7 @@ class WSClientAdapter(websocket.WebSocket):
 
 
 class WSServerAdapter(WSClientAdapter):
-    def __init__(self, conn, init=b'', chunk_size=1024*4):
+    def __init__(self, conn, chunk_size=1024*4):
         super().__init__()
         self.sock = conn
         self.connected = True
@@ -324,7 +333,7 @@ class WSServerAdapter(WSClientAdapter):
             timeout = self.sock.gettimeout()
             self.sock.settimeout(10)
             try:
-                self._handshake(init, chunk_size)
+                self._handshake(chunk_size)
             except Exception as e:
                 self.shutdown()
                 raise RuntimeError(e)
@@ -335,7 +344,7 @@ class WSServerAdapter(WSClientAdapter):
         frame.mask = 0
         return super().send_frame(frame)
 
-    def _handshake(self, init_data, chunk_size):
+    def _handshake(self, chunk_size):
         def raw_send(msg):
             while msg:
                 sending = self._send(msg)
@@ -344,21 +353,10 @@ class WSServerAdapter(WSClientAdapter):
         max_header = 65536
         header_buffer = bytearray()
         while True:
-            if init_data:
-                data, init_data = init_data, None
-                timeout = self.sock.gettimeout()
-                self.sock.settimeout(0.0)
-                try:
-                    data += self.sock.recv(chunk_size)
-                except socket.error:
-                    pass
-                finally:
-                    self.sock.settimeout(timeout)
-            else:
-                try:
-                    data = self.sock.recv(chunk_size)
-                except Exception as e:
-                    raise RuntimeError(e)
+            try:
+                data = self.sock.recv(chunk_size)
+            except Exception as e:
+                raise RuntimeError(e)
 
             if not data:
                 raise RuntimeError('remote socket closed')
@@ -372,8 +370,8 @@ class WSServerAdapter(WSClientAdapter):
             if b'\r\n\r\n' in header_buffer:
                 # handshake rfc 6455
                 try:
-                    key = http.client.parse_headers(BytesIO(header_buffer))['Sec-WebSocket-Key']
-                    k = key.encode('ascii') + GUID_STR.encode('ascii')
+                    key = get_headers(header_buffer)['Sec-WebSocket-Key']
+                    k = key + GUID_STR
                     k_s = base64.b64encode(hashlib.sha1(k).digest()).decode('ascii')
                     raw_send(HANDSHAKE_STR.format(acceptstr=k_s))
                     return

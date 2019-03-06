@@ -4,12 +4,10 @@ import argparse
 import base64
 import cmd as cmd__
 import hashlib
-import http.client
 import json
 import socket
 import threading
 import time
-from io import BytesIO
 
 import websocket
 
@@ -27,10 +25,9 @@ FAILED_HANDSHAKE_STR = (
     "Content-Type: text/plain\r\n\r\n"
     "This service requires use of the WebSocket protocol\r\n"
 )
-GUID_STR = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
+GUID_STR = b'258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
 ERRORS = (BrokenPipeError, ConnectionResetError, ConnectionRefusedError, OSError)
 CRLF = b'\r\n'
-WS_MARK = b'GET '
 
 
 def arg_parser():
@@ -46,8 +43,14 @@ def split_line(line: str) -> str:
     return line[1] if len(line) == 2 else ''
 
 
-def get_headers(request_text):
-    return http.client.parse_headers(BytesIO(request_text))
+def get_headers(request_text: bytearray) -> dict:
+    result = {}
+    for line in request_text.split(b'\r\n'):
+        if line:
+            line = line.split(b': ', 1)
+            if len(line) == 2:
+                result[line[0].decode()] = line[1]
+    return result
 
 
 def json_parse(line):
@@ -71,19 +74,27 @@ def json_parse(line):
     return None, None, None
 
 
+def is_http(conn: socket.socket) -> bool:
+    try:
+        return conn.recv(4, socket.MSG_PEEK | socket.MSG_DONTWAIT) == b'GET '
+    except socket.error as e:
+        print('Socket peek error: {}'.format(e))
+    return False
+
+
 class WebSocketServer(websocket.WebSocket):
-    def __init__(self, sock, init, fire_cont_frame=False, enable_multithread=False, skip_utf8_validation=False, **_):
+    def __init__(self, sock, fire_cont_frame=False, enable_multithread=False, skip_utf8_validation=False, **_):
         super().__init__(fire_cont_frame, enable_multithread, skip_utf8_validation)
         self.sock = sock
         self.connected = True
-        self.handshake(init)
+        self.handshake()
 
-    def handshake(self, init_data):
+    def handshake(self):
         with self.lock, self.readlock:
             old_timeout = self.sock.gettimeout()
             self.sock.settimeout(5)
             try:
-                self._handshake(init_data)
+                self._handshake()
             except Exception as e:
                 self.shutdown()
                 raise RuntimeError(e)
@@ -94,7 +105,7 @@ class WebSocketServer(websocket.WebSocket):
         frame.mask = 0
         return super().send_frame(frame)
 
-    def _handshake(self, init_data):
+    def _handshake(self):
         def raw_send(msg):
             while msg:
                 sending = self._send(msg)
@@ -104,21 +115,10 @@ class WebSocketServer(websocket.WebSocket):
         max_header = 65536
         header_buffer = bytearray()
         while True:
-            if init_data:
-                data, init_data = init_data, None
-                timeout = self.sock.gettimeout()
-                self.sock.settimeout(0.0)
-                try:
-                    data += self.sock.recv(chunk_size)
-                except socket.error:
-                    pass
-                finally:
-                    self.sock.settimeout(timeout)
-            else:
-                try:
-                    data = self.sock.recv(chunk_size)
-                except Exception as e:
-                    raise RuntimeError(e)
+            try:
+                data = self.sock.recv(chunk_size)
+            except Exception as e:
+                raise RuntimeError(e)
             if not data:
                 raise RuntimeError('Remote socket closed')
             # accumulate
@@ -132,7 +132,7 @@ class WebSocketServer(websocket.WebSocket):
                 # handshake rfc 6455
                 try:
                     key = get_headers(header_buffer)['Sec-WebSocket-Key']
-                    k = key.encode('ascii') + GUID_STR.encode('ascii')
+                    k = key + GUID_STR
                     k_s = base64.b64encode(hashlib.sha1(k).digest()).decode('ascii')
                     raw_send(HANDSHAKE_STR.format(acceptstr=k_s))
                     return
@@ -281,9 +281,14 @@ class Server(threading.Thread):
         return True
 
     def reader(self, client):
+        if is_http(client):
+            self.ws = WebSocketServer(client, enable_multithread=True)
+            print('UPGRADE: Socket -> WebSocket')
+            for line in self.ws_reader():
+                yield line
+            return
         chunk_size = 1024 * 4
         data = b''
-        first = True
         while self.work and not self.closed:
             try:
                 chunk = client.recv(chunk_size)
@@ -297,12 +302,6 @@ class Server(threading.Thread):
             while CRLF in data:
                 line, data = data.split(CRLF, 1)
                 if not line:
-                    return
-                if first and line.startswith(WS_MARK):
-                    self.ws = WebSocketServer(client, data, enable_multithread=True)
-                    print('UPGRADE: Socket -> WebSocket')
-                    for line in self.ws_reader():
-                        yield line
                     return
                 try:
                     line = line.decode()
