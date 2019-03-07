@@ -350,8 +350,8 @@ class MDTerminal(threading.Thread):
             hello = LNG['model_listened'].format(phrase)
         self._speech_recognized_success(hello, self.own.listen(hello, voice=no_hello), model_name)
 
-    def _detected_sr(self, msg: str, model_name: str, model_msg: str, energy_threshold: int):
-        if model_msg is None:
+    def _detected_sr(self, msg: str, model_name: str, model_msg: str, energy_threshold: int, error=False):
+        if error:
             self.log(LNG['wrong_activation'].format(msg, model_name, energy_threshold), logger.DEBUG)
             return
         if self._cfg.gt('listener', 'energy_threshold', 0) < 1:

@@ -47,8 +47,10 @@ class Listener:
                     continue
                 except RuntimeError:
                     return
-                model_name, phrase, _ = self.cfg.model_info_by_id(snowboy_result)
+                model_name, phrase, msg = self.cfg.model_info_by_id(snowboy_result)
                 if not phrase:
+                    # модель без триггера?
+                    callback(msg or 'unset trigger', model_name, None, None, True)
                     continue
                 if self.cfg.gts('chrome_choke'):
                     self.own.full_quiet()
@@ -98,7 +100,7 @@ class Listener:
                 callback(clear_msg, model_name, model_msg, energy_threshold)
                 return
         # Не наши триггер в сообщении - snowboy false positive
-        callback(msg, phrases, None, energy_threshold)
+        callback(msg, phrases, None, energy_threshold, True)
 
     def _get_text(self, adata):
         if self.cfg.gts('chrome_alarmstt'):
