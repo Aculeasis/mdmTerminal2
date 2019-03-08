@@ -104,7 +104,7 @@ class API:
         """NotImplemented"""
         raise InternalException(msg='Not implemented yet - {}'.format(cmd))
 
-    @api_commands('hi', 'voice', 'tts', 'ask', 'volume', 'volume_q', 'music_volume', 'music_volume_q')
+    @api_commands('hi', 'voice', 'tts', 'ask', 'volume', 'volume_q', 'music_volume', 'music_volume_q', 'listener')
     def _api_terminal_direct(self, name: str, cmd: str):
         if name == 'hi':
             name = 'voice'
@@ -344,7 +344,7 @@ class SocketAPIHandler(threading.Thread, APIHandler):
         # Команды API не требующие авторизации
         self.NON_AUTH = {
             'authorization', 'hi', 'voice', 'play', 'pause', 'tts', 'ask', 'settings', 'volume', 'volume_q', 'rec',
-            'remote_log', 'music_volume', 'music_volume_q',
+            'remote_log', 'music_volume', 'music_volume_q', 'listener',
         }
 
     @api_commands('authorization')

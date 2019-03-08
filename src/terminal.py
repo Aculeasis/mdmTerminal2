@@ -25,6 +25,7 @@ class MDTerminal(threading.Thread):
         self._cfg = cfg
         self.own = owner
         self._work = False
+        self._listening = True
         self._snowboy = None
         self._queue = queue.Queue()
         self._wait = threading.Event()
@@ -35,6 +36,7 @@ class MDTerminal(threading.Thread):
             'volume_q': self._set_volume_quiet,
             'music_volume': self._set_music_volume,
             'music_volume_q': self._set_music_volume_quiet,
+            'listener': self._change_listener,
         }
         self.ARGS_CALL = {
             'rec': self._rec_rec,
@@ -45,7 +47,7 @@ class MDTerminal(threading.Thread):
         }
 
     def _reload(self, *_):
-        if len(self._cfg.path['models_list']) and self.own.max_mic_index != -2:
+        if len(self._cfg.path['models_list']) and self.own.max_mic_index != -2 and self._listening:
             if self._cfg.gts('chrome_mode'):
                 detected = self._detected_sr
                 snowboy = SnowBoySR
@@ -322,6 +324,21 @@ class MDTerminal(threading.Thread):
         self.log(LNG['vol_music_ok'].format(value))
         if not quiet:
             self.own.say(LNG['vol_music_ok'].format(value))
+
+    def _change_listener(self, cmd: str):
+        cmd = cmd.lower()
+        listening = None
+        if not cmd:
+            listening = not self._listening
+        elif cmd in ('off', 'disable'):
+            listening = False
+        elif cmd in ('on', 'enable'):
+            listening = True
+
+        if listening is not None and listening != self._listening:
+            self.own.sub_call('default', 'listener_{}'.format('on' if listening else 'off'))
+            self._listening = listening
+            self._reload()
 
     def call(self, cmd: str, data='', lvl: int=0, save_time: bool=True):
         if cmd == 'tts' and not lvl:

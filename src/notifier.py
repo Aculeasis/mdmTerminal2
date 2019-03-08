@@ -28,6 +28,7 @@ class MajordomoNotifier(threading.Thread):
             'speech_recognized_success', 'voice_activated', 'ask_again',
             'music_status', 'start_record', 'stop_record', 'start_talking', 'stop_talking',
             'volume', 'music_volume',
+            'listener_on', 'listener_off',
             'updater',
         )
         self.outgoing = OutgoingSocket(self._cfg, log.add('O'), self.own)
