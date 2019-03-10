@@ -27,6 +27,8 @@ class MDTerminal(threading.Thread):
         self._work = False
         self._listening = True
         self._snowboy = None
+        self._old_listener = None
+        self._listener_event = owner.registration('listener')
         self._queue = queue.Queue()
         self._wait = threading.Event()
 
@@ -55,8 +57,13 @@ class MDTerminal(threading.Thread):
                 snowboy = SnowBoy
                 detected = self._detected
             self._snowboy = snowboy(self._cfg, detected, self._interrupt_callback, self.own)
+            listener = True
         else:
+            listener = False
             self._snowboy = None
+        if listener != self._old_listener:
+            self._listener_event('on' if listener else 'off')
+            self._old_listener = listener
         self._wait.set()
 
     def join(self, timeout=None):
@@ -336,7 +343,6 @@ class MDTerminal(threading.Thread):
             listening = True
 
         if listening is not None and listening != self._listening:
-            self.own.sub_call('default', 'listener_{}'.format('on' if listening else 'off'))
             self._listening = listening
             self._reload()
 

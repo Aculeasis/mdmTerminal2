@@ -28,7 +28,7 @@ class MajordomoNotifier(threading.Thread):
             'speech_recognized_success', 'voice_activated', 'ask_again',
             'music_status', 'start_record', 'stop_record', 'start_talking', 'stop_talking',
             'volume', 'music_volume',
-            'listener_on', 'listener_off',
+            'listener',
             'updater',
         )
         self.outgoing = OutgoingSocket(self._cfg, log.add('O'), self.own)
@@ -105,7 +105,7 @@ class MajordomoNotifier(threading.Thread):
         if not self._allow_notify:
             return
         kwargs = {'uptime': self._uptime}
-        if name in ('volume', 'music_volume', 'updater'):
+        if name in ('volume', 'music_volume', 'updater', 'listener'):
             kwargs[name] = data
         elif name == 'music_status':
             kwargs['status'] = 'music_{}'.format(data)
