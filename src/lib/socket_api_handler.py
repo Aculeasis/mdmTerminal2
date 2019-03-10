@@ -379,6 +379,9 @@ class APIHandler(API):
             # FIXME: legacy
             if isinstance(params, list) and len(params) == 1 and isinstance(params[0], str):
                 params = params[0]
+            elif isinstance(params, (dict, list)):
+                # Обратно в строку - костыль.
+                params = json.dumps(params)
             else:
                 raise InternalException(code=-32602, msg='legacy, params must be a list[str]', id_=id_, method=method)
         else:
