@@ -258,6 +258,80 @@ class API:
     def _api_get_map_settings(self, *_):
         return make_map_settings(self.cfg.wiki_desc)
 
+    @api_commands('call.plugin', 'call.owner', 'call.global')
+    def _api_rpc_call(self, cmd, data: str):
+        if not self.cfg.gt('smarthome', 'unsafe_rpc'):
+            raise InternalException(msg='[smarthome] unsafe_rpc = off')
+        path, args, kwargs = self._rpc_data_extractor(data)
+        if cmd == 'call.plugin':
+            try:
+                # noinspection PyProtectedMember
+                entry = self.own._plugins._modules[path[0]]
+            except Exception as e:
+                raise InternalException(code=3, msg='plugin \'{}\' not found: {}'.format(path[0], e))
+            walked = ['plugins', path[0]]
+            path = path[1:]
+        elif cmd == 'call.global':
+            try:
+                entry = globals()[path[0]]
+            except Exception as e:
+                raise InternalException(code=3, msg='globals \'{}\' not found: {}'.format(path[0], e))
+            walked = ['globals', path[0]]
+            path = path[1:]
+        else:
+            entry = self.own
+            walked = ['owner']
+
+        return self._rpc_caller(entry, path, walked, args, kwargs)
+
+    @staticmethod
+    def _rpc_data_extractor(data: str) -> tuple:
+        try:
+            data = json.loads(data)
+            if not isinstance(data, dict):
+                raise TypeError('must be a dict type')
+            path = data['path']
+            if not isinstance(path, str):
+                raise TypeError('Wring path type: {}'.format(type(path)))
+            if not path:
+                raise ValueError('Empty path')
+            path = path.split('.')
+            args = data.get('args', [])
+            if not isinstance(args, list):
+                raise TypeError('args must be a list type, get {}'.format(type(args)))
+            kwargs = data.get('kwargs', {})
+            if not isinstance(kwargs, dict):
+                raise TypeError('kwargs must be a dict type, get {}'.format(type(kwargs)))
+        except (json.decoder.JSONDecodeError, TypeError, KeyError, ValueError) as e:
+            raise InternalException(code=2, msg='Wrong request: {}'.format(e))
+        return path, args, kwargs
+
+    @staticmethod
+    def _rpc_caller(obj, path: list, walked: list, args: list, kwargs: dict):
+        for target in path:
+            obj = getattr(obj, target, None)
+            if obj is None:
+                raise InternalException(code=4, msg='method \'{}\' not found in \'{}\''.format(target, '.'.join(walked)))
+            walked.append(target)
+        try:
+            result = obj(*args, **kwargs)
+        except Exception as e:
+            raise InternalException(code=5, msg='Call \'{}\' failed: {}'.format('.'.join(walked), e))
+        if result is None or isinstance(result, (int, float, str, bool)):
+            return result
+        if isinstance(result, set):
+            result = list(result)
+        # Проверка на сериализуемость и repr
+        try:
+            json.dumps(result, ensure_ascii=False)
+            return result
+        except (TypeError, json.JSONDecoder, ValueError):
+            pass
+        try:
+            return repr(result)
+        except Exception as e:
+            return 'result serialization error: {}'.format(e)
+
 
 class APIHandler(API):
     def extract(self, line: str) -> tuple:
