@@ -362,16 +362,19 @@ class ModuleManager:
 
             return self._phrases_testing(phrase, phrase_check)
 
-    def words_by_f(self, f, modules=None):
+    def words_by_f_all(self, f):
+        return [x for x in self.words_by_f(f)] or [x for x in self.words_by_f(f, help_modes=[NM, DM, ANY])]
+
+    def words_by_f(self, f, modules=None, help_modes=None):
         def allow_any():
             if not val['enable']:
                 return False
             if val['mode'] == ANY:
                 return True
-            return self.debug == (val['mode'] == DM)
+            return help_modes or (self.debug == (val['mode'] == DM))
 
         val = (modules or self.all)[f]
-        for words_target in self._check_words:
+        for words_target in (help_modes or self._check_words):
             if words_target in val and allow_any():
                 for check in val[words_target]:
                     if isinstance(check, str):

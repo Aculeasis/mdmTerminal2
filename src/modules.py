@@ -227,7 +227,10 @@ def wiki(self, _, phrase):
 @mod.phrase(LNG['help_phrases_list'])
 def help_(self, _, phrase):
     def words():
-        return ', '.join(data[0] for data in self.words_by_f(f)) or LNG['help_any_phrase']
+        triggers = [x[0] for x in self.words_by_f_all(f)]
+        if not triggers:
+            return ''
+        return ', '.join(triggers) or LNG['help_any_phrase']
     if phrase:
         phrase = phrase.lower()
         if phrase in self.by_name:
