@@ -327,8 +327,8 @@ class Owner:
     def get_detector(self, source_or_mic, vad_mode=None, vad_lvl=None, energy_lvl=None, energy_dynamic=None):
         return self._listen.get_detector(source_or_mic, vad_mode, vad_lvl, energy_lvl, energy_dynamic)
 
-    def listener_listen(self, r=None, mic=None, detector=None, timeout=10):
-        return self._listen.listen(r, mic, detector, timeout)
+    def listener_listen(self, r=None, mic=None, detector=None):
+        return self._listen.listen(r, mic, detector)
 
     def background_listen(self):
         return self._listen.background_listen()

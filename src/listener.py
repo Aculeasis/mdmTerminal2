@@ -15,14 +15,14 @@ class Listener:
         self.cfg = cfg
         self.own = owner
 
-    def listen(self, r=None, mic=None, detector=None, timeout=10):
+    def listen(self, r=None, mic=None, detector=None):
         r = r or sr.Recognizer(self.own.record_callback, self.cfg.gt('listener', 'silent_multiplier'))
         mic = mic or sr.Microphone(device_index=self.own.mic_index)
         with mic as source:
             detector = detector or self.get_detector(source)
             record_time = time.time()
             try:
-                adata = self._listen(r, source, detector, timeout=timeout)
+                adata = self._listen(r, source, detector)
             except (sr.WaitTimeoutError, RuntimeError):
                 adata = None
             record_time = time.time() - record_time
@@ -55,7 +55,7 @@ class Listener:
                 if self.cfg.gts('chrome_choke'):
                     self.own.full_quiet()
                 try:
-                    adata = self._listen(r, source, detector, 3, frames=frames, sn_time=elapsed_time)
+                    adata = self._listen(r, source, detector, frames=frames, sn_time=elapsed_time)
                 except (sr.WaitTimeoutError, RuntimeError):
                     continue
             energy_threshold = detector.energy_threshold if isinstance(detector, sr.EnergyDetector) else None
@@ -65,9 +65,14 @@ class Listener:
         detector, _ = self._get_detector(source_or_mic, vad_mode, vad_lvl, energy_lvl, energy_dynamic)
         return detector
 
-    def _listen(self, r, source, detector, timeout, phrase_time_limit=None, frames=None, sn_time=None):
-        if phrase_time_limit is None:
-            phrase_time_limit = self.cfg.gts('phrase_time_limit')
+    def _listen(self, r, source, detector, frames=None, sn_time=None):
+        phrase_time_limit = self.cfg.gts('phrase_time_limit')
+        if phrase_time_limit < 1:
+            phrase_time_limit = None
+        timeout = self.cfg.gt('listener', 'speech_timeout')
+        if timeout < 1:
+            timeout = None
+
         if self.cfg.gt('listener', 'stream_recognition'):
             return r.listen2(source, detector, self.own.voice_recognition, timeout, phrase_time_limit, frames, sn_time)
         else:
@@ -79,7 +84,7 @@ class Listener:
         while not interrupt_check():
             with mic as source:
                 try:
-                    adata = self._listen(r, source, detector, timeout=1)
+                    adata = self._listen(r, source, detector)
                 except sr.WaitTimeoutError:
                     continue
                 except RuntimeError:
