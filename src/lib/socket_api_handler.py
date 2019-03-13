@@ -258,8 +258,9 @@ class API:
     def _api_get_map_settings(self, *_):
         return make_map_settings(self.cfg.wiki_desc)
 
-    @api_commands('call.plugin', 'call.owner', 'call.global')
-    def _api_rpc_call(self, cmd, data: str):
+    # @api_commands('call.plugin', 'call.owner', 'call.global')
+    @api_commands('call.plugin')
+    def _api_rpc_call(self, cmd: str, data: str):
         if not self.cfg.gt('smarthome', 'unsafe_rpc'):
             raise InternalException(msg='[smarthome] unsafe_rpc = off')
         path, args, kwargs = self._rpc_data_extractor(data)
