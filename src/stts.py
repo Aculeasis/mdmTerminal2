@@ -382,6 +382,7 @@ class SpeechToText:
             if time.time() - record_time < 0.5:
                 return LNG['err_voice_record']
         try:
+            os.makedirs(os.path.dirname(save_to), exist_ok=True)
             with open(save_to, "wb") as f:
                 f.write(adata.get_wav_data(convert_rate, convert_width))
         except IOError as err:

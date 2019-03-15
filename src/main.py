@@ -36,6 +36,7 @@ def get_path(home) -> dict:
         'plugins': os.path.join(home, 'plugins'),
     }
     path['models'] = os.path.join(path['resources'], 'models')
+    path['samples'] = os.path.join(path['resources'], 'samples')
     # ~/resources/ding.wav ~/resources/dong.wav ~/resources/tts_error.mp3
     audio = (('ding', 'ding.wav'), ('dong', 'dong.wav'), ('bimp', 'bimp.mp3'), ('tts_error', 'tts_error.mp3'))
     for (key, val) in audio:

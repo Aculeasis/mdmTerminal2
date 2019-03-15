@@ -154,7 +154,7 @@ class MDTerminal(threading.Thread):
             return
 
         hello = LNG['rec_hello'].format(LNG['rec_nums'][sample])
-        save_to = os.path.join(self._cfg.path['tmp'], model + sample + '.wav')
+        save_to = self._cfg.path_to_sample(model, sample)
         self.log(hello, logger.INFO)
         err = self.own.voice_record(hello=hello, save_to=save_to, convert_rate=16000, convert_width=2)
         if err is None:
@@ -167,18 +167,17 @@ class MDTerminal(threading.Thread):
             self.own.say(err)
 
     def _rec_play(self, model, sample):
-        file_name = ''.join([model, sample, '.wav'])
-        file = os.path.join(self._cfg.path['tmp'], file_name)
+        file = self._cfg.path_to_sample(model, sample)
         if os.path.isfile(file):
             self.own.say(file, is_file=True)
         else:
-            self.own.say(LNG['err_play_say'].format(file_name))
+            self.own.say(LNG['err_play_say'].format('{}.wav'.format(sample)))
             self.log(LNG['err_play_log'].format(file), logger.WARN)
 
     def _rec_compile(self, model, username):
         samples = []
         for num in ('1', '2', '3'):
-            sample_path = os.path.join(self._cfg.path['tmp'], ''.join((model, num, '.wav')))
+            sample_path = self._cfg.path_to_sample(model, num)
             if not os.path.isfile(sample_path):
                 self.log(LNG['compile_no_file'].format(sample_path), logger.ERROR)
                 self.own.say(LNG['compile_no_file'].format(os.path.basename(sample_path)))
@@ -267,8 +266,10 @@ class MDTerminal(threading.Thread):
         self._save_model_data(pmdl_name, username, phrase)
 
         # Удаляем временные файлы
-        for x in samples:
-            os.remove(x)
+        try:
+            self._cfg.remove_samples(model)
+        except RuntimeError as e:
+            self.log('remove samples \'{}\': {}'.format(model, e))
 
     def _send_model(self, filename, body, username, phrase):
         # Получили модель от сервера (send - это для сервера)

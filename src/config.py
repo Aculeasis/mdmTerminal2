@@ -3,6 +3,7 @@
 import configparser
 import json
 import os
+import shutil
 import threading
 import time
 
@@ -135,6 +136,8 @@ class ConfigHandler(dict):
         self._make_dir(self.path['plugins'])
         # ~/resources/models/
         self._make_dir(self.path['models'])
+        # ~/resources/samples/
+        self._make_dir(self.path['samples'])
         # ~/resources/ding.wav ~/resources/dong.wav ~/resources/tts_error.mp3
         self._lost_file(self.path['ding'])
         self._lost_file(self.path['dong'])
@@ -160,6 +163,20 @@ class ConfigHandler(dict):
         wrong_chars = '*/:?"|+<>\n\r\t\n\0\\'
         valid = not set(wrong_chars).intersection(filename)
         return valid and os.path.splitext(filename)[-1].lower() in self.path['model_supports']
+
+    def path_to_sample(self, model_id: str, sample_num) -> str:
+        return os.path.join(self.path['samples'], model_id, '{}.wav'.format(sample_num))
+
+    def remove_samples(self, model_id: str):
+        if not model_id:
+            raise RuntimeError('model_id empty')
+        target = os.path.join(self.path['samples'], model_id)
+        if not os.path.isdir(target):
+            raise RuntimeError('{} not a directory'.format(target))
+        try:
+            shutil.rmtree(target)
+        except Exception as e:
+            raise RuntimeError(e)
 
     def _config_init(self):
         self._cfg_check(self.config_load())

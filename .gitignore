@@ -11,6 +11,7 @@ src/modules.json
 src/phrases.json
 src/update.json
 src/resources/models/
+src/resources/samples/
 src/plugins/*
 src/mdmterminal.log
 src/lib/_snowboydetect.so
