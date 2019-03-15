@@ -266,10 +266,9 @@ class API:
         path, args, kwargs = self._rpc_data_extractor(data)
         if cmd == 'call.plugin':
             try:
-                # noinspection PyProtectedMember
-                entry = self.own._plugins._modules[path[0]]
-            except Exception as e:
-                raise InternalException(code=3, msg='plugin \'{}\' not found: {}'.format(path[0], e))
+                entry = self.own.get_plugin(path[0])
+            except RuntimeError as e:
+                raise InternalException(code=3, msg=str(e))
             walked = ['plugins', path[0]]
             path = path[1:]
         elif cmd == 'call.global':
