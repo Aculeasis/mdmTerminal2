@@ -37,7 +37,7 @@ GUID_STR = b'258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
 
 CRLF = b'\r\n'
 AUTH_FAILED = 'Terminal rejected connection (incorrect ws_token?). BYE!'
-ALL_EXCEPTS = (OSError, websocket.WebSocketException, TypeError, ValueError)
+ALL_EXCEPTS = (OSError, websocket.WebSocketException, TypeError, ValueError, AttributeError)
 
 
 def is_http(conn: socket.socket) -> bool:
@@ -107,22 +107,6 @@ class Connect:
         if self._conn:
             self._conn.settimeout(timeout)
 
-    def close(self):
-        if self._conn:
-            if self._is_ws:
-                try:
-                    self._conn.close(timeout=0.5)
-                except (AttributeError, BrokenPipeError):
-                    pass
-            else:
-                try:
-                    # Сообщаем серверу о завершении сеанса отпрвкой CRLFCRLF
-                    self._conn_sender(CRLF)
-                except RuntimeError:
-                    pass
-                self._conn.close()
-        self.auth = False
-
     def extract(self):
         if self._conn:
             try:
@@ -138,17 +122,31 @@ class Connect:
         self._ip_info = ip_info
         self.auth = False
 
-    def read(self):
+    def start_remote_log(self):
         """
-        Генератор,
-        читает байты из сокета, разделяет их по \r\n и возвращает результаты в str,
-        получение пустых данных(\r\n\r\n), любая ошибка сокета или завершение работы прерывает итерацию.
-        Для совместимости: Если в данных вообще не было \r\n, сделаем вид что получили <data>\r\n\r\n.
-        При получении `GET ` первой командой превращает сокет в веб-сокет.
+        Нельзя просто так взять и закрыть веб-сокет.
         """
+        if self._is_ws and self._conn.poll is None:
+            self._conn.poll = WebSocketCap(self._conn)
+
+    def close(self):
         if self._conn:
-            with self._recv_lock:
-                return self._ws_reader() if self._is_ws else self._conn_reader()
+            self._ws_close() if self._is_ws else self._tcp_close()
+        self.auth = False
+
+    def _tcp_close(self):
+        try:
+            # Сообщаем серверу о завершении сеанса отправкой \r\n\r\n
+            self._tcp_write(CRLF)
+        except RuntimeError:
+            pass
+        self._conn.close()
+
+    def _ws_close(self):
+        try:
+            self._conn.close(timeout=0.5)
+        except ALL_EXCEPTS:
+            pass
 
     def write(self, data):
         """
@@ -157,67 +155,70 @@ class Connect:
         Если это веб-сокет то кидаем все в str.
         В любой непонятной ситуации кидает RuntimeError.
         """
-        if self._conn:
-            self._conn_sender(data)
-
-    def start_remote_log(self):
-        """
-        Нельзя просто так взять и закрыть веб-сокет.
-        """
-        if self._is_ws and self._conn.poll is None:
-            self._conn.poll = WebSocketCap(self._conn)
-
-    def _conn_sender(self, data):
+        if not self._conn:
+            return
         if not data:
             data = ''
-        elif isinstance(data, dict):
+        elif isinstance(data, (dict, list)):
             try:
                 data = json.dumps(data, ensure_ascii=False)
             except TypeError as e:
                 raise RuntimeError(e)
 
-        if self._is_ws:
-            if isinstance(data, bytes):
-                data = data.decode()
-            elif not isinstance(data, str):
-                raise RuntimeError('Unsupported data type: {}'.format(repr(type(data))))
-            with self._send_lock:
-                return self._ws_sender(data)
+        with self._send_lock:
+            self._ws_write(data) if self._is_ws else self._tcp_write(data)
 
+    def _tcp_write(self, data: str or bytes):
         if isinstance(data, str):
             data = data.encode()
         elif not isinstance(data, bytes):
             raise RuntimeError('Unsupported data type: {}'.format(repr(type(data))))
-
         data += CRLF
-        with self._send_lock:
-            timeout = 0
-            while data:
-                try:
-                    sending = self._conn.send(data)
-                except socket.timeout as e:
-                    timeout += 1
-                    if timeout > 5:
-                        raise RuntimeError(e)
-                    time.sleep(0.1)
-                    continue
-                except (socket.error, AttributeError) as e:
+        timeout = 0
+        while data:
+            try:
+                sending = self._conn.send(data)
+            except socket.timeout as e:
+                timeout += 1
+                if timeout > 5:
                     raise RuntimeError(e)
-                timeout = 0
-                data = data[sending:]
+                time.sleep(0.1)
+                continue
+            except (socket.error, AttributeError) as e:
+                raise RuntimeError(e)
+            timeout = 0
+            data = data[sending:]
 
-    def _socket_send(self, data: bytes) -> int:
-        try:
-            return self._conn.send(data)
-        except (socket.error, AttributeError) as e:
-            raise RuntimeError(e)
+    def _ws_write(self, data: str or bytes):
+        if isinstance(data, bytes):
+            data = data.decode()
+        elif not isinstance(data, str):
+            raise RuntimeError('Unsupported data type: {}'.format(repr(type(data))))
+        if self._conn.auth:
+            try:
+                self._conn.send(data)
+            except ALL_EXCEPTS as e:
+                raise RuntimeError(e)
 
-    def _conn_reader(self):
-        if not self.auth and is_http(self._conn):
-            self.insert(WSServerAdapter(self._conn, self.CHUNK_SIZE), self._ip_info)
-            for chunk in self._ws_reader():
-                yield chunk
+    def read(self):
+        """
+        Генератор,
+        читает байты из сокета, разделяет их по \r\n и возвращает результаты в str,
+        получение пустых данных(\r\n\r\n), любая ошибка сокета или завершение работы прерывает итерацию.
+        Для совместимости: Если в данных вообще не было \r\n, сделаем вид что получили <data>\r\n\r\n.
+        При получении `GET ` первой командой превращает сокет в веб-сокет.
+        """
+        if not self._conn:
             return
+        with self._recv_lock:
+            if self._is_ws:
+                return self._ws_read()
+            if not self.auth and is_http(self._conn):
+                self.insert(WSServerAdapter(self._conn, self.CHUNK_SIZE), self._ip_info)
+                return self._ws_read()
+            return self._tcp_read()
+
+    def _tcp_read(self):
         data = b''
         this_legacy = True
         while self._work:
@@ -228,7 +229,7 @@ class Connect:
                     continue
                 else:
                     break
-            except (socket.error, AttributeError, OSError):
+            except (AttributeError, OSError):
                 break
             if not chunk:
                 # сокет закрыли, пустой объект
@@ -252,31 +253,24 @@ class Connect:
             except UnicodeDecodeError:
                 pass
 
-    def _ws_sender(self, data):
-        if self._conn.auth:
-            try:
-                self._conn.send(data)
-            except ALL_EXCEPTS as e:
-                raise RuntimeError(e)
-
-    def _ws_reader(self):
+    def _ws_read(self):
         while self._work:
             try:
                 chunk = self._conn.recv()
-                if chunk is None:
-                    continue
-                if not self._conn.auth:
-                    if not self._ws_auth(chunk):
-                        return
-                    continue
-                yield chunk
             except websocket.WebSocketTimeoutException:
                 if self._r_wait:
                     continue
                 else:
                     break
-            except (websocket.WebSocketException, TypeError, ValueError, AttributeError, OSError):
+            except ALL_EXCEPTS:
                 break
+            if chunk is None:
+                continue
+            if not self._conn.auth:
+                if not self._ws_auth(chunk):
+                    return
+                continue
+            yield chunk
 
     def _ws_auth(self, chunk) -> bool:
         if self._ws_allow(self.ip, self.port, chunk):
@@ -302,7 +296,7 @@ class WebSocketCap(threading.Thread):
                 self._ws.recv()
             except websocket.WebSocketTimeoutException:
                 pass
-            except (websocket.WebSocketException, TypeError, ValueError, AttributeError):
+            except ALL_EXCEPTS:
                 break
             time.sleep(0.3)
 
