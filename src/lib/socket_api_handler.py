@@ -450,7 +450,7 @@ class SocketAPIHandler(threading.Thread, APIHandler):
     def join(self, timeout=None):
         if self.work:
             self.work = False
-            self._conn.stop()
+            self._conn.close()
             self.log('stopping...')
             super().join(timeout)
             self.log('stop.', logger.INFO)
@@ -528,8 +528,8 @@ class SocketAPIHandler(threading.Thread, APIHandler):
         elif cmd in self.API:
             self._call_api(cmd, data, id_)
         else:
-            msg = 'Unknown command: {}'.format(repr(cmd)[:100])
-            self.log(msg, logger.WARN)
+            cmd = repr(cmd)[1:-1]
+            msg = 'Unknown command: \'{}\''.format(cmd[:100])
             self._handle_exception(InternalException(code=-32601, msg=msg, id_=id_), cmd)
 
     def _write(self, data, quite=False):

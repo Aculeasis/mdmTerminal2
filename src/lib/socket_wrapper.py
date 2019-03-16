@@ -13,6 +13,7 @@ import socket
 import ssl
 import threading
 import time
+from contextlib import closing
 
 import websocket  # pip install websocket-client
 
@@ -50,7 +51,7 @@ def is_http(conn: socket.socket) -> bool:
 
 def get_headers(request_text: bytearray) -> dict:
     result = {}
-    for line in request_text.split(b'\r\n'):
+    for line in request_text.split(CRLF):
         if line:
             line = line.split(b': ', 1)
             if len(line) == 2:
@@ -61,14 +62,12 @@ def get_headers(request_text: bytearray) -> dict:
 class Connect:
     CHUNK_SIZE = 1024 * 4
 
-    def __init__(self, conn, ip_info, ws_allow, work=True, auth=False):
+    def __init__(self, conn, ip_info, ws_allow, auth=False):
         self._conn = conn
         self._is_ws = isinstance(conn, websocket.WebSocket)
         self._ip_info = ip_info
         self._ws_allow = ws_allow
-        self._work = work
         self.auth = auth
-        self._r_wait = False
         self._send_lock = threading.Lock()
         self._recv_lock = threading.Lock()
 
@@ -89,12 +88,6 @@ class Connect:
         else:
             return select_type(self._conn, ('tcp', 'tls'))
 
-    def stop(self):
-        self._work = False
-
-    def r_wait(self):
-        self._r_wait = True
-
     @property
     def ip(self):
         return self._ip_info[0] if self._ip_info else None
@@ -110,7 +103,7 @@ class Connect:
     def extract(self):
         if self._conn:
             try:
-                return Connect(self._conn, self._ip_info, self._ws_allow, self._work, self.auth)
+                return Connect(self._conn, self._ip_info, self._ws_allow, self.auth)
             finally:
                 self._conn = None
                 self._ip_info = None
@@ -140,7 +133,10 @@ class Connect:
             self._tcp_write(CRLF)
         except RuntimeError:
             pass
-        self._conn.close()
+        try:
+            self._conn.close()
+        except AttributeError:
+            pass
 
     def _ws_close(self):
         try:
@@ -219,49 +215,22 @@ class Connect:
             return self._tcp_read()
 
     def _tcp_read(self):
-        data = b''
-        this_legacy = True
-        while self._work:
-            try:
-                chunk = self._conn.recv(self.CHUNK_SIZE)
-            except socket.timeout:
-                if self._r_wait:
-                    continue
-                else:
-                    break
-            except (AttributeError, OSError):
-                break
-            if not chunk:
-                # сокет закрыли, пустой объект
-                break
-            data += chunk
-            while CRLF in data:
-                # Обрабатываем все строки разделенные \r\n отдельно, пустая строка завершает сеанс
-                this_legacy = False
-                line, data = data.split(CRLF, 1)
-                if not line:
-                    return
+        with closing(self._conn.makefile(newline='\r\n', buffering=self.CHUNK_SIZE)) as makefile:
+            while self._conn:
                 try:
-                    yield line.decode()
+                    line = makefile.readline().rstrip('\r\n')
+                except OSError:
+                    break
                 except UnicodeDecodeError:
                     continue
-                del line
-        if this_legacy and data and self._work:
-            # Данные пришли без \r\n, обработаем их как есть
-            try:
-                yield data.decode()
-            except UnicodeDecodeError:
-                pass
+                if not line:
+                    break
+                yield line
 
     def _ws_read(self):
-        while self._work:
+        while self._conn:
             try:
                 chunk = self._conn.recv()
-            except websocket.WebSocketTimeoutException:
-                if self._r_wait:
-                    continue
-                else:
-                    break
             except ALL_EXCEPTS:
                 break
             if chunk is None:

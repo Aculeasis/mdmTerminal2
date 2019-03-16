@@ -8,6 +8,7 @@ import json
 import socket
 import threading
 import time
+from contextlib import closing
 
 import websocket
 
@@ -45,7 +46,7 @@ def split_line(line: str) -> str:
 
 def get_headers(request_text: bytearray) -> dict:
     result = {}
-    for line in request_text.split(b'\r\n'):
+    for line in request_text.split(CRLF):
         if line:
             line = line.split(b': ', 1)
             if len(line) == 2:
@@ -191,7 +192,7 @@ class Server(threading.Thread):
         with self._lock:
             data = self._send(data)
         if data:
-            print('send -> {}'.format(data))
+            print('send -> {}'.format(repr(data)[1:-1]))
 
     def _send(self, data: str) -> str:
         if not self.connected:
@@ -284,31 +285,25 @@ class Server(threading.Thread):
         if is_http(client):
             self.ws = WebSocketServer(client, enable_multithread=True)
             print('UPGRADE: Socket -> WebSocket')
-            for line in self.ws_reader():
-                yield line
-            return
-        chunk_size = 1024 * 4
-        data = b''
-        while self.work and not self.closed:
-            try:
-                chunk = client.recv(chunk_size)
-            except socket.timeout:
-                continue
-            except ERRORS:
-                break
-            if not chunk:
-                break
-            data += chunk
-            while CRLF in data:
-                line, data = data.split(CRLF, 1)
-                if not line:
-                    return
-                try:
-                    line = line.decode()
-                except UnicodeDecodeError:
-                    continue
+            reader = self.ws_reader()
+        else:
+            reader = self.tcp_reader(client)
+        for line in reader:
+            print('recv <- {}'.format(repr(line)[1:-1] if len(line) < 250 else '{} bytes'.format(len(line))))
+            yield line
 
-                print('recv <- {}'.format(line))
+    def tcp_reader(self, client) -> str:
+        client.settimeout(None)
+        while self.work and not self.closed:
+            with closing(client.makefile(newline='\r\n', buffering=1024 * 4)) as makefile:
+                try:
+                    line = makefile.readline().rstrip('\r\n')
+                except (socket.timeout, UnicodeDecodeError):
+                    continue
+                except ERRORS:
+                    break
+                if not line:
+                    break
                 yield line
 
     def ws_reader(self):
@@ -321,7 +316,6 @@ class Server(threading.Thread):
                 break
             if not line:
                 continue
-            print('recv <- {}'.format(line))
             yield line
 
 
@@ -351,6 +345,10 @@ class TestShell(cmd__.Cmd):
     def do_close(self, _):
         """Закрыть текущее соединение"""
         self.server.close()
+
+    def do_CRLF(self, _):
+        """Отправить \r\n"""
+        self.server.send('\r\n')
 
     def do_token(self, token):
         """Сменить токен. Аргументы: токен"""

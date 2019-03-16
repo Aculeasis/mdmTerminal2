@@ -42,8 +42,7 @@ class DuplexMode(SocketAPIHandler):
             # Забираем сокет у сервера
             conn_ = conn.extract()
             if conn_:
-                conn_.r_wait()
-                conn_.settimeout(1)
+                conn_.settimeout(None)
                 self._api_close()
                 self._queue.put_nowait((conn_, cmd))
                 if not self._has_started:
