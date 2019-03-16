@@ -132,9 +132,9 @@ class MDTerminal(threading.Thread):
             if cmd == 'tts':
                 self.own.say(data, lvl=lvl)
             elif cmd == 'ask' and data:
-                self._detected_parse(data, self.own.listen(data))
+                self._detected_parse(True, self.own.listen(data))
             elif cmd == 'voice' and not data:
-                self._detected_parse('', self.own.listen(voice=True))
+                self._detected_parse(False, self.own.listen(voice=True))
             elif cmd in self.DATA_CALL:
                 self.DATA_CALL[cmd](data)
             elif cmd in self.ARGS_CALL:
@@ -372,7 +372,7 @@ class MDTerminal(threading.Thread):
         hello = ''
         if phrase and self.own.sys_say_chance and not no_hello:
             hello = LNG['model_listened'].format(phrase)
-        self._speech_recognized_success(hello, self.own.listen(hello, voice=no_hello), model_name)
+        self._detected_parse(hello, self.own.listen(hello, voice=no_hello), model_name)
 
     def _detected_sr(self, msg: str, model_name: str, model_msg: str, energy_threshold: int, error=False):
         if error:
@@ -384,23 +384,16 @@ class MDTerminal(threading.Thread):
             energy_threshold = ''
         self.log(LNG2['recognized'].format(msg, energy_threshold), logger.INFO)
         self.log(LNG['activate_by'].format(model_name, model_msg), logger.INFO)
-        if not msg:  # Пустое сообщение
-            return
-        self._speech_recognized_success(False, msg, model_name)
+        self._detected_parse(False, msg, model_name)
 
-    def _speech_recognized_success(self, voice, reply, model):
-        if voice or reply:
-            self.own.speech_recognized_success_callback()
-            if self._cfg.gts('alarm_recognized'):
-                self.own.play(self._cfg.path['bimp'])
-            self._detected_parse(voice, reply, model)
-
-    def _detected_parse(self, voice, reply, model=None):
+    def _detected_parse(self, voice: bool, reply: str, model=None):
         caller = False
+        self.own.speech_recognized_callback(bool(reply))
         if reply or voice:
             while caller is not None:
                 reply, caller = self.own.modules_tester(reply, caller, model)
                 if caller:
                     reply = self.own.listen(reply or '', voice=not reply)
+                    self.own.speech_recognized_callback(bool(reply))
         if reply:
             self.own.say(reply)

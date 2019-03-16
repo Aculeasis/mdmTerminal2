@@ -264,8 +264,10 @@ class Loader(Owner):
     def voice_activated_callback(self):
         self._pub.call('voice_activated')
 
-    def speech_recognized_success_callback(self):
-        self._pub.call('speech_recognized_success')
+    def speech_recognized_callback(self, status: bool):
+        if status and self._cfg.gts('alarm_recognized'):
+            self.play(self._cfg.path['bimp'])
+        self._pub.call('speech_recognized_{}success'.format('' if status else 'un'))
 
     def record_callback(self, start_stop: bool):
         self._pub.call('start_record' if start_stop else 'stop_record')

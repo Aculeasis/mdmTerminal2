@@ -25,7 +25,7 @@ class MajordomoNotifier(threading.Thread):
         self._boot_time = None
         self._api_fail_count = self.MAX_API_FAIL_COUNT
         self._events = (
-            'speech_recognized_success', 'voice_activated', 'ask_again',
+            'speech_recognized_unsuccess', 'speech_recognized_success', 'voice_activated', 'ask_again',
             'music_status', 'start_record', 'stop_record', 'start_talking', 'stop_talking',
             'volume', 'music_volume',
             'listener',

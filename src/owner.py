@@ -250,7 +250,7 @@ class Owner:
     def voice_activated_callback(self):
         raise NotImplementedError
 
-    def speech_recognized_success_callback(self):
+    def speech_recognized_callback(self, status: bool):
         raise NotImplementedError
 
     def record_callback(self, start_stop: bool):
