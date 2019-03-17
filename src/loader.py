@@ -42,9 +42,9 @@ class Loader(Owner):
         self._logger = Logger(self._cfg['log'], self)
 
         self._cfg.configure(self._logger.add('CFG'))
-        self._listen = Listener(cfg=self._cfg, owner=self)
         proxies.add_logger(self._logger.add('Proxy'))
 
+        self._listen = Listener(cfg=self._cfg, log=self._logger.add('REC'), owner=self)
         self._notifier = MajordomoNotifier(cfg=self._cfg, log=self._logger.add('Notifier'), owner=self)
         self._tts = stts.TextToSpeech(cfg=self._cfg, log=self._logger.add('TTS'))
         self._play = Player(cfg=self._cfg, log=self._logger.add('Player'), owner=self)
@@ -319,8 +319,8 @@ class Loader(Owner):
     def terminal_call(self, cmd: str, data='', lvl: int=0, save_time: bool=True):
         self._terminal.call(cmd, data, lvl, save_time)
 
-    def chrome_listen(self, interrupt_check, callback):
-        return self._listen.chrome_listen(interrupt_check, callback)
+    def recognition_forever(self, interrupt_check: callable, callback: callable):
+        return self._listen.recognition_forever(interrupt_check, callback)
 
     def get_detector(self, source_or_mic, vad_mode=None, vad_lvl=None, energy_lvl=None, energy_dynamic=None):
         return self._listen.get_detector(source_or_mic, vad_mode, vad_lvl, energy_lvl, energy_dynamic)

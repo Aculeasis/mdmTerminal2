@@ -7,7 +7,6 @@ from functools import lru_cache
 
 from speech_recognition import Microphone, AudioData
 
-from lib import snowboydetect
 from utils import singleton, is_int
 
 try:
@@ -21,6 +20,12 @@ try:
 except ImportError as e:
     Vad = None
     print('Error importing webrtcvad: {}'.format(e))
+
+
+@lru_cache(maxsize=1)
+def lazy_snowboy():
+    from lib import snowboydetect
+    return snowboydetect.SnowboyDetect
 
 
 @singleton
@@ -230,9 +235,13 @@ class SnowboyDetector(Detector):
         return self._current_state
 
     @classmethod
+    def reset(cls):
+        cls._constructor.cache_clear()
+
+    @classmethod
     @lru_cache(maxsize=1)
     def _constructor(cls, resource_path, sensitivity, audio_gain, apply_frontend, *snowboy_hot_word_files):
-        sn = snowboydetect.SnowboyDetect(
+        sn = lazy_snowboy()(
             resource_filename=os.path.join(resource_path, 'resources', 'common.res').encode(),
             model_str=",".join(snowboy_hot_word_files).encode()
         )

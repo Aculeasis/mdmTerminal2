@@ -10,9 +10,7 @@ import lib.snowboy_training as training_service
 import logger
 import utils
 from languages import LANG_CODE
-from languages import STTS as LNG2
 from languages import TERMINAL as LNG
-from listener import SnowBoy, SnowBoySR
 from owner import Owner
 
 
@@ -49,21 +47,13 @@ class MDTerminal(threading.Thread):
         }
 
     def _reload(self, *_):
-        if len(self._cfg.path['models_list']) and self.own.max_mic_index != -2 and self._listening:
-            if self._cfg.gts('chrome_mode'):
-                detected = self._detected_sr
-                snowboy = SnowBoySR
-            else:
-                snowboy = SnowBoy
-                detected = self._detected
-            self._snowboy = snowboy(self._cfg, detected, self._interrupt_callback, self.own)
-            listener = True
+        if self._listening:
+            self._snowboy = self.own.recognition_forever(self._interrupt_check, self._detected_parse)
         else:
-            listener = False
             self._snowboy = None
-        if listener != self._old_listener:
-            self._listener_event('on' if listener else 'off')
-            self._old_listener = listener
+        if bool(self._snowboy) != self._old_listener:
+            self._listener_event('on' if self._snowboy else 'off')
+            self._old_listener = not self._old_listener
         self._wait.set()
 
     def join(self, timeout=None):
@@ -83,7 +73,7 @@ class MDTerminal(threading.Thread):
     def _no_listen(self):
         return self._cfg['listener']['no_listen_music'] and self.own.music_plays
 
-    def _interrupt_callback(self):
+    def _interrupt_check(self):
         return not self._work or self._queue.qsize() or self._no_listen()
 
     def run(self):
@@ -100,18 +90,12 @@ class MDTerminal(threading.Thread):
             time.sleep(0.2)
         else:
             try:
-                self._snowboy.start()
+                self._snowboy()
             except OSError as e:
                 self._work = False
                 self.log('Critical error, bye: {}'.format(e), logger.CRIT)
                 self.log(traceback.format_exc(), logger.CRIT)
                 self.own.die_in(1)
-                try:
-                    self._snowboy.terminate()
-                except OSError:
-                    pass
-            else:
-                self._snowboy.terminate()
 
     def _external_check(self):
         while self._queue.qsize() and self._work:
@@ -356,35 +340,6 @@ class MDTerminal(threading.Thread):
                 return
         self._queue.put_nowait((cmd, data, lvl, time.time() if save_time else 0))
         self._wait.set()
-
-    def _detected(self, model: int=0):
-        if self._snowboy is not None:
-            self._snowboy.terminate()
-        self.own.voice_activated_callback()
-        phrase = ''
-        if not model:
-            self.log(LNG['err_call2'], logger.CRIT)
-            model_name = None
-        else:
-            model_name, phrase, msg = self._cfg.model_info_by_id(model)
-            self.log(LNG['activate_by'].format(model_name, msg), logger.INFO)
-        no_hello = self._cfg.gts('no_hello')
-        hello = ''
-        if phrase and self.own.sys_say_chance and not no_hello:
-            hello = LNG['model_listened'].format(phrase)
-        self._detected_parse(hello, self.own.listen(hello, voice=no_hello), model_name)
-
-    def _detected_sr(self, msg: str, model_name: str, model_msg: str, energy_threshold: int, error=False):
-        if error:
-            self.log(LNG['wrong_activation'].format(msg, model_name, energy_threshold), logger.DEBUG)
-            return
-        if self._cfg.gt('listener', 'energy_threshold', 0) < 1:
-            energy_threshold = ', energy_threshold={}'.format(energy_threshold)
-        else:
-            energy_threshold = ''
-        self.log(LNG2['recognized'].format(msg, energy_threshold), logger.INFO)
-        self.log(LNG['activate_by'].format(model_name, model_msg), logger.INFO)
-        self._detected_parse(False, msg, model_name)
 
     def _detected_parse(self, voice: bool, reply: str, model=None):
         caller = False

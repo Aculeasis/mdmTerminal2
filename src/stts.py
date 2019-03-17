@@ -290,7 +290,7 @@ class SpeechToText:
             msg = ''
             if energy_threshold:
                 msg = ', energy_threshold={}'.format(int(energy_threshold))
-            self.log(LNG['recognized'].format(commands, msg), logger.INFO)
+            self.log('Recognized: {}{}'.format(commands, msg), logger.INFO)
         return commands
 
     def _non_block_listen(self, hello, lvl, file_path):

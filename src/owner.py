@@ -301,7 +301,7 @@ class Owner:
     def terminal_call(self, cmd: str, data='', lvl: int=0, save_time: bool=True):
         raise NotImplementedError
 
-    def chrome_listen(self, interrupt_check, callback):
+    def recognition_forever(self, interrupt_check: callable, callback: callable):
         raise NotImplementedError
 
     def get_detector(self, source_or_mic, vad_mode=None, vad_lvl=None, energy_lvl=None, energy_dynamic=None):
