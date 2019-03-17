@@ -3,6 +3,7 @@
 import configparser
 import json
 import os
+import platform
 import shutil
 import threading
 import time
@@ -24,6 +25,8 @@ class ConfigHandler(dict):
         super().__init__()
         self._plugins_api = cfg['system'].pop('PLUGINS_API', 0)
         self._version_info = cfg['system'].pop('VERSION', (0, 0, 0))
+        self.platform = platform.system().capitalize()
+        self.no_hot_words = platform.system().capitalize() != 'Linux'
         self._save_me_later = False
         self.update(cfg)
         self.path = path

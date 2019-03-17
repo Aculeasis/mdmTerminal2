@@ -1,5 +1,7 @@
-import threading
+import os
+import platform
 import subprocess
+import threading
 import time
 
 CMD = {
@@ -12,6 +14,20 @@ BACKENDS = {
     # 'mplayer': ['mplayer', '-really-quiet', '-noautosub', '-novideo', '-cache', '512', '-cache-min', '30'],
     'mpv': ['mpv', '--really-quiet', '--no-video', '-cache', '512'],
 }
+
+
+def win_patch():
+    vlc = ['--play-and-exit', '-I dummy', '--dummy-quiet']
+    joins = ['', ' (x86)']
+    for arch in joins:
+        target = os.path.join('C:\\', 'Program Files{}'.format(arch), 'VideoLAN', 'VLC', 'vlc.exe')
+        if os.path.isfile(target):
+            BACKENDS[''] = [target] + vlc
+            break
+
+
+if platform.system().capitalize() == 'Windows':
+    win_patch()
 
 
 class StreamPlayer(threading.Thread):
@@ -131,8 +147,8 @@ def _get_cmd1(path):
     return cmd
 
 
-def get_popen(ext, fp_or_file, stream, callback, backend=None):
-    file_path = '-' if stream else fp_or_file
+def get_popen(ext, file, stream, callback, backend=None):
+    file_path = '-' if stream else file
     if backend in BACKENDS:
         cmd1 = None
         cmd2 = BACKENDS[backend].copy()
@@ -144,6 +160,6 @@ def get_popen(ext, fp_or_file, stream, callback, backend=None):
         cmd1 = None
         cmd2 = _get_cmd2(ext, file_path)
     if stream:
-        return StreamPlayer(_select_popen(cmd1, cmd2, callback), fp_or_file)
+        return StreamPlayer(_select_popen(cmd1, cmd2, callback), stream)
     else:
         return _select_popen(cmd1, cmd2, callback)

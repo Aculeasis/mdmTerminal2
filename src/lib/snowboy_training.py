@@ -40,6 +40,8 @@ class Training:
         for key in self.PARAMS2:
             if self.__params.get(key) not in self.PARAMS2[key][0]:
                 self.__params[key] = self.PARAMS2[key][1]
+        # Fix has too many words
+        self.__params['name'] = ' '.join(self.__params['name'].split(' ')[:4])
 
     def _request(self):
         try:

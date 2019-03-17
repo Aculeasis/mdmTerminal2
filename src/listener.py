@@ -18,7 +18,10 @@ class Listener:
         self.own = owner
 
     def recognition_forever(self, interrupt_check: callable, callback: callable):
-        if len(self.cfg.path['models_list']) and self.own.max_mic_index != -2:
+        if self.cfg.no_hot_words:
+            self.log('Snowboy don\'t support this system: {}'.format(self.cfg.platform), logger.WARN)
+            return None
+        if self.cfg.path['models_list'] and self.own.max_mic_index != -2:
             return lambda: self._smart_listen(interrupt_check, callback)
         return None
 
@@ -184,7 +187,7 @@ class Listener:
 
     def _select_vad(self, vad_mode=None):
         vad_mode = vad_mode if vad_mode is not None else self.cfg.gt('listener', 'vad_mode')
-        if vad_mode == 'snowboy' and len(self.cfg.path['models_list']):
+        if vad_mode == 'snowboy' and self.cfg.path['models_list'] and self.cfg.platform == 'Linux':
             return SnowboyDetector
         if vad_mode == 'webrtc' and Vad:
             return DetectorVAD

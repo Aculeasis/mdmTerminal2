@@ -29,6 +29,9 @@ class Updater(threading.Thread):
         self._notify_update = self.own.registration('updater')
 
     def start(self):
+        if self._cfg.platform != 'Linux':
+            self.log('don\'t support this system: {}'.format(self._cfg.platform), logger.WARN)
+            return
         self._work = True
         super().start()
         self.log('start', logger.INFO)

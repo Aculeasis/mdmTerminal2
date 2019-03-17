@@ -9,7 +9,7 @@ import time
 
 import logger
 from languages import PLAYER as LNG
-from lib import linux_play
+from lib import play_utils
 from owner import Owner
 
 
@@ -167,14 +167,13 @@ class Player:
         ext = ext or os.path.splitext(path)[1]
         if not stream and not os.path.isfile(path):
             return self.log(LNG['file_not_found'].format(path), logger.ERROR)
-        if ext not in linux_play.CMD:
+        if ext not in play_utils.CMD:
             return self.log(LNG['unknown_type'].format(ext), logger.CRIT)
-        if stream is None:
-            self.log(LNG['play'].format(path, logger.DEBUG))
-            self._popen = linux_play.get_popen(ext, path, False, callback, self._cfg.gts('software_player'))
-        else:
-            self.log(LNG['stream'].format(path, logger.DEBUG))
-            self._popen = linux_play.get_popen(ext, stream, True, callback, self._cfg.gts('software_player'))
+        self.log(LNG['play' if stream is None else 'stream'].format(path, logger.DEBUG))
+        try:
+            self._popen = play_utils.get_popen(ext, path, stream, callback, self._cfg.gts('software_player'))
+        except FileNotFoundError as e:
+            self.log('Playing error: {}'.format(e), logger.ERROR)
 
 
 class LowPrioritySay(threading.Thread):

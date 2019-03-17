@@ -14,7 +14,7 @@ import ssl
 import threading
 import time
 from contextlib import closing
-
+import platform
 import websocket  # pip install websocket-client
 
 HANDSHAKE_STR = (
@@ -34,19 +34,29 @@ FAILED_HANDSHAKE_STR = (
 )
 
 GUID_STR = b'258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
-
+PLATFORM = platform.system().capitalize()
 
 CRLF = b'\r\n'
 AUTH_FAILED = 'Terminal rejected connection (incorrect ws_token?). BYE!'
 ALL_EXCEPTS = (OSError, websocket.WebSocketException, TypeError, ValueError, AttributeError)
 
-
-def is_http(conn: socket.socket) -> bool:
-    try:
-        return conn.recv(4, socket.MSG_PEEK | socket.MSG_DONTWAIT) == b'GET '
-    except socket.error:
-        pass
-    return False
+if PLATFORM == 'Windows':
+    def is_http(conn: socket.socket) -> bool:
+        conn.setblocking(False)
+        try:
+            return conn.recv(4, socket.MSG_PEEK) == b'GET '
+        except (socket.error, BlockingIOError):
+            pass
+        finally:
+            conn.setblocking(True)
+        return False
+else:
+    def is_http(conn: socket.socket) -> bool:
+        try:
+            return conn.recv(4, socket.MSG_PEEK | socket.MSG_DONTWAIT) == b'GET '
+        except socket.error:
+            pass
+        return False
 
 
 def get_headers(request_text: bytearray) -> dict:
@@ -215,7 +225,7 @@ class Connect:
             return self._tcp_read()
 
     def _tcp_read(self):
-        with closing(self._conn.makefile(newline='\r\n', buffering=self.CHUNK_SIZE)) as makefile:
+        with closing(self._conn.makefile(encoding='utf8', newline='\r\n', buffering=self.CHUNK_SIZE)) as makefile:
             while self._conn:
                 try:
                     line = makefile.readline().rstrip('\r\n')
