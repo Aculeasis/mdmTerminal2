@@ -41,10 +41,11 @@ class MDTerminal(threading.Thread):
         self.ARGS_CALL = {
             'rec': self._rec_rec,
             'play': self._rec_play,
-            'compile': self._rec_compile,
             'del': self._rec_del,
             'send_model': self._send_model,
         }
+        if self._cfg.detector != 'porcupine':
+            self.ARGS_CALL['compile'] = self._rec_compile
 
     def _reload(self, *_):
         if self._listening:

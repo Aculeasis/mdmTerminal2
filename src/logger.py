@@ -169,7 +169,7 @@ class Logger(threading.Thread):
 
         if self._cfg.get('file') and in_file and self.permission_check():
             self._handler = RotatingFileHandler(filename=self._cfg.get('file'), maxBytes=1024 * 1024,
-                                                backupCount=2, delay=0
+                                                backupCount=2, delay=0, encoding='utf8',
                                                 )
             self._handler.rotator = _rotator
             self._handler.namer = _namer

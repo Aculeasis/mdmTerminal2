@@ -26,7 +26,7 @@ class ConfigHandler(dict):
         self._plugins_api = cfg['system'].pop('PLUGINS_API', 0)
         self._version_info = cfg['system'].pop('VERSION', (0, 0, 0))
         self.platform = platform.system().capitalize()
-        self.no_hot_words = platform.system().capitalize() != 'Linux'
+        self.detector = 'snowboy' if self.platform == 'Linux' else None
         self._save_me_later = False
         self.update(cfg)
         self.path = path
@@ -146,8 +146,23 @@ class ConfigHandler(dict):
         self._lost_file(self.path['dong'])
         self._lost_file(self.path['tts_error'])
 
+        self.porcupine_switcher()
         self.models_load()
         self.tts_cache_check()
+
+    def porcupine_switcher(self):
+        try:
+            if not utils.porcupine_check(self.path['home']):
+                return
+        except RuntimeError as e:
+            self._log('Porcupine broken: {}'.format(e), logger.WARN)
+            return
+
+        self.path['model_ext'] = '.ppn'
+        self.path['model_supports'].clear()
+        self.path['model_supports'].append(self.path['model_ext'])
+        self.detector = 'porcupine'
+        self._log('Change detector to Porcupine', logger.INFO)
 
     def allow_connect(self, ip: str) -> bool:
         if ip == '127.0.0.1':
@@ -247,7 +262,7 @@ class ConfigHandler(dict):
     def save_dict(self, name: str, data: dict, pretty=False) -> bool:
         file_path = os.path.join(self.path['data'], name + '.json')
         try:
-            with open(file_path, 'w') as fp:
+            with open(file_path, 'w', encoding='utf8') as fp:
                 json.dump(data, fp, ensure_ascii=False, indent=4 if pretty else None)
         except TypeError as e:
             self._print(LNG['err_save'].format(file_path, str(e)), logger.ERROR)
@@ -260,7 +275,7 @@ class ConfigHandler(dict):
             self._print(LNG['miss_file'].format(file_path))
             return None
         try:
-            with open(file_path) as fp:
+            with open(file_path, encoding='utf8') as fp:
                 return json.load(fp)
         except (json.decoder.JSONDecodeError, TypeError) as e:
             self._print(LNG['err_load'].format(file_path, str(e)), logger.ERROR)
@@ -300,7 +315,7 @@ class ConfigHandler(dict):
             if isinstance(val, dict):
                 config[key] = val
 
-        with open(self.path['settings'], 'w') as configfile:
+        with open(self.path['settings'], 'w', encoding='utf8') as configfile:
             config.write(configfile)
         self._print(LNG['save_for'].format(utils.pretty_time(time.time() - wtime)), logger.INFO)
         self._print(LNG['save'], mode=2)
@@ -530,7 +545,7 @@ class ConfigUpdater:
 
     def _ini_to_cfg(self, path: str):
         cfg = configparser.ConfigParser()
-        cfg.read(path)
+        cfg.read(path, encoding='utf8')
         data = {sec.lower(): dict(cfg[sec]) for sec in cfg.sections()}
         self._parser(data)
 

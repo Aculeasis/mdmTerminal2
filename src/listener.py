@@ -7,7 +7,7 @@ import logger
 from languages import TERMINAL as LNG
 from lib import sr_wrapper as sr
 from lib.audio_utils import APM_ERR, Vad
-from lib.audio_utils import SnowboyDetector, DetectorVAD, DetectorAPM
+from lib.audio_utils import SnowboyDetector, DetectorVAD, DetectorAPM, get_hot_word_detector
 from owner import Owner
 
 
@@ -18,10 +18,9 @@ class Listener:
         self.own = owner
 
     def recognition_forever(self, interrupt_check: callable, callback: callable):
-        if self.cfg.no_hot_words:
-            self.log('Snowboy don\'t support this system: {}'.format(self.cfg.platform), logger.WARN)
-            return None
-        if self.cfg.path['models_list'] and self.own.max_mic_index != -2:
+        if not self.cfg.detector:
+            self.log('Wake word detection don\'t work on this system: {}'.format(self.cfg.platform), logger.WARN)
+        elif self.cfg.path['models_list'] and self.own.max_mic_index != -2:
             return lambda: self._smart_listen(interrupt_check, callback)
         return None
 
@@ -30,12 +29,10 @@ class Listener:
         adata = None
         while not interrupt_check():
             chrome_mode = self.cfg.gts('chrome_mode')
-            if not chrome_mode:
-                SnowboyDetector.reset()
             with sr.Microphone(device_index=self.own.mic_index) as source:
                 detector, noising = self._get_detector(source, self.cfg.gt('listener', 'vad_chrome') or None)
                 if not isinstance(detector, SnowboyDetector):
-                    sn = self._get_snowboy(source.SAMPLE_WIDTH, source.SAMPLE_RATE, detector)
+                    sn = self._get_hw_detector(source.SAMPLE_WIDTH, source.SAMPLE_RATE, detector)
                 else:
                     sn = detector
                 try:
@@ -57,9 +54,9 @@ class Listener:
                     except (sr.WaitTimeoutError, RuntimeError):
                         continue
             if chrome_mode:
-                energy_threshold = detector.energy_threshold if isinstance(detector, sr.EnergyDetector) else None
-                self._adata_parse(adata, model_name, phrase, energy_threshold, callback)
+                self._adata_parse(adata, model_name, phrase, detector.energy_threshold, callback)
             else:
+                sn.reset()
                 self._detected(model_name, phrase, msg, callback)
 
     def _adata_parse(self, adata, model_name: str, phrases: str, energy_threshold, callback):
@@ -159,7 +156,7 @@ class Listener:
         vad = vad(
             source=source_or_mic, energy_lvl=energy_lvl, energy_dynamic=energy_dynamic,
             lvl=vad_lvl, width=source_or_mic.SAMPLE_WIDTH, rate=source_or_mic.SAMPLE_RATE,
-            resource_path=self.cfg.path['home'], snowboy_hot_word_files=self.cfg.path['models_list'],
+            resource_path=self.cfg.path['home'], hot_word_files=self.cfg.path['models_list'],
             sensitivity=self.cfg.gts('sensitivity'), audio_gain=self.cfg.gts('audio_gain'), another=None,
             apply_frontend=self.cfg.gt('noise_suppression', 'snowboy_apply_frontend')
         )
@@ -177,17 +174,18 @@ class Listener:
                 return vad, self.own.noising
         return vad, None
 
-    def _get_snowboy(self, width, rate, another_detector=None):
-        return SnowboyDetector(
-            resource_path=self.cfg.path['home'], snowboy_hot_word_files=self.cfg.path['models_list'],
+    def _get_hw_detector(self, width, rate, another_detector=None):
+        return get_hot_word_detector(
+            resource_path=self.cfg.path['home'], hot_word_files=self.cfg.path['models_list'],
             width=width, rate=rate,
             sensitivity=self.cfg.gts('sensitivity'), audio_gain=self.cfg.gts('audio_gain'), another=another_detector,
-            apply_frontend=self.cfg.gt('noise_suppression', 'snowboy_apply_frontend')
+            apply_frontend=self.cfg.gt('noise_suppression', 'snowboy_apply_frontend'),
+            detector=self.cfg.detector,
         )
 
     def _select_vad(self, vad_mode=None):
         vad_mode = vad_mode if vad_mode is not None else self.cfg.gt('listener', 'vad_mode')
-        if vad_mode == 'snowboy' and self.cfg.path['models_list'] and self.cfg.platform == 'Linux':
+        if vad_mode == 'snowboy' and self.cfg.path['models_list'] and self.cfg.detector == 'snowboy':
             return SnowboyDetector
         if vad_mode == 'webrtc' and Vad:
             return DetectorVAD

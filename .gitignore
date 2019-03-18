@@ -13,5 +13,6 @@ src/update.json
 src/resources/models/
 src/resources/samples/
 src/plugins/*
+src/porcupine/
 src/mdmterminal.log
 src/lib/_snowboydetect.so

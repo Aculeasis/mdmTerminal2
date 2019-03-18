@@ -7,9 +7,10 @@ from functools import lru_cache
 
 from speech_recognition import Microphone, AudioData
 
-from utils import singleton, is_int
+from utils import singleton, is_int, porcupine_lib
 
 try:
+    # noinspection PyUnresolvedReferences
     from webrtc_audio_processing import AudioProcessingModule
     APM_ERR = None
 except ImportError as e:
@@ -26,6 +27,41 @@ except ImportError as e:
 def lazy_snowboy():
     from lib import snowboydetect
     return snowboydetect.SnowboyDetect
+
+
+@lru_cache(maxsize=1)
+def lazy_porcupine():
+    import struct
+    import ctypes
+    from lib.porcupine import Porcupine as Porcupine_
+
+    class Porcupine(Porcupine_):
+        def process(self, pcm: bytes) -> int:
+            pcm_len = len(pcm) // 2
+            pcm = struct.unpack('H' * pcm_len, pcm)
+
+            result = ctypes.c_int()
+            # noinspection PyCallingNonCallable
+            # noinspection PyTypeChecker
+            status = self.process_func(self._handle, (ctypes.c_short * pcm_len)(*pcm), ctypes.byref(result))
+            if status is not self.PicovoiceStatuses.SUCCESS:
+                raise self._PICOVOICE_STATUS_TO_EXCEPTION[status]('Processing failed')
+
+            keyword_index = result.value + 1
+            if keyword_index:
+                return keyword_index
+            else:
+                return -2
+
+        def __del__(self):
+            self.delete()
+    return Porcupine
+
+
+def get_hot_word_detector(**kwargs):
+    if kwargs.get('detector') == 'porcupine':
+        return PorcupineDetector(**kwargs)
+    return SnowboyDetector(**kwargs)
 
 
 @singleton
@@ -163,6 +199,7 @@ class MicrophoneStreamAPM(MicrophoneStream):
 
 class Detector:
     def __init__(self, duration, width, rate, resample_rate):
+        self.energy_threshold = None
         self._resample_rate = resample_rate
         self._rate = rate
         self._width = width
@@ -202,10 +239,10 @@ class Detector:
 
 
 class SnowboyDetector(Detector):
-    def __init__(self, resource_path, snowboy_hot_word_files, sensitivity,
+    def __init__(self, resource_path, hot_word_files, sensitivity,
                  audio_gain, width, rate, another, apply_frontend, **_):
         self._snowboy = SnowboyDetector._constructor(
-            resource_path, sensitivity, audio_gain, apply_frontend, *snowboy_hot_word_files)
+            resource_path, sensitivity, audio_gain, apply_frontend, *hot_word_files)
         super().__init__(150, width, rate, self._snowboy.SampleRate())
         self._another = another
         self._current_state = -2
@@ -240,15 +277,66 @@ class SnowboyDetector(Detector):
 
     @classmethod
     @lru_cache(maxsize=1)
-    def _constructor(cls, resource_path, sensitivity, audio_gain, apply_frontend, *snowboy_hot_word_files):
+    def _constructor(cls, resource_path, sensitivity, audio_gain, apply_frontend, *hot_word_files):
         sn = lazy_snowboy()(
             resource_filename=os.path.join(resource_path, 'resources', 'common.res').encode(),
-            model_str=",".join(snowboy_hot_word_files).encode()
+            model_str=",".join(hot_word_files).encode()
         )
         sn.SetAudioGain(audio_gain)
         sn.SetSensitivity(','.join([str(sensitivity)] * sn.NumHotwords()).encode())
         sn.ApplyFrontend(apply_frontend)
         return sn
+
+
+class PorcupineDetector(Detector):
+    def __init__(self, resource_path, hot_word_files, sensitivity,
+                 width, rate, another, **_):
+        self._porcupine = PorcupineDetector._constructor(resource_path, sensitivity, *hot_word_files)
+        super().__init__(1, width, rate, self._porcupine.sample_rate)
+        self._sample_size = width * self._porcupine.frame_length
+        self._another = another
+        self._current_state = -2
+
+    def detect(self, buffer: bytes) -> int:
+        self._call_detector(self._resampler(buffer))
+        return self._current_state
+
+    def is_speech(self, buffer: bytes) -> bool:
+        result = self._detector(self._resampler(buffer), True) >= 0
+        self._buffer = b''
+        return result
+
+    def dynamic_energy(self):
+        if self._another:
+            self._another.dynamic_energy()
+
+    def _detector(self, buffer: bytes, only_detect=False) -> int:
+        if self._current_state == -2 or only_detect:
+            if self._another:
+                is_speech = self._another.is_speech(buffer)
+                if only_detect:
+                    self._current_state = 0 if is_speech else -2
+                else:
+                    self._current_state = self._porcupine.process(buffer)
+            else:
+                self._current_state = self._porcupine.process(buffer)
+        return self._current_state
+
+    @classmethod
+    def reset(cls):
+        cls._constructor.cache_clear()
+
+    @classmethod
+    @lru_cache(maxsize=1)
+    def _constructor(cls, home, sensitivity, *hot_word_files):
+        home = os.path.join(home, 'porcupine')
+        sensitivities = [sensitivity] * len(hot_word_files)
+        library_path = os.path.join(home, porcupine_lib())
+        model_file_path = os.path.join(home, 'porcupine_params.pv')
+        return lazy_porcupine()(
+            library_path=library_path, model_file_path=model_file_path, keyword_file_paths=hot_word_files,
+            sensitivities=sensitivities,
+        )
 
 
 class DetectorVAD(Detector):
