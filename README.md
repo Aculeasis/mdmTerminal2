@@ -135,9 +135,11 @@ rm -rf swig/
 И снова запустить скрипт сборки модуля.
 
 # Системные требования
-- OS: Linux (рекомендую debian-based)
-- Architectures: armv7l, aarch64, x86_64
 - Python 3.5 +
+- Snowboy:
+  - OS: Linux (рекомендую debian-based)
+  - Architectures: armv7l, aarch64, x86_64
+- [Porcupine](https://github.com/Aculeasis/mdmTerminal2/wiki/porcupine): Linux, [Windows](https://github.com/Aculeasis/mdmTerminal2/wiki/windows), Raspberry Pi, Armlinux (a9-neon).
 
 # Решение проблем
 - Если не работает USB микрофон, попробуйте выдернуть и вставить обратно, иногда это помогает.
@@ -157,5 +159,6 @@ rm -rf swig/
 - [MDM VoiceAssistant](https://github.com/lanket/mdmPiTerminalModule)
 - [MajorDoMo](https://github.com/sergejey/majordomo)
 - [Snowboy](https://github.com/Kitt-AI/snowboy)
+- [Porcupine](https://github.com/Picovoice/Porcupine)
 - [rhvoice-rest](https://github.com/Aculeasis/rhvoice-rest)
 - [pocketsphinx-rest](https://github.com/Aculeasis/pocketsphinx-rest)
