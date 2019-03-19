@@ -31,6 +31,11 @@ class Player:
         self._work = True
         self._lp_play.start()
         self.log('start.', logger.INFO)
+        if '' in play_utils.BACKENDS and not self._cfg.gts('software_player'):
+            self.log('Use universal player: {}'.format(play_utils.BACKENDS[''][0]), logger.INFO)
+        alternative = ', '.join([key for key in play_utils.BACKENDS.keys() if key])
+        if alternative:
+            self.log('Available software players: {}'.format(alternative), logger.INFO)
 
     def stop(self):
         self._work = False

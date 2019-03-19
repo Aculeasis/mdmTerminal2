@@ -1,5 +1,6 @@
 import os
 import platform
+import shutil
 import subprocess
 import threading
 import time
@@ -9,25 +10,43 @@ CMD = {
     '.wav': ['aplay', '-q'],
     '.opus': ['opusdec', '--quiet', '--force-wav', '-', '-']
 }
-BACKENDS = {
-    # mplayer ведет себя странно
-    # 'mplayer': ['mplayer', '-really-quiet', '-noautosub', '-novideo', '-cache', '512', '-cache-min', '30'],
-    'mpv': ['mpv', '--really-quiet', '--no-video', '-cache', '512'],
-}
+BACKENDS = {}
 
 
-def win_patch():
-    vlc = ['--play-and-exit', '-I dummy', '--dummy-quiet']
+def init_backends():
+    candidates = {
+        'mpv': ['--really-quiet', '--no-video', '-cache', '512'],
+        # не работает под root
+        'vlc': ['--play-and-exit', '-I dummy', '--dummy-quiet'],
+        # ведет себя странно
+        'mplayer': ['-really-quiet', '-noautosub', '-novideo', '-cache', '512', '-cache-min', '30'],
+    }
+    for target in candidates:
+        cmd = shutil.which(target)
+        if cmd:
+            BACKENDS[target] = [cmd] + candidates[target]
+
+    if platform.system().capitalize() == 'Windows':
+        vlc_path = BACKENDS.get('vlc', [''])[0] or win_vlc()
+        if vlc_path:
+            BACKENDS[''] = [vlc_path] + candidates['vlc']
+            return
+
+        for val in BACKENDS.values():
+            BACKENDS[''] = val
+            break
+
+
+def win_vlc() -> str:
     joins = ['', ' (x86)']
     for arch in joins:
         target = os.path.join('C:\\', 'Program Files{}'.format(arch), 'VideoLAN', 'VLC', 'vlc.exe')
         if os.path.isfile(target):
-            BACKENDS[''] = [target] + vlc
-            break
+            return target
+    return ''
 
 
-if platform.system().capitalize() == 'Windows':
-    win_patch()
+init_backends()
 
 
 class StreamPlayer(threading.Thread):
