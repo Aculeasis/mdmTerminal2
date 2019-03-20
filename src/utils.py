@@ -2,6 +2,7 @@
 
 import base64
 import functools
+import json
 import os
 import platform
 import queue
@@ -31,7 +32,7 @@ class SignalHandler:
         self._death_time = 0
         [signal.signal(signal_, self._signal_handler) for signal_ in signals]
 
-    def _signal_handler(self, *_):
+    def _signal_handler(self, _, __):
         self._sleep.set()
 
     def die_in(self, sec: int):
@@ -338,3 +339,40 @@ def porcupine_check(home: str) -> bool:
     if not os.path.isfile(os.path.join(home, model_file)):
         raise RuntimeError('model file missing: {}'.format(model_file))
     return True
+
+
+def dict_from_file(file_path: str) -> dict:
+    ext = os.path.splitext(file_path)[1]
+    try:
+        with open(file_path, encoding='utf8') as fp:
+            if ext == '.json':
+                return json.load(fp)
+            elif ext == '.yml':
+                import yaml
+                try:
+                    return yaml.safe_load(fp)
+                except yaml.YAMLError as e:
+                    raise RuntimeError(e)
+            else:
+                raise RuntimeError('Unknown format: {}'.format(ext))
+    except (json.decoder.JSONDecodeError, TypeError, OSError) as e:
+        raise RuntimeError(e)
+
+
+def dict_to_file(file_path: str, data: dict, pretty: bool):
+    indent = 4 if pretty else None
+    ext = os.path.splitext(file_path)[1]
+    try:
+        with open(file_path, 'w', encoding='utf8') as fp:
+            if ext == '.json':
+                json.dump(data, fp, ensure_ascii=False, indent=indent)
+            elif ext == '.yml':
+                import yaml
+                try:
+                    return yaml.safe_dump(data, fp, allow_unicode=True)
+                except yaml.YAMLError as e:
+                    raise RuntimeError(e)
+            else:
+                raise RuntimeError('Unknown format: {}'.format(ext))
+    except (TypeError, OSError) as e:
+        raise RuntimeError(e)

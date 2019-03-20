@@ -19,6 +19,8 @@ from lib.map_settings.wiki_parser import WikiParser
 from lib.proxy import proxies
 from owner import Owner
 
+DATA_FORMATS = {'json': '.json', 'yaml': '.yml'}
+
 
 class ConfigHandler(dict):
     def __init__(self, cfg: dict, path: dict, owner: Owner):
@@ -259,25 +261,23 @@ class ConfigHandler(dict):
     def get_all_models(self) -> list:
         return [file for file in os.listdir(self.path['models']) if self.is_model_name(file)]
 
-    def save_dict(self, name: str, data: dict, pretty=False) -> bool:
-        file_path = os.path.join(self.path['data'], name + '.json')
+    def save_dict(self, name: str, data: dict, pretty=False, format_='json') -> bool:
+        file_path = os.path.join(self.path['data'], name + DATA_FORMATS.get(format_, '.json'))
         try:
-            with open(file_path, 'w', encoding='utf8') as fp:
-                json.dump(data, fp, ensure_ascii=False, indent=4 if pretty else None)
-        except TypeError as e:
+            utils.dict_to_file(file_path, data, pretty)
+        except RuntimeError as e:
             self._print(LNG['err_save'].format(file_path, str(e)), logger.ERROR)
             return False
         return True
 
-    def load_dict(self, name: str) -> dict or None:
-        file_path = os.path.join(self.path['data'], name + '.json')
+    def load_dict(self, name: str, format_='json') -> dict or None:
+        file_path = os.path.join(self.path['data'], name + DATA_FORMATS.get(format_, '.json'))
         if not os.path.isfile(file_path):
             self._print(LNG['miss_file'].format(file_path))
             return None
         try:
-            with open(file_path, encoding='utf8') as fp:
-                return json.load(fp)
-        except (json.decoder.JSONDecodeError, TypeError) as e:
+            return utils.dict_from_file(file_path)
+        except RuntimeError as e:
             self._print(LNG['err_load'].format(file_path, str(e)), logger.ERROR)
             return None
 

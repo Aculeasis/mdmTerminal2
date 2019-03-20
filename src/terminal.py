@@ -174,7 +174,6 @@ class MDTerminal(threading.Thread):
 
     def _rec_del(self, model, _):
         is_del = False
-        to_save = False
         pmdl_name = ''.join(['model', model, self._cfg.path['model_ext']])
         pmdl_path = os.path.join(self._cfg.path['models'], pmdl_name)
         if not self._cfg.is_model_name(pmdl_name):
@@ -200,7 +199,7 @@ class MDTerminal(threading.Thread):
             self.own.say(msg)
 
         # remove model record in config
-        to_save |= self._cfg['models'].pop(pmdl_name, None) is not None
+        to_save = self._cfg['models'].pop(pmdl_name, None) is not None
         to_save |= self._cfg['persons'].pop(pmdl_name, None) is not None
 
         if to_save:
@@ -254,7 +253,7 @@ class MDTerminal(threading.Thread):
         try:
             self._cfg.remove_samples(model)
         except RuntimeError as e:
-            self.log('remove samples \'{}\': {}'.format(model, e))
+            self.log('remove samples \'{}\': {}'.format(model, e), logger.ERROR)
 
     def _send_model(self, filename, body, username, phrase):
         # Получили модель от сервера (send - это для сервера)
@@ -332,7 +331,7 @@ class MDTerminal(threading.Thread):
             self._listening = listening
             self._reload()
 
-    def call(self, cmd: str, data='', lvl: int=0, save_time: bool=True):
+    def call(self, cmd: str, data='', lvl: int = 0, save_time: bool = True):
         if cmd == 'tts' and not lvl:
             if self._cfg.gts('no_background_play'):
                 lvl = 2
