@@ -157,7 +157,7 @@ class MajordomoNotifier(threading.Thread):
         url = urllib.parse.urlparse(ip)
         scheme = url.scheme or 'http'
         hostname = url.hostname or ip
-        path = url.path if url.hostname and url.path and url.path != '/' else ''
+        path = url.path.rstrip('/') if url.hostname and url.path and url.path != '/' else ''
         port = ':{}'.format(url.port) if url.port else ''
         return '{}://{}{}{}/{}'.format(scheme, hostname, port, path, target_path)
 
