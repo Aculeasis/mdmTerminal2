@@ -1,4 +1,3 @@
-
 from utils import state_cache
 
 
@@ -156,13 +155,13 @@ class Owner:
         """
         raise NotImplementedError
 
-    def say(self, msg: str, lvl: int=2, alarm=None, wait=0, is_file: bool = False, blocking: int=0):
+    def say(self, msg: str, lvl: int = 2, alarm=None, wait=0, is_file: bool = False, blocking: int = 0):
         raise NotImplementedError
 
-    def play(self, file, lvl: int=2, wait=0, blocking: int=0):
+    def play(self, file, lvl: int = 2, wait=0, blocking: int = 0):
         raise NotImplementedError
 
-    def say_info(self, msg: str, lvl: int=2, alarm=None, wait=0, is_file: bool = False):
+    def say_info(self, msg: str, lvl: int = 2, alarm=None, wait=0, is_file: bool = False):
         raise NotImplementedError
 
     def set_lvl(self, lvl: int) -> bool:
@@ -193,7 +192,7 @@ class Owner:
     def voice_record(self, hello: str, save_to: str, convert_rate=None, convert_width=None):
         raise NotImplementedError
 
-    def voice_recognition(self, audio, quiet: bool=False, fusion=None) -> str:
+    def voice_recognition(self, audio, quiet: bool = False, fusion=None) -> str:
         raise NotImplementedError
 
     @property
@@ -298,7 +297,7 @@ class Owner:
     def get_volume_status(self) -> dict:
         raise NotImplementedError
 
-    def terminal_call(self, cmd: str, data='', lvl: int=0, save_time: bool=True):
+    def terminal_call(self, cmd: str, data='', lvl: int = 0, save_time: bool = True):
         raise NotImplementedError
 
     def recognition_forever(self, interrupt_check: callable, callback: callable):

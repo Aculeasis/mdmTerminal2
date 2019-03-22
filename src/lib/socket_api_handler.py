@@ -32,7 +32,7 @@ def upgrade_duplex(own: Owner, soc: Connect, msg=''):
         raise RuntimeError('No subscribers: {}'.format(cmd))
 
 
-def json_parser(data: str, keys: tuple=()) -> dict:
+def json_parser(data: str, keys: tuple = ()) -> dict:
     try:
         data = json.loads(data)
         if not isinstance(data, dict):
@@ -52,7 +52,7 @@ class Null:
 
 
 class InternalException(Exception):
-    def __init__(self, code: int=1, msg=None, id_=None, method='method'):
+    def __init__(self, code: int = 1, msg=None, id_=None, method='method'):
         # 0-9 код ошибки от команды
         code = code if code < 10 else 1
         # 4000 - ошибка API

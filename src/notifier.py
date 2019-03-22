@@ -3,6 +3,8 @@
 import queue
 import threading
 import time
+import urllib.parse
+from functools import lru_cache
 
 import requests
 
@@ -24,13 +26,11 @@ class MajordomoNotifier(threading.Thread):
         self._queue = queue.Queue()
         self._boot_time = None
         self._api_fail_count = self.MAX_API_FAIL_COUNT
+        self._self_events = ('volume', 'music_volume', 'updater', 'listener', 'version')
         self._events = (
             'speech_recognized_unsuccess', 'speech_recognized_success', 'voice_activated', 'ask_again',
             'music_status', 'start_record', 'stop_record', 'start_talking', 'stop_talking',
-            'volume', 'music_volume',
-            'listener',
-            'updater',
-        )
+        ) + self._self_events
         self.outgoing = OutgoingSocket(self._cfg, log.add('O'), self.own)
 
     def _subscribe(self):
@@ -42,6 +42,7 @@ class MajordomoNotifier(threading.Thread):
         self.own.unsubscribe(self._events, self._callback)
 
     def reload(self, diff: dict):
+        self._make_url.cache_clear()
         self._api_fail_count = self.MAX_API_FAIL_COUNT
         self._unsubscribe()
         self._subscribe()
@@ -105,7 +106,7 @@ class MajordomoNotifier(threading.Thread):
         if not self._allow_notify:
             return
         kwargs = {'uptime': self._uptime}
-        if name in ('volume', 'music_volume', 'updater', 'listener'):
+        if name in self._self_events:
             kwargs[name] = data
         elif name == 'music_status':
             kwargs['status'] = 'music_{}'.format(data)
@@ -142,14 +143,28 @@ class MajordomoNotifier(threading.Thread):
         else:
             return self._send_over_http(target, params, auth)
 
-    def _send_over_http(self, target: str, params: dict, auth: tuple or None) -> str:
-        if self._cfg['disable_http']:
-            return 'http disabled'
+    @lru_cache(maxsize=2)
+    def _make_url(self, target: str) -> str:
+        ip = self._cfg['ip']
+        if not ip or self._cfg['disable_http']:
+            return ''
         elif target == 'api':
-            path = 'api/method/{}.{}'.format(self._cfg['object_name'], self._cfg['object_method'])
+            target_path = 'api/method/{}.{}'.format(self._cfg['object_name'], self._cfg['object_method'])
+        elif target == 'cmd':
+            target_path = 'command.php'
         else:
-            path = 'command.php'
-        url = 'http://{}/{}'.format(self._cfg['ip'], path)
+            return ''
+        url = urllib.parse.urlparse(ip)
+        scheme = url.scheme or 'http'
+        hostname = url.hostname or ip
+        path = url.path if url.hostname and url.path and url.path != '/' else ''
+        port = ':{}'.format(url.port) if url.port else ''
+        return '{}://{}{}{}/{}'.format(scheme, hostname, port, path, target_path)
+
+    def _send_over_http(self, target: str, params: dict, auth: tuple or None) -> str:
+        url = self._make_url(target)
+        if not url:
+            return 'http disabled'
         try:
             reply = requests.get(url, params=params, auth=auth, timeout=30)
         except REQUEST_ERRORS as e:

@@ -390,7 +390,7 @@ class SpeechToText:
         else:
             return None
 
-    def voice_recognition(self, audio, quiet: bool=False, fusion=None) -> str:
+    def voice_recognition(self, audio, quiet: bool = False, fusion=None) -> str:
         if isinstance(audio, StreamRecognition) and fusion is None:
             return audio.text
         self.own.speech_recognized(True)
@@ -399,7 +399,7 @@ class SpeechToText:
         finally:
             self.own.speech_recognized(False)
 
-    def _voice_recognition(self, audio, quiet: bool=False, fusion=None) -> str:
+    def _voice_recognition(self, audio, quiet: bool = False, fusion=None) -> str:
         def say(text: str):
             if not quiet:
                 self.own.say(text)

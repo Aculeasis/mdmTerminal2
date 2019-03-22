@@ -69,7 +69,8 @@ class Loader(Owner):
         self._terminal.start()
         self._server.start()
         self._plugins.start()
-        self.messenger(self._print_version, None)
+        self.messenger(lambda: self._logger.add('SYSTEM')(available_version_msg(self._cfg.version_info), INFO), None)
+        self.sub_call('default', 'version', self._cfg.version_str)
 
     def stop_all_systems(self):
         self._cfg.config_save(final=True)
@@ -90,9 +91,6 @@ class Loader(Owner):
         self._music.join(20)
         self._logger.join()
         self._pub.join()
-
-    def _print_version(self):
-        self._logger.add('SYSTEM')(available_version_msg(self._cfg.version_info), INFO)
 
     def subscribe(self, event, callback, channel='default') -> bool:
         return self._pub.subscribe(event, callback, channel)
@@ -164,19 +162,19 @@ class Loader(Owner):
 
     def get_plugin(self, name: str) -> object:
         try:
-            return self._plugins._modules[name]
+            return self._plugins.modules[name]
         except KeyError:
             raise RuntimeError('Plugin \'{}\' not found'.format(name))
         except Exception as e:
             raise RuntimeError('Error accessing to plugin \'{}\': {}'.format(name, e))
 
-    def say(self, msg: str, lvl: int=2, alarm=None, wait=0, is_file: bool = False, blocking: int=0):
+    def say(self, msg: str, lvl: int = 2, alarm=None, wait=0, is_file: bool = False, blocking: int = 0):
         self._play.say(msg, lvl, alarm, wait, is_file, blocking)
 
-    def play(self, file, lvl: int=2, wait=0, blocking: int=0):
+    def play(self, file, lvl: int = 2, wait=0, blocking: int = 0):
         self._play.play(file, lvl, wait, blocking)
 
-    def say_info(self, msg: str, lvl: int=2, alarm=None, wait=0, is_file: bool = False):
+    def say_info(self, msg: str, lvl: int = 2, alarm=None, wait=0, is_file: bool = False):
         self._play.say_info(msg, lvl, alarm, wait, is_file)
 
     def set_lvl(self, lvl: int) -> bool:
@@ -207,7 +205,7 @@ class Loader(Owner):
     def voice_record(self, hello: str, save_to: str, convert_rate=None, convert_width=None):
         return self._stt.voice_record(hello, save_to, convert_rate, convert_width)
 
-    def voice_recognition(self, audio, quiet: bool=False, fusion=None) -> str:
+    def voice_recognition(self, audio, quiet: bool = False, fusion=None) -> str:
         return self._stt.voice_recognition(audio, quiet, fusion)
 
     @property
@@ -316,7 +314,7 @@ class Loader(Owner):
         music_volume = self._music.real_volume
         return {'volume': self.get_volume(), 'music_volume': music_volume if music_volume is not None else -1}
 
-    def terminal_call(self, cmd: str, data='', lvl: int=0, save_time: bool=True):
+    def terminal_call(self, cmd: str, data='', lvl: int = 0, save_time: bool = True):
         self._terminal.call(cmd, data, lvl, save_time)
 
     def recognition_forever(self, interrupt_check: callable, callback: callable):

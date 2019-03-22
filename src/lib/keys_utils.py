@@ -30,7 +30,7 @@ class Keystore:
                 self._cache[key] = (_azure_token_from_oauth(*key), time.time() + self.AZURE_LIFETIME)
             return self._cache[key][0], region
 
-    def yandex(self, key, api: int=1):
+    def yandex(self, key, api: int = 1):
         key = key or ''
         if api != 2:
             return self._yandex_storage(key, 1)

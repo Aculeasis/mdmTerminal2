@@ -26,7 +26,7 @@ class Plugins:
         self._to_blacklist, self._blacklist, self._whitelist = None, None, None
         self._blacklist_on_failure = False
         self._init = {}
-        self._modules = {}
+        self.modules = {}
         self._reloads = {}
         self._status = {
             'all': {},
@@ -52,10 +52,10 @@ class Plugins:
     def stop(self):
         with self._lock:
             self._stop_all()
-            if self.cfg.gt('plugins', 'enable') or self._modules:
+            if self.cfg.gt('plugins', 'enable') or self.modules:
                 self.log('stop.', logger.INFO)
             self._status['broken'].clear(), self._status['deprecated'].clear(), self._status['all'].clear()
-            self._modules, self._reloads = {}, {}
+            self.modules, self._reloads = {}, {}
 
     def reload(self, diff: dict):
         with self._lock:
@@ -170,13 +170,13 @@ class Plugins:
             if self._blacklist_on_failure:
                 self._to_blacklist.add(name)
             return
-        self._modules[name] = module
+        self.modules[name] = module
         if reload and getattr(module, 'reload', None):
             self._reloads[name] = reload
         self._log(name, 'start.', logger.INFO)
 
     def _stop_all(self):
-        for name, module in self._modules.items():
+        for name, module in self.modules.items():
             try:
                 self._stop_plugin(name, module)
             except Exception as e:
@@ -202,7 +202,7 @@ class Plugins:
                     del self._reloads[name]
 
     def _reload(self, name: str):
-        self._modules[name].reload()
+        self.modules[name].reload()
         self._log(name, 'reload.', logger.INFO)
 
     def _allow_by_name(self, name: str) -> bool:

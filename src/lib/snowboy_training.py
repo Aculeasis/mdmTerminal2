@@ -23,7 +23,7 @@ class Training:
         'gender': ({'F', 'M'}, 'M'),
     }
 
-    def __init__(self, file1: str, file2: str, file3: str, params: dict or None=None):
+    def __init__(self, file1: str, file2: str, file3: str, params: dict or None = None):
         self.__params = params if isinstance(params, dict) else {}
         self._check_params()
         self.__params['voice_samples'] = [

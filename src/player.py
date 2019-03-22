@@ -112,7 +112,7 @@ class Player:
             return lvl, blocking
         return lvl if lvl >= 5 else 2, 250
 
-    def play(self, file, lvl: int=2, wait=0, blocking: int=0):
+    def play(self, file, lvl: int = 2, wait=0, blocking: int = 0):
         if not lvl and not self._cfg.gts('no_background_play'):
             self.log('low play \'{}\' pause {}'.format(file, wait), logger.DEBUG)
             return self._lp_play.play(file, wait)
@@ -129,12 +129,12 @@ class Player:
         if wait:
             time.sleep(wait)
 
-    def say_info(self, msg: str, lvl: int=2, alarm=None, wait=0, is_file: bool = False):
+    def say_info(self, msg: str, lvl: int = 2, alarm=None, wait=0, is_file: bool = False):
         if self._cfg.gts('quiet'):
             return
         self.say(msg, lvl, alarm, wait, is_file)
 
-    def say(self, msg: str, lvl: int=2, alarm=None, wait=0, is_file: bool = False, blocking: int=0):
+    def say(self, msg: str, lvl: int = 2, alarm=None, wait=0, is_file: bool = False, blocking: int = 0):
         if not lvl and not self._cfg.gts('no_background_play'):
             self.log('low say \'{}\' pause {}'.format(msg, wait), logger.DEBUG)
             return self._lp_play.say(msg, wait, is_file)
@@ -207,10 +207,10 @@ class LowPrioritySay(threading.Thread):
             except queue.Empty:
                 pass
 
-    def say(self, msg: str, wait: float or int=0, is_file: bool = False):
+    def say(self, msg: str, wait: float or int = 0, is_file: bool = False):
         self._put(1 if not is_file else 3, msg, wait)
 
-    def play(self, file: str, wait: float or int=0):
+    def play(self, file: str, wait: float or int = 0):
         self._put(2, file, wait)
 
     def _put(self, action, target, wait):

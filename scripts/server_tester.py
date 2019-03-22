@@ -185,7 +185,7 @@ class Server(threading.Thread):
             self.connected = None
             self.closed = True
 
-    def send(self, data: dict or str=None):
+    def send(self, data: dict or str = None):
         data = data or ''
         if isinstance(data, dict):
             data = json.dumps(data)
