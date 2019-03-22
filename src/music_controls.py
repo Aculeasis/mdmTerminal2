@@ -2,6 +2,17 @@
 
 import threading
 
+try:
+    # FIX: ValueError: signal only works in main thread
+    import socketio
+except ImportError as e:
+    class socketio:
+        e = e
+
+        @classmethod
+        def Client(cls, *_, **__):
+            raise ImportError(cls.e)
+
 import mpd
 from pylms.server import Server as LMSServer  # install git+https://github.com/Aculeasis/PyLMS.git
 
@@ -205,9 +216,119 @@ class LMSControl(BaseControl):
         return my_ip
 
 
+class Volumio2Control(BaseControl):
+    ERROR_STATUS = {'state': 'null', 'title': 'null', 'artist': 'null', 'volume': -1}
+
+    def __init__(self, name, cfg: dict, log, owner: Owner):
+        super().__init__(name, cfg, log, owner)
+        self._status = self.ERROR_STATUS
+        self._status_wait = threading.Event()
+
+        self._ws = socketio.Client(reconnection=False)
+        self._ws.on('pushState', self._event_status)
+        self._ws.on('connect', self._event_connect)
+        self._ws.on('disconnect', self._event_disconnect)
+
+    def _event_status(self, data):
+        data['state'] = data['status']
+        self._status = data
+        self._status_wait.set()
+
+    def _event_disconnect(self, *_):
+        self._status = self.ERROR_STATUS
+        self.is_conn = False
+        self._status_wait.set()
+
+    def _event_connect(self, *_):
+        self.is_conn = True
+        self._status_wait.set()
+
+    def reconnect_wrapper(self, func, *args):
+        try:
+            return func(*args)
+        except socketio.client.exceptions.SocketIOError:
+            self._connect()
+            if not self.is_conn:
+                return None
+            else:
+                return func(*args)
+
+    def _connect(self):
+        if self.is_conn:
+            self._disconnect()
+        if not self._cfg['control']:
+            return False
+        self._status_wait.clear()
+        try:
+            self._ws.connect('http://{}:{}'.format(self._cfg['ip'], self._cfg['port']))
+            self._status_wait.wait(0.5)
+            self._status_wait.clear()
+            self._ws.emit('getStatus')
+            self._status_wait.wait(0.2)
+        except socketio.client.exceptions.SocketIOError as e:
+            msg = LNG['err_conn'].format(self._name.upper())
+            self.log('{}: {}'.format(msg, e), logger_.ERROR)
+            self.is_conn = False
+        return self.is_conn
+
+    def _disconnect(self):
+        self._status_wait.clear()
+        try:
+            self._ws.disconnect()
+            self._status_wait.wait(1)
+        except socketio.client.exceptions.SocketIOError:
+            pass
+
+    @auto_reconnect
+    def _ctl_pause(self, pause=None):
+        is_play = self._ctl_is_play()
+        if pause is None:
+            self._ws.emit('pause' if is_play else 'play')
+        else:
+            if is_play == pause:
+                self._status_wait.clear()
+            self._ws.emit('pause' if pause else 'play')
+            if is_play == pause:
+                self._status_wait.wait(0.1)
+
+    @auto_reconnect
+    def _ctl_add(self, uri):
+        # FIXME: This won't work
+        pass
+
+    @auto_reconnect
+    def _ctl_set_volume(self, vol):
+        wait = vol != self._ctl_get_volume()
+        if wait:
+            self._status_wait.clear()
+        self._ws.emit('volume', vol)
+        if wait:
+            self._status_wait.wait(0.1)
+        return self._ctl_get_volume()
+
+    def _ctl_get_volume(self):
+        return str_to_int(self._status.get('volume', -1))
+
+    def _ctl_is_play(self) -> bool:
+        return self._ctl_get_state() == 'play'
+
+    def _ctl_get_state(self) -> str:
+        return self._status.get('state', 'stop')
+
+    def _ctl_get_status(self) -> dict:
+        return self._status
+
+    def _ctl_get_track_name(self):
+        try:
+            return '{title} from {artist}'.format(**self._status)
+        except (KeyError, TypeError):
+            return 'error'
+
+
 TYPE_MAP = {
     'mpd': MPDControl,
     'lms': LMSControl,
+    'volumio2': Volumio2Control,
 }
 
 

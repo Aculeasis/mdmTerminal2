@@ -9,5 +9,6 @@ wikipedia>=1.4.0
 pyyaml>=5.1
 websocket-client>=0.54.0
 git+https://github.com/Aculeasis/PyLMS.git
+python-socketio[client]>=4.0.0
 webrtcvad>=2.0.10
 git+https://github.com/Aculeasis/python-webrtc-audio-processing.git
