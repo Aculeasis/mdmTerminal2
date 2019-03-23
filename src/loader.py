@@ -168,6 +168,15 @@ class Loader(Owner):
         except Exception as e:
             raise RuntimeError('Error accessing to plugin \'{}\': {}'.format(name, e))
 
+    def list_notifications(self) -> list:
+        return self._notifier.list_notifications()
+
+    def add_notifications(self, events: list) -> list:
+        return self._notifier.add_notifications(events)
+
+    def remove_notifications(self, events: list) -> list:
+        return self._notifier.remove_notifications(events)
+
     def say(self, msg: str, lvl: int = 2, alarm=None, wait=0, is_file: bool = False, blocking: int = 0):
         self._play.say(msg, lvl, alarm, wait, is_file, blocking)
 

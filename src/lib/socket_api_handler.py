@@ -254,6 +254,27 @@ class API:
             result['msg'] = clear_doc
         return result
 
+    @api_commands('notifications.list')
+    def _api_notifications_list(self, *_):
+        return self.own.list_notifications()
+
+    @api_commands('notifications.add', 'notifications.remove')
+    def _api_notifications_modify(self, cmd: str, events: str):
+        try:
+            events = json.loads(events)
+            if not isinstance(events, list):
+                events = None
+        except (json.decoder.JSONDecodeError, TypeError):
+            if events:
+                events = events.split(',')
+        if not events:
+            raise InternalException(msg='empty events list')
+        if cmd.endswith('.remove'):
+            return self.own.remove_notifications(events)
+        elif cmd.endswith('.add'):
+            return self.own.add_notifications(events)
+        raise InternalException(code=2, msg='BOOM!')
+
     @api_commands('get_map_settings')
     def _api_get_map_settings(self, *_):
         return make_map_settings(self.cfg.wiki_desc)

@@ -155,6 +155,28 @@ class Owner:
         """
         raise NotImplementedError
 
+    def list_notifications(self) -> list:
+        """
+        :return: Список ивентов на которые подписан notifier в данный момент.
+        """
+        raise NotImplementedError
+
+    def add_notifications(self, events: list) -> list:
+        """
+        Подписывает notifier на новые ивенты.
+        :param events: список ивентов
+        :return: список добавленных ивентов
+        """
+        raise NotImplementedError
+
+    def remove_notifications(self, events: list) -> list:
+        """
+        Отписывает notifier от событий. * - отписаться от всех событий.
+        :param events:  список ивентов
+        :return: список удаленных ивентов
+        """
+        raise NotImplementedError
+
     def say(self, msg: str, lvl: int = 2, alarm=None, wait=0, is_file: bool = False, blocking: int = 0):
         raise NotImplementedError
 

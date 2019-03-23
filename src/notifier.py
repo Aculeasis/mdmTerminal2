@@ -16,22 +16,76 @@ from utils import REQUEST_ERRORS, RuntimeErrorTrace
 
 class MajordomoNotifier(threading.Thread):
     MAX_API_FAIL_COUNT = 10
+    FILE = 'notifications'
+    EVENTS = ('speech_recognized_unsuccess', 'speech_recognized_success', 'voice_activated', 'ask_again',
+              'music_status', 'start_record', 'stop_record', 'start_talking', 'stop_talking',)
 
     def __init__(self, cfg, log, owner: Owner):
         super().__init__(name='Notifier')
+        self.cfg = cfg
         self._cfg = cfg['smarthome']
         self.log = log
         self.own = owner
         self._work = False
         self._queue = queue.Queue()
+        self._lock = threading.Lock()
         self._boot_time = None
         self._api_fail_count = self.MAX_API_FAIL_COUNT
         self._self_events = ('volume', 'music_volume', 'updater', 'listener', 'version')
-        self._events = (
-            'speech_recognized_unsuccess', 'speech_recognized_success', 'voice_activated', 'ask_again',
-            'music_status', 'start_record', 'stop_record', 'start_talking', 'stop_talking',
-        ) + self._self_events
+        self._events = ()
         self.outgoing = OutgoingSocket(self._cfg, log.add('O'), self.own)
+
+    def list_notifications(self) -> list:
+        with self._lock:
+            return list(self._events)
+
+    def add_notifications(self, events: list) -> list:
+        added = []
+        events = set(events)
+        with self._lock:
+            for event in events:
+                if not isinstance(event, str):
+                    continue
+                event = event.lower()
+                if event not in self._events and event != '*':
+                    added.append(event)
+            if added:
+                self._unsubscribe()
+                self._events += tuple(added)
+                self._subscribe()
+        return added
+
+    def remove_notifications(self, events: list) -> list:
+        removed = []
+        events = set(events)
+        with self._lock:
+            new = set(self._events)
+            for event in events:
+                if not isinstance(event, str):
+                    continue
+                event = event.lower()
+                if event == '*':
+                    removed.extend(new)
+                    new.clear()
+                    break
+                if event in new:
+                    removed.append(event)
+                    new.discard(event)
+            if removed:
+                self._unsubscribe()
+                self._events = tuple(new)
+                self._subscribe()
+        return removed
+
+    def _load(self):
+        data = self.cfg.load_dict(self.FILE)
+        if isinstance(data, dict) and isinstance(data.get('events'), list):
+            self._events = tuple(data['events'])
+        else:
+            self._events = self.EVENTS + self._self_events
+
+    def _save(self):
+        self.cfg.save_dict(self.FILE, {'events': self._events})
 
     def _subscribe(self):
         # Подписываемся на нужные события, если нужно
@@ -42,16 +96,18 @@ class MajordomoNotifier(threading.Thread):
         self.own.unsubscribe(self._events, self._callback)
 
     def reload(self, diff: dict):
-        self._make_url.cache_clear()
-        self._api_fail_count = self.MAX_API_FAIL_COUNT
-        self._unsubscribe()
-        self._subscribe()
-        self._queue.put_nowait(None)
-        if 'outgoing_socket' in diff.get('smarthome', {}):
-            self.outgoing.reload()
+        with self._lock:
+            self._make_url.cache_clear()
+            self._api_fail_count = self.MAX_API_FAIL_COUNT
+            self._unsubscribe()
+            self._subscribe()
+            self._queue.put_nowait(None)
+            if 'outgoing_socket' in diff.get('smarthome', {}):
+                self.outgoing.reload()
 
     def start(self):
         self._work = True
+        self._load()
         self.log('start', logger.INFO)
         self._subscribe()
         super().start()
@@ -60,6 +116,7 @@ class MajordomoNotifier(threading.Thread):
     def join(self, timeout=None):
         if self._work:
             self._work = False
+            self._save()
             self._queue.put_nowait(None)
             self.log('stopping...', logger.DEBUG)
             super().join()

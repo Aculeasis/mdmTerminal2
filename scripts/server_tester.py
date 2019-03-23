@@ -289,7 +289,7 @@ class Server(threading.Thread):
         else:
             reader = self.tcp_reader(client)
         for line in reader:
-            print('recv <- {}'.format(repr(line)[1:-1] if len(line) < 250 else '{} bytes'.format(len(line))))
+            print('recv <- {}'.format(repr(line)[1:-1] if len(line) < 600 else '{} bytes'.format(len(line))))
             yield line
 
     def tcp_reader(self, client) -> str:
