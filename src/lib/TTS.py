@@ -209,23 +209,33 @@ class RHVoiceWrapper:
     def __init__(self, text, speaker, audio_format, sets, *_, **__):
         if not text:
             raise RuntimeError('No text to speak')
-        self.text = text
-        self.voice = speaker or 'anna'
-        self.format = audio_format
-        self.sets = _prepare_sets(sets) if sets else None
+        self._generator = _rhvoice_wrapper().gen(text, speaker, audio_format, sets)
+        # dirty hack for accurate time calculation
+        next(self._generator)
 
     def stream_to_fps(self, fps):
         if not isinstance(fps, list):
             fps = [fps]
-        with _rhvoice_wrapper().say(self.text, self.voice, self.format, None, self.sets) as read:
-            for chunk in read:
-                for f in fps:
-                    f.write(chunk)
+        for chunk in self._generator:
+            for f in fps:
+                f.write(chunk)
 
     def save(self, file_path):
         with open(file_path, 'wb') as fp:
             self.stream_to_fps(fp)
         return file_path
+
+
+@lru_cache(maxsize=1)
+def _rhvoice_wrapper():
+    from rhvoice_wrapper import TTS as _TTS
+
+    class TTS(_TTS):
+        def gen(self, text, voice, format_, sets):
+            with self.say(text, voice or 'anna', format_, None, _prepare_sets(sets) if sets else None) as read:
+                yield None
+                yield from read
+    return TTS(threads=1, force_process=False, quiet=True)
 
 
 def _prepare_sets(sets: dict) -> dict:
@@ -236,12 +246,6 @@ def _prepare_sets(sets: dict) -> dict:
             return 0.0
     keys = {'rate': 'absolute_rate', 'pitch': 'absolute_pitch', 'volume': 'absolute_volume'}
     return {keys[set_]: normalize_set(sets[set_]) for set_ in sets if set_ in keys}
-
-
-@lru_cache(maxsize=1)
-def _rhvoice_wrapper():
-    from rhvoice_wrapper import TTS
-    return TTS(threads=1, force_process=False, quiet=True)
 
 
 class RHVoice(RHVoiceREST):

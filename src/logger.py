@@ -99,10 +99,9 @@ class Logger(threading.Thread):
     REMOTE_LOG = 'remote_log'
     CHANNEL = 'net_block'
 
-    def __init__(self, cfg: dict, owner: Owner):
+    def __init__(self):
         super().__init__(name='Logger')
-        self._cfg = cfg
-        self.own = owner
+        self.cfg, self.own = None, None
         self.file_lvl = None
         self.print_lvl = None
         self.in_print = None
@@ -112,8 +111,12 @@ class Logger(threading.Thread):
         self._conn_raw = False
         self._queue = queue.Queue()
         self.log = self.add('Logger')
-        self._init()
         self.log('start', INFO)
+
+    def init(self, cfg, owner: Owner):
+        self.cfg = cfg['log']
+        self.own = owner
+        self._init()
         self.start()
 
     def reload(self):
@@ -140,18 +143,18 @@ class Logger(threading.Thread):
         self._close_connect()
 
     def permission_check(self):
-        if not write_permission_check(self._cfg.get('file')):
-            self.log(LNG['err_permission'].format(self._cfg.get('file')), CRIT)
+        if not write_permission_check(self.cfg.get('file')):
+            self.log(LNG['err_permission'].format(self.cfg.get('file')), CRIT)
             return False
         return True
 
     def _init(self):
-        self.file_lvl = get_loglvl(self._cfg.get('file_lvl', 'info'))
-        self.print_lvl = get_loglvl(self._cfg.get('print_lvl', 'info'))
-        self.in_print = self._cfg.get('method', 3) in [2, 3] and self.print_lvl <= CRIT
-        in_file = self._cfg.get('method', 3) in [1, 3] and self.file_lvl <= CRIT
+        self.file_lvl = get_loglvl(self.cfg.get('file_lvl', 'info'))
+        self.print_lvl = get_loglvl(self.cfg.get('print_lvl', 'info'))
+        self.in_print = self.cfg.get('method', 3) in [2, 3] and self.print_lvl <= CRIT
+        in_file = self.cfg.get('method', 3) in [1, 3] and self.file_lvl <= CRIT
 
-        if self._cfg['remote_log']:
+        if self.cfg['remote_log']:
             # Подписка
             self.own.subscribe(self.REMOTE_LOG, self._add_remote_log, self.CHANNEL)
         else:
@@ -167,8 +170,8 @@ class Logger(threading.Thread):
             self._handler.close()
             self._handler = None
 
-        if self._cfg.get('file') and in_file and self.permission_check():
-            self._handler = RotatingFileHandler(filename=self._cfg.get('file'), maxBytes=1024 * 1024,
+        if self.cfg.get('file') and in_file and self.permission_check():
+            self._handler = RotatingFileHandler(filename=self.cfg.get('file'), maxBytes=1024 * 1024,
                                                 backupCount=2, delay=0, encoding='utf8',
                                                 )
             self._handler.rotator = _rotator
@@ -240,7 +243,7 @@ class Logger(threading.Thread):
 
     def _str_time(self, l_time: float) -> str:
         time_str = time.strftime('%Y.%m.%d %H:%M:%S', time.localtime(l_time))
-        if self._cfg['print_ms']:
+        if self.cfg['print_ms']:
             time_str += '.{:03d}'.format(int(l_time * 1000 % 1000))
         return time_str
 

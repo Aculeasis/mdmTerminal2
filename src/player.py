@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-
 import os
 import queue
 import subprocess
@@ -31,11 +30,12 @@ class Player:
         self._work = True
         self._lp_play.start()
         self.log('start.', logger.INFO)
-        if '' in play_utils.BACKENDS and not self._cfg.gts('software_player'):
-            self.log('Use universal player: {}'.format(play_utils.BACKENDS[''][0]), logger.INFO)
         alternative = ', '.join([key for key in play_utils.BACKENDS.keys() if key])
         if alternative:
-            self.log('Available software players: {}'.format(alternative), logger.INFO)
+            self.log('Available universal players: {}'.format(alternative), logger.INFO)
+        software_player = self._cfg.gts('software_player')
+        if software_player in play_utils.BACKENDS:
+            self.log('Use universal player: {}'.format(play_utils.BACKENDS[software_player][0]), logger.INFO)
 
     def stop(self):
         self._work = False

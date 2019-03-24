@@ -38,11 +38,10 @@ class Loader(Owner):
 
         self._pub = PubSub()
 
-        self._cfg = ConfigHandler(cfg=init_cfg, path=path, owner=self)
-        self._logger = Logger(self._cfg['log'], self)
-
-        self._cfg.configure(self._logger.add('CFG'))
+        self._logger = Logger()
         proxies.add_logger(self._logger.add('Proxy'))
+        self._cfg = ConfigHandler(cfg=init_cfg, path=path, log=self._logger.add('CFG'), owner=self)
+        self._logger.init(cfg=self._cfg, owner=self)
 
         self._listen = Listener(cfg=self._cfg, log=self._logger.add('REC'), owner=self)
         self._notifier = MajordomoNotifier(cfg=self._cfg, log=self._logger.add('Notifier'), owner=self)

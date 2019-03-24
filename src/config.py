@@ -22,8 +22,27 @@ from owner import Owner
 DATA_FORMATS = {'json': '.json', 'yaml': '.yml'}
 
 
+class DummyOwner:
+    def __init__(self):
+        self._info = []
+        self._say = []
+
+    def say(self, msg: str, lvl: int = 0, alarm=None, wait=0, is_file: bool = False, blocking: int = 0):
+        self._say.append((msg, lvl, alarm, wait, is_file, blocking))
+
+    def say_info(self, msg: str, lvl: int = 0, alarm=None, wait=0, is_file: bool = False):
+        self._info.append((msg, lvl, alarm, wait, is_file))
+
+    def replacement(self, own: Owner):
+        # Произносим накопленные фразы
+        for info in self._info:
+            own.say_info(*info)
+        for say in self._say:
+            own.say(*say)
+
+
 class ConfigHandler(dict):
-    def __init__(self, cfg: dict, path: dict, owner: Owner):
+    def __init__(self, cfg: dict, path: dict, log, owner: Owner):
         super().__init__()
         self._plugins_api = cfg['system'].pop('PLUGINS_API', 0)
         self._version_info = cfg['system'].pop('VERSION', (0, 0, 0))
@@ -33,10 +52,8 @@ class ConfigHandler(dict):
         self.update(cfg)
         self.path = path
         self.__owner = owner
-        self.own = None
-        self._log = self.__print  # Тут будет логгер
-        self._to_tts = []  # Пока player нет храним фразы тут.
-        self._to_log = []  # А тут принты в лог
+        self.own = DummyOwner()  # Пока player нет храним фразы тут.
+        self.log = log
         self._config_init()
 
     @property
@@ -53,10 +70,7 @@ class ConfigHandler(dict):
 
     @property
     def wiki_desc(self) -> dict:
-        return WikiParser(self, self._print).get()
-
-    def __print(self, msg, lvl):
-        self._to_log.append((msg, lvl))
+        return WikiParser(self, self.log.add('Wiki')).get()
 
     def key(self, prov, api_key):
         if prov == 'aws':
@@ -129,42 +143,25 @@ class ConfigHandler(dict):
                 result = 0
         return result
 
-    def configure(self, log):
-        self._add_log(log)
-        self.apm_configure()
+    def _path_check(self):
+        for dir_ in ('resources', 'data', 'plugins', 'models', 'samples'):
+            self._make_dir(self.path[dir_])
+        for file in ('ding', 'dong', 'bimp'):
+            self._lost_file(self.path[file])
 
-        # ~/resources/
-        self._make_dir(self.path['resources'])
-        # ~/data/
-        self._make_dir(self.path['data'])
-        # ~/plugins/
-        self._make_dir(self.path['plugins'])
-        # ~/resources/models/
-        self._make_dir(self.path['models'])
-        # ~/resources/samples/
-        self._make_dir(self.path['samples'])
-        # ~/resources/ding.wav ~/resources/dong.wav ~/resources/tts_error.mp3
-        self._lost_file(self.path['ding'])
-        self._lost_file(self.path['dong'])
-        self._lost_file(self.path['tts_error'])
-
-        self.porcupine_switcher()
-        self.models_load()
-        self.tts_cache_check()
-
-    def porcupine_switcher(self):
+    def _porcupine_switcher(self):
         try:
             if not utils.porcupine_check(self.path['home']):
                 return
         except RuntimeError as e:
-            self._log('Porcupine broken: {}'.format(e), logger.WARN)
+            self.log('Porcupine broken: {}'.format(e), logger.WARN)
             return
 
         self.path['model_ext'] = '.ppn'
         self.path['model_supports'].clear()
         self.path['model_supports'].append(self.path['model_ext'])
         self.detector = 'porcupine'
-        self._log('Change detector to Porcupine', logger.INFO)
+        self.log('Change detector to Porcupine', logger.INFO)
 
     def allow_connect(self, ip: str) -> bool:
         if ip == '127.0.0.1':
@@ -200,8 +197,15 @@ class ConfigHandler(dict):
 
     def _config_init(self):
         self._cfg_check(self.config_load())
-        self._say_ip()
+        self._path_check()
+        self.tts_cache_check()
+
         self.proxies_init()
+        self.apm_configure()
+        self._porcupine_switcher()
+
+        self.models_load()
+        self._say_ip()
 
     def proxies_init(self):
         proxies.configure(self.get('proxy', {}))
@@ -210,7 +214,7 @@ class ConfigHandler(dict):
         apm = APMSettings()
         apm.cfg(**self['noise_suppression'])
         if apm.failed:
-            self._print(apm.failed, logger.CRIT)
+            self.log(apm.failed, logger.CRIT)
 
     def _cfg_check(self, to_save=False):
         for key in ['providerstt', 'providerstt']:
@@ -266,35 +270,25 @@ class ConfigHandler(dict):
         try:
             utils.dict_to_file(file_path, data, pretty)
         except RuntimeError as e:
-            self._print(LNG['err_save'].format(file_path, str(e)), logger.ERROR)
+            self.log(LNG['err_save'].format(file_path, str(e)), logger.ERROR)
             return False
         return True
 
     def load_dict(self, name: str, format_='json') -> dict or None:
         file_path = os.path.join(self.path['data'], name + DATA_FORMATS.get(format_, '.json'))
         if not os.path.isfile(file_path):
-            self._print(LNG['miss_file'].format(file_path))
+            self.log(LNG['miss_file'].format(file_path))
             return None
         try:
             return utils.dict_from_file(file_path)
         except RuntimeError as e:
-            self._print(LNG['err_load'].format(file_path, str(e)), logger.ERROR)
+            self.log(LNG['err_load'].format(file_path, str(e)), logger.ERROR)
             return None
 
     def start(self):
-        self.own = self.__owner
-        # Произносим накопленные фразы
-        for (phrase, is_info) in self._to_tts:
-            if is_info:
-                self.own.say_info(phrase, lvl=0, wait=0.5)
-            else:
-                self.own.say(phrase, lvl=0, wait=0.5)
-        self._to_tts.clear()
-
-    def _add_log(self, log):
-        self._log = log
-        [self._log(msg, lvl) for (msg, lvl) in self._to_log]
-        self._to_log.clear()
+        self.own, dummy = self.__owner, self.own
+        del self.__owner
+        dummy.replacement(self.own)
 
     def config_save(self, final=False, forced=False):
         if final:
@@ -317,13 +311,15 @@ class ConfigHandler(dict):
 
         with open(self.path['settings'], 'w', encoding='utf8') as configfile:
             config.write(configfile)
-        self._print(LNG['save_for'].format(utils.pretty_time(time.time() - wtime)), logger.INFO)
-        self._print(LNG['save'], mode=2)
+        self.log(LNG['save_for'].format(utils.pretty_time(time.time() - wtime)), logger.INFO)
+        self.own.say_info(LNG['save'])
 
     def models_load(self):
         self.path['models_list'] = []
         if not os.path.isdir(self.path['models']):
-            self._print(LNG['miss_models'].format(self.path['models']), logger.INFO, 3)
+            msg = LNG['miss_models'].format(self.path['models'])
+            self.log(msg, logger.INFO)
+            self.own.say_info(msg)
             return
 
         count = 0
@@ -335,37 +331,39 @@ class ConfigHandler(dict):
                     self.path['models_list'].append(full_path)
                     count += 1
 
-        self._print(LNG['models_count_call'].format(count), logger.INFO, 3)
+        msg = LNG['models_count_call'].format(count)
+        self.log(msg, logger.INFO)
+        self.own.say_info(msg)
 
     def config_load(self):
         wtime = time.time()
         if not os.path.isfile(self.path['settings']):
-            self._print(LNG['miss_settings'].format(self.path['settings']), logger.INFO)
+            self.log(LNG['miss_settings'].format(self.path['settings']), logger.INFO)
             return True
-        updater = ConfigUpdater(self, self._print)
+        updater = ConfigUpdater(self, self.log)
         count = updater.from_ini(self.path['settings'])
         wtime = time.time() - wtime
         self.lang_init()
-        self._print(LNG['load_for'].format(count, utils.pretty_time(wtime)), logger.INFO)
-        self._print(LNG['load'], logger.INFO, mode=2)
+        self.log(LNG['load_for'].format(count, utils.pretty_time(wtime)), logger.INFO)
+        self.own.say_info(LNG['load'])
         return updater.save_ini
 
     def lang_init(self):
         lang = self.gts('lang')
         deep_check = self.gts('lang_check')
-        err = languages.set_lang(lang, None if not deep_check else self._print)
+        err = languages.set_lang(lang, None if not deep_check else self.log)
         if err:
-            self._print(LNG['err_lng'].format(lang, err), logger.ERROR)
-        self._print(LNG['lng_load_for'].format(lang, utils.pretty_time(languages.set_lang.load_time)), logger.INFO)
+            self.log(LNG['err_lng'].format(lang, err), logger.ERROR)
+        self.log(LNG['lng_load_for'].format(lang, utils.pretty_time(languages.set_lang.load_time)), logger.INFO)
 
     def update_from_external(self, data: str or dict) -> dict or None:
-        cu = ConfigUpdater(self, self._print)
+        cu = ConfigUpdater(self, self.log)
         if isinstance(data, str):
             result = cu.from_json(data)
         elif isinstance(data, dict):
             result = cu.from_external_dict(data)
         else:
-            self._print('Unknown settings type: {}'.format(type(data)), logger.ERROR)
+            self.log('Unknown settings type: {}'.format(type(data)), logger.ERROR)
             return None
         if result:
             return cu.diff
@@ -373,13 +371,13 @@ class ConfigHandler(dict):
             return None
 
     def print_cfg_change(self):
-        self._print(LNG['cfg_up'])
+        self.log(LNG['cfg_up'])
 
     def print_cfg_no_change(self):
-        self._print(LNG['cfg_no_change'])
+        self.log(LNG['cfg_no_change'])
 
     def update_from_dict(self, data: dict) -> bool:
-        return self._cfg_update(ConfigUpdater(self, self._print).from_dict(data))
+        return self._cfg_update(ConfigUpdater(self, self.log).from_dict(data))
 
     def _cfg_update(self, result: int):
         if result:
@@ -392,7 +390,9 @@ class ConfigHandler(dict):
         max_size = self['cache'].get('tts_size', 50) * 1024 * 1024
         cache_path = self.gt('cache', 'path')
         if not os.path.isdir(cache_path):
-            self._print(msg=LNG['miss_tts_cache'].format(cache_path), mode=3)
+            msg = LNG['miss_tts_cache'].format(cache_path)
+            self.log(msg)
+            self.own.say_info(msg)
             return
         current_size = 0
         files, wrong_files = [], []
@@ -413,16 +413,18 @@ class ConfigHandler(dict):
             for file in wrong_files:
                 os.remove(file)
             wrong_files = [os.path.split(file)[1] for file in wrong_files]
-            self._print(LNG['delete_wrong_files'].format(', '.join(wrong_files)), logger.WARN)
+            self.log(LNG['delete_wrong_files'].format(', '.join(wrong_files)), logger.WARN)
 
         normal_size = not files or current_size < max_size or max_size < 0
         say = LNG['tts_cache_size'].format(
             utils.pretty_size(current_size),
             LNG['tts_cache_act_list'][0] if normal_size else LNG['tts_cache_act_list'][1]
         )
-        self._print(say, logger.INFO, 1 if normal_size else 3)
+        self.log(say, logger.INFO)
+
         if normal_size:
             return
+        self.own.say_info(say)
 
         new_size = int(max_size * 0.7)
         deleted_files = 0
@@ -436,30 +438,21 @@ class ConfigHandler(dict):
             os.remove(file[0])
             deleted_files += 1
             deleted.append(os.path.split(file[0])[1])
-        self._print(LNG['delete_files'].format(', '.join(deleted)))
-        self._print(LNG['deleted_files'].format(deleted_files, utils.pretty_size(current_size)), logger.INFO, 3)
+        self.log(LNG['delete_files'].format(', '.join(deleted)))
+        msg = LNG['deleted_files'].format(deleted_files, utils.pretty_size(current_size))
+        self.log(msg, logger.INFO)
+        self.own.say_info(msg)
 
     def _make_dir(self, path: str):
         if not os.path.isdir(path):
-            self._print(LNG['create_dir'].format(path), logger.INFO)
+            self.log(LNG['create_dir'].format(path), logger.INFO)
             os.makedirs(path)
 
     def _lost_file(self, path: str):
         if not os.path.isfile(path):
-            self._print(LNG['miss_file_fixme'].format(path), logger.CRIT, 3)
-
-    def _print(self, msg: str, lvl=logger.DEBUG, mode=1):  # mode 1 - print, 2 - say, 3 - both
-        if mode in [1, 3]:
-            self._log(msg, lvl)
-        if mode in [2, 3]:
-            is_info = lvl <= logger.INFO
-            if self.own is None:
-                self._to_tts.append((msg, is_info))
-            else:
-                if is_info:
-                    self.own.say_info(msg, lvl=0)
-                else:
-                    self.own.say(msg, lvl=0)
+            msg = LNG['miss_file_fixme'].format(path)
+            self.log(msg, logger.CRIT)
+            self.own.say(msg)
 
     def _first(self):
         if not self.gts('ip'):
@@ -468,11 +461,10 @@ class ConfigHandler(dict):
         return False
 
     def _say_ip(self):
-        test = self['smarthome']['outgoing_socket']
-        if test and isinstance(test, str) and len(test.split(':', 1)) == 2:
-            return
-        if not self['smarthome'].get('ip'):
-            self._print(LNG['say_ip'].format(self.gts('ip')), logger.WARN, 3)
+        if not (self['smarthome']['outgoing_socket'] or self['smarthome']['ip']):
+            msg = LNG['say_ip'].format(self.gts('ip'))
+            self.log(msg, logger.WARN)
+            self.own.say(msg)
 
     def _cfg_as_tuple(self, data: dict) -> tuple:
         result = []
