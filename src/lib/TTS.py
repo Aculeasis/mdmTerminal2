@@ -2,6 +2,7 @@
 import hashlib
 import subprocess
 import time
+from functools import lru_cache
 from shlex import quote
 
 import requests
@@ -204,6 +205,45 @@ class RHVoiceREST(BaseTTS):
                          text=text, format=audio_format, voice=speaker or 'anna', **sets)
 
 
+class RHVoiceWrapper:
+    def __init__(self, text, speaker, audio_format, sets, *_, **__):
+        if not text:
+            raise RuntimeError('No text to speak')
+        self.text = text
+        self.voice = speaker or 'anna'
+        self.format = audio_format
+        self.sets = _prepare_sets(sets) if sets else None
+
+    def stream_to_fps(self, fps):
+        if not isinstance(fps, list):
+            fps = [fps]
+        with _rhvoice_wrapper().say(self.text, self.voice, self.format, None, self.sets) as read:
+            for chunk in read:
+                for f in fps:
+                    f.write(chunk)
+
+    def save(self, file_path):
+        with open(file_path, 'wb') as fp:
+            self.stream_to_fps(fp)
+        return file_path
+
+
+def _prepare_sets(sets: dict) -> dict:
+    def normalize_set(val):  # 0..100 -> -1.0..1
+        try:
+            return max(0, min(100, val)) / 50.0 - 1
+        except (TypeError, ValueError):
+            return 0.0
+    keys = {'rate': 'absolute_rate', 'pitch': 'absolute_pitch', 'volume': 'absolute_volume'}
+    return {keys[set_]: normalize_set(sets[set_]) for set_ in sets if set_ in keys}
+
+
+@lru_cache(maxsize=1)
+def _rhvoice_wrapper():
+    from rhvoice_wrapper import TTS
+    return TTS(threads=1, force_process=False, quiet=True)
+
+
 class RHVoice(RHVoiceREST):
     CMD = {
         'mp3': 'echo {} | RHVoice-test -p {} -o - | lame -ht -V 4 - -',
@@ -240,21 +280,19 @@ class RHVoice(RHVoiceREST):
 def aws(key, **kwargs):
     if len(key) != 2:
         raise RuntimeError('Wrong key')
-    if key[1]:
-        return AWSBoto3(key=key[0], **kwargs)
-    else:
-        return AWS(key=key[0], **kwargs)
+    return AWSBoto3(key=key[0], **kwargs) if key[1] else AWS(key=key[0], **kwargs)
 
 
 def yandex(yandex_api, **kwargs):
-    if yandex_api == 2:
-        return YandexCloud(**kwargs)
-    else:
-        return Yandex(**kwargs)
+    return YandexCloud(**kwargs) if yandex_api == 2 else Yandex(**kwargs)
+
+
+def rhvoice_rest(**kwargs):
+    return RHVoiceREST(**kwargs) if kwargs['url'] else RHVoiceWrapper(**kwargs)
 
 
 PROVIDERS = {
-    'google': Google, 'yandex': yandex, 'aws': aws, 'azure': Azure, 'rhvoice-rest': RHVoiceREST, 'rhvoice': RHVoice
+    'google': Google, 'yandex': yandex, 'aws': aws, 'azure': Azure, 'rhvoice-rest': rhvoice_rest, 'rhvoice': RHVoice
 }
 
 
