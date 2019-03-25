@@ -49,6 +49,7 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'object_name': '',
         'object_method': '',
         'heartbeat_timeout': 0,
+        'allow_addresses': '',
         'disable_http': False,
         'disable_server': False,
         'unsafe_rpc': False,
@@ -154,9 +155,9 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'blacklist_on_failure': False,
     },
     'system': {
-        'ini_version': 41,
+        'ini_version': 42,
         'ws_token': 'token_is_unset',
         'PLUGINS_API': 2,
-        'VERSION': (0, 11, 6),
+        'VERSION': (0, 11, 7),
     }
 }

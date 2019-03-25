@@ -14,6 +14,7 @@ import utils
 from languages import CONFIG as LNG, LANG_CODE
 from lib import volume
 from lib.audio_utils import APMSettings
+from lib.ip_storage import make_interface_storage
 from lib.keys_utils import Keystore
 from lib.map_settings.wiki_parser import WikiParser
 from lib.proxy import proxies
@@ -49,6 +50,7 @@ class ConfigHandler(dict):
         self.platform = platform.system().capitalize()
         self.detector = 'snowboy' if self.platform == 'Linux' else None
         self._save_me_later = False
+        self._allow_addresses = []
         self.update(cfg)
         self.path = path
         self.__owner = owner
@@ -164,6 +166,8 @@ class ConfigHandler(dict):
         self.log('Change detector to Porcupine', logger.INFO)
 
     def allow_connect(self, ip: str) -> bool:
+        if ip not in self._allow_addresses:
+            return False
         if ip == '127.0.0.1':
             return True
         if not self['smarthome'].get('ip') and self.gts('first_love'):
@@ -205,7 +209,20 @@ class ConfigHandler(dict):
         self._porcupine_switcher()
 
         self.models_load()
+        self.allow_addresses_init()
         self._say_ip()
+
+    def allow_addresses_init(self):
+        ips = self['smarthome']['allow_addresses']
+        try:
+            self._allow_addresses = make_interface_storage(ips)
+            msg = str(self._allow_addresses)
+        except RuntimeError as e:
+            self._allow_addresses = []
+            msg = 'NONE'
+            wrong = '[smarthome] allow_addresse = {}'.format(ips)
+            self.log('Wrong value {}: {}'.format(repr(wrong), e), logger.WARN)
+        self.log('Allow IP addresses: {}'.format(msg), logger.INFO)
 
     def proxies_init(self):
         proxies.configure(self.get('proxy', {}))

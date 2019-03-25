@@ -390,6 +390,9 @@ class Loader(Owner):
                 # reconfigure music server
                 self.music_reload()
             if is_sub_dict('smarthome', diff):
+                if 'allow_addresses' in diff['smarthome']:
+                    # re-init allow ip addresses
+                    self._cfg.allow_addresses_init()
                 if 'disable_server' in diff['smarthome']:
                     # handle [smarthome] disable_server
                     self.messenger(self.server_reload, None)
