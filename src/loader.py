@@ -4,6 +4,7 @@ import threading
 
 import stts
 from config import ConfigHandler
+from discovery_server import DiscoveryServer
 from duplex_mode import DuplexMode
 from languages import LOADER as LNG
 from lib import STT, TTS
@@ -55,6 +56,7 @@ class Loader(Owner):
         self._server = server_constructor(cfg=self._cfg, logger=self._logger, owner=self)
         self._plugins = Plugins(cfg=self._cfg, log=self._logger.add('Plugins'), owner=self)
         self._duplex_mode = DuplexMode(cfg=self._cfg, log=self._logger.add('DuplexMode'), owner=self)
+        self._discovery = DiscoveryServer(cfg=self._cfg, log=self._logger.add('Discovery'))
 
     def start_all_systems(self):
         self._music.start()
@@ -67,6 +69,7 @@ class Loader(Owner):
         self._updater.start()
         self._terminal.start()
         self._server.start()
+        self._discovery.start()
         self._plugins.start()
         self.messenger(lambda: self._logger.add('SYSTEM')(available_version_msg(self._cfg.version_info), INFO), None)
         self.sub_call('default', 'version', self._cfg.version_str)
@@ -75,6 +78,7 @@ class Loader(Owner):
         self._cfg.config_save(final=True)
         self._plugins.stop()
         self._mm.stop()
+        self._discovery.join()
         self._server.join()
         self._terminal.join()
         self._updater.join()

@@ -45,6 +45,7 @@ class DummyOwner:
 class ConfigHandler(dict):
     def __init__(self, cfg: dict, path: dict, log, owner: Owner):
         super().__init__()
+        self._start_time = time.time()
         self._plugins_api = cfg['system'].pop('PLUGINS_API', 0)
         self._version_info = cfg['system'].pop('VERSION', (0, 0, 0))
         self.platform = platform.system().capitalize()
@@ -57,6 +58,10 @@ class ConfigHandler(dict):
         self.own = DummyOwner()  # Пока player нет храним фразы тут.
         self.log = log
         self._config_init()
+
+    @property
+    def uptime(self) -> int:
+        return int(time.time() - self._start_time)
 
     @property
     def API(self):
