@@ -1,13 +1,17 @@
+import platform
 import socket
 import struct
 import threading
 
 import logger
 
+TIMEOUT = 1.0
+BUFFER_SIZE = 64
 REQUEST_MARK = b'mdmt2_recv'
 RESPONSE_MARK = b'mdmt2_send'
-BUFFER_SIZE = 64
 LF = b'\n'
+
+PLATFORM = platform.system().capitalize()
 
 
 class DiscoveryServer(threading.Thread):
@@ -26,13 +30,13 @@ class DiscoveryServer(threading.Thread):
     def start(self):
         try:
             self._server.bind(self._address)
+            self._server.settimeout(TIMEOUT)
         except Exception as e:
             self.log('Binding error: {}'.format(e), logger.ERROR)
-            return
-        self._server.settimeout(1.0)
-        self._work = True
-        super().start()
-        self.log('start', logger.INFO)
+        else:
+            self._work = True
+            super().start()
+            self.log('start', logger.INFO)
 
     def join(self, timeout=20):
         if self._work:
@@ -41,6 +45,14 @@ class DiscoveryServer(threading.Thread):
             super().join(timeout)
             self._server.close()
             self.log('stop.', logger.INFO)
+
+    def _sendto(self, msg: bytes, address: tuple):
+        if PLATFORM == 'Windows':
+            self._server.settimeout(0.0)
+            self._server.sendto(msg, address)
+            self._server.settimeout(TIMEOUT)
+        else:
+            self._server.sendto(msg, socket.SOCK_NONBLOCK, address)
 
     def run(self):
         while self._work:
@@ -53,7 +65,7 @@ class DiscoveryServer(threading.Thread):
                 uptime = str(self.cfg.uptime).encode()
                 reply = LF.join((RESPONSE_MARK, version, uptime))
                 try:
-                    self._server.sendto(reply, socket.SOCK_NONBLOCK, address)
+                    self._sendto(reply, address)
                 except Exception as e:
                     self.log('Reply sending error to {}:{}: {}'.format(*address, e), logger.WARN)
                 else:

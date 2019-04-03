@@ -1,25 +1,37 @@
 #!/usr/bin/env python3
 
+import platform
 import socket
 
 MULTICAST_TTL = 15
+TIMEOUT = 10
+BUFFER_SIZE = 64
 REQUEST_MARK = b'mdmt2_recv'
 RESPONSE_MARK = b'mdmt2_send'
-BUFFER_SIZE = 64
 LF = b'\n'
+
+PLATFORM = platform.system().capitalize()
 
 
 class DiscoveryClient:
-    def __init__(self, ip='', server_port=7999, client_port=9999, group='239.2.3.1'):
-        self._sendto = (group, server_port)
+    def __init__(self, ip='', server_port=7999, client_port=9999, group='239.2.3.1', broadcast=False):
+        self._sendto = ('255.255.255.255' if broadcast else group, server_port)
         self._client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
         self._client.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self._client.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, MULTICAST_TTL)
+        if broadcast:
+            self._client.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        else:
+            self._client.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, MULTICAST_TTL)
         self._client.bind((ip, client_port))
-        self._client.settimeout(10)
+        self._client.settimeout(TIMEOUT)
 
     def _request(self):
-        self._client.sendto(REQUEST_MARK, socket.SOCK_NONBLOCK, self._sendto)
+        if PLATFORM == 'Windows':
+            self._client.settimeout(0.0)
+            self._client.sendto(REQUEST_MARK, self._sendto)
+            self._client.settimeout(TIMEOUT)
+        else:
+            self._client.sendto(REQUEST_MARK, socket.SOCK_NONBLOCK, self._sendto)
 
     def run_forever(self):
         self._request()
