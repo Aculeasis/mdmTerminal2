@@ -1,4 +1,4 @@
-import platform
+import errno
 import socket
 import struct
 import threading
@@ -6,16 +6,17 @@ import threading
 import logger
 
 TIMEOUT = 1.0
-BUFFER_SIZE = 64
-REQUEST_MARK = b'mdmt2_recv'
-RESPONSE_MARK = b'mdmt2_send'
-LF = b'\n'
-
-PLATFORM = platform.system().capitalize()
+BUFFER_SIZE = 1024 * 2
+M_SEARCH = b'M-SEARCH'
+NOTIFY = b'NOTIFY'
+REPLY = 'HTTP/1.1 200 OK\r\n' \
+        'CACHE-CONTROL:max-age=1800\r\n' \
+        'ST:mdmt2\r\nEXT:\r\nServer:{server}\r\nLOCATION:{location}\r\n\r\n'
+SERVER_PORT = 7999
 
 
 class DiscoveryServer(threading.Thread):
-    def __init__(self, cfg, log, ip='', port=7999, multicast_group='239.2.3.1'):
+    def __init__(self, cfg, log, ip='', port=1900, multicast_group='239.255.255.250'):
         super().__init__()
         self.cfg = cfg
         self.log = log
@@ -29,6 +30,13 @@ class DiscoveryServer(threading.Thread):
 
     def start(self):
         try:
+            try:
+                self._server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+            except AttributeError:
+                pass
+            except socket.error as e:
+                if e.errno != errno.ENOPROTOOPT:
+                    raise
             self._server.bind(self._address)
             self._server.settimeout(TIMEOUT)
         except Exception as e:
@@ -46,27 +54,22 @@ class DiscoveryServer(threading.Thread):
             self._server.close()
             self.log('stop.', logger.INFO)
 
-    def _sendto(self, msg: bytes, address: tuple):
-        if PLATFORM == 'Windows':
-            self._server.settimeout(0.0)
-            self._server.sendto(msg, address)
-            self._server.settimeout(TIMEOUT)
-        else:
-            self._server.sendto(msg, socket.SOCK_NONBLOCK, address)
-
     def run(self):
         while self._work:
             try:
                 msg, address = self._server.recvfrom(BUFFER_SIZE)
             except socket.timeout:
                 continue
-            if msg.startswith(REQUEST_MARK):
-                version = self.cfg.version_str.encode()
-                uptime = str(self.cfg.uptime).encode()
-                reply = LF.join((RESPONSE_MARK, version, uptime))
+            except socket.error as e:
+                self.log('Socket error: {}'.format(e), logger.ERROR)
+                continue
+            if msg.startswith(M_SEARCH):
+                server = 'mdmTerminal2 version {}; uptime {} seconds'.format(self.cfg.version_str, self.cfg.uptime)
+                location = '{}:{}'.format(self.cfg.gts('ip'), SERVER_PORT)
+                reply = REPLY.format(server=server, location=location).encode()
                 try:
-                    self._sendto(reply, address)
+                    self._server.sendto(reply, address)
                 except Exception as e:
                     self.log('Reply sending error to {}:{}: {}'.format(*address, e), logger.WARN)
-                else:
-                    self.log('Reply sent to {}:{}'.format(*address))
+            elif not msg.startswith(NOTIFY):
+                self.log('Wrong request from {}:{}: {}'.format(*address, repr(msg.rstrip(b'\0'))))
