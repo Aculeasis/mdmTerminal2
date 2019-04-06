@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import errno
-import platform
 import socket
 
 MULTICAST_TTL = 15
@@ -10,8 +9,6 @@ BUFFER_SIZE = 1024 * 2
 REQUEST = b'M-SEARCH * HTTP/1.1\r\nHost:239.255.255.250:1900\r\nST:mdmt2\r\nMan:"ssdp:discover"\r\nMX:1\r\n\r\n'
 RESPONSE_ST = 'mdmt2'
 CRLF = b'\r\n'
-
-PLATFORM = platform.system().capitalize()
 
 
 class DiscoveryClient:

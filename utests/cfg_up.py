@@ -2,8 +2,8 @@ import json
 import unittest
 from copy import deepcopy
 
-import config
 import main
+from lib.tools import config_updater
 
 
 def dummy(*_, **__):
@@ -11,7 +11,7 @@ def dummy(*_, **__):
 
 
 def new_updater():
-    return config.ConfigUpdater(CFG(), dummy)
+    return config_updater.ConfigUpdater(CFG(), dummy)
 
 
 def CFG():
