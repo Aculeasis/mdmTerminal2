@@ -7,7 +7,7 @@ MULTICAST_TTL = 15
 TIMEOUT = 10
 BUFFER_SIZE = 1024 * 2
 REQUEST = b'M-SEARCH * HTTP/1.1\r\nHost:239.255.255.250:1900\r\nST:mdmt2\r\nMan:"ssdp:discover"\r\nMX:1\r\n\r\n'
-RESPONSE_ST = 'mdmt2'
+RESPONSE_URI = 'mdmt2'
 CRLF = b'\r\n'
 
 
@@ -37,12 +37,13 @@ class DiscoveryClient:
                 msg, address = self._client.recvfrom(BUFFER_SIZE)
             except socket.timeout:
                 self._client.sendto(REQUEST, self._sendto)
+                print()
                 continue
 
             headers = get_headers(msg)
-            if headers.get('ST') == RESPONSE_ST:
+            if headers.get('URI') == RESPONSE_URI:
                 if 'Server' in headers:
-                    print('{} {}'.format(headers.get('LOCATION', '{}:{}'.format(*address)), headers['Server']))
+                    print('{} {}'.format(headers.get('AL', '{}:{}'.format(*address)), headers['Server']))
                 else:
                     print(repr(msg.rstrip(b'\0')))
 

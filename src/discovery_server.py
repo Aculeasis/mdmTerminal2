@@ -2,6 +2,7 @@ import errno
 import socket
 import struct
 import threading
+import uuid
 
 import logger
 
@@ -9,9 +10,11 @@ TIMEOUT = 1.0
 BUFFER_SIZE = 1024 * 2
 M_SEARCH = b'M-SEARCH'
 NOTIFY = b'NOTIFY'
-REPLY = 'HTTP/1.1 200 OK\r\n' \
-        'CACHE-CONTROL:max-age=1800\r\n' \
-        'ST:mdmt2\r\nEXT:\r\nServer:{server}\r\nLOCATION:{location}\r\n\r\n'
+SERVICE_NAME = 'mdmt2'
+REPLY = 'HTTP/1.1 200 OK\r\nCACHE-CONTROL:max-age=1800\r\n' \
+        'ST:{service}\r\nURI:{service}\r\nUSN:uuid:{uuid}\r\nEXT:\r\n'.format(
+            service=SERVICE_NAME, uuid=uuid.uuid3(uuid.NAMESPACE_DNS, SERVICE_NAME))
+REPLY += 'Server:{server}\r\nAL:{location}\r\n\r\n'
 SERVER_PORT = 7999
 
 
