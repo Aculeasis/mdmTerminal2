@@ -11,11 +11,10 @@ import requests
 import logger
 from lib.outgoing_socket import OutgoingSocket
 from owner import Owner
-from utils import REQUEST_ERRORS, RuntimeErrorTrace
+from utils import REQUEST_ERRORS
 
 
 class MajordomoNotifier(threading.Thread):
-    MAX_API_FAIL_COUNT = 10
     FILE = 'notifications'
     EVENTS = ('speech_recognized_unsuccess', 'speech_recognized_success', 'voice_activated', 'ask_again',
               'music_status', 'start_record', 'stop_record', 'start_talking', 'stop_talking',)
@@ -27,10 +26,10 @@ class MajordomoNotifier(threading.Thread):
         self.log = log
         self.own = owner
         self._work = False
-        self._queue = queue.Queue()
+        self._queue = MyQueue(maxsize=50)
         self._lock = threading.Lock()
         self._boot_time = None
-        self._api_fail_count = self.MAX_API_FAIL_COUNT
+        self._skip = SkipNotifications()
         self._self_events = ('volume', 'music_volume', 'updater', 'listener', 'version')
         self._events = ()
         self.outgoing = OutgoingSocket(self._cfg, log.add('O'), self.own)
@@ -98,7 +97,7 @@ class MajordomoNotifier(threading.Thread):
     def reload(self, diff: dict):
         with self._lock:
             self._make_url.cache_clear()
-            self._api_fail_count = self.MAX_API_FAIL_COUNT
+            self._skip.clear()
             self._unsubscribe()
             self._subscribe()
             self._queue.put_nowait(None)
@@ -124,6 +123,8 @@ class MajordomoNotifier(threading.Thread):
             self.log('stop.', logger.INFO)
 
     def run(self):
+        def ignore():
+            return not self._allow_notify or self._skip.is_skip
         while self._work:
             to_sleep = self._cfg['heartbeat_timeout']
             if to_sleep <= 0:
@@ -131,20 +132,17 @@ class MajordomoNotifier(threading.Thread):
             try:
                 data = self._queue.get(timeout=to_sleep)
             except queue.Empty:
-                if not (self._allow_notify and self._api_fail_count and to_sleep):
+                if ignore():
                     continue
-                # Отправляем пинг на сервер мжд
+                # Отправляем пинг на сервер
                 data = self.own.get_volume_status
                 data['uptime'] = self._uptime
             else:
-                if not isinstance(data, dict):
+                if not isinstance(data, dict) or ignore():
                     continue
             self._send_notify(data)
 
     def send(self, qry: str, user=None) -> str:
-        # Прямая отправка
-        # Отправляет сообщение на сервер мжд, возвращает url запроса или кидает RuntimeError
-        # На основе https://github.com/sergejey/majordomo-chromegate/blob/master/js/main.js#L196
         return self._send('cmd', {'qry': qry}, user)
 
     @property
@@ -159,7 +157,6 @@ class MajordomoNotifier(threading.Thread):
         return self._cfg['object_name'] and self._cfg['object_method'] and self.own.outgoing_available
 
     def _callback(self, name, data=None, *_, **__):
-        # Отправляет статус на сервер мжд в порядке очереди (FIFO)
         if not self._allow_notify:
             return
         kwargs = {'uptime': self._uptime}
@@ -175,16 +172,13 @@ class MajordomoNotifier(threading.Thread):
         try:
             self._send('api', params)
         except RuntimeError as e:
+            self._skip.got_error()
             self.log(e, logger.ERROR)
-            self._api_fail_count -= 1
-            if not self._api_fail_count:
-                self._unsubscribe()
-                msg = 'MajorDoMo API call failed {} times - notifications disabled.'.format(self.MAX_API_FAIL_COUNT)
-                self.log(msg, logger.CRIT)
         else:
-            self._api_fail_count = self.MAX_API_FAIL_COUNT
+            self._skip.clear()
 
     def _send(self, target: str, params: dict, user=None) -> str:
+        # https://github.com/sergejey/majordomo-chromegate/blob/master/js/main.js#L196
         terminal = self._cfg['terminal']
         username = self._cfg['username']
         password = self._cfg['password']
@@ -225,7 +219,7 @@ class MajordomoNotifier(threading.Thread):
         try:
             reply = requests.get(url, params=params, auth=auth, timeout=30)
         except REQUEST_ERRORS as e:
-            raise RuntimeErrorTrace(e)
+            raise RuntimeError(e)
         if not reply.ok:
             raise RuntimeError('Server reply error from \'{}\'. {}: {}'.format(url, reply.status_code, reply.reason))
         return reply.request.url
@@ -233,6 +227,35 @@ class MajordomoNotifier(threading.Thread):
     def _send_over_socket(self, target: str, params: dict) -> str:
         self.own.send_on_duplex_mode({'method': target, 'params': params})
         return 'in socket {}: {}'.format(target, repr(params)[:300])
+
+
+class MyQueue(queue.Queue):
+    def put_nowait(self, item):
+        try:
+            super().put_nowait(item)
+        except queue.Full:
+            pass
+
+
+class SkipNotifications:
+    MAX_ERROR_COUNT = 10
+    WAIT_ON_ERROR = 5 * 60  # max 10 * 5 minutes
+
+    def __init__(self):
+        self._errors = 0
+        self._skip_to = 0.0
+
+    def clear(self):
+        self._errors = 0
+
+    def got_error(self):
+        if self._errors < self.MAX_ERROR_COUNT:
+            self._errors += 1
+        self._skip_to = self._errors * self.WAIT_ON_ERROR + time.time()
+
+    @property
+    def is_skip(self) -> bool:
+        return self._errors and time.time() < self._skip_to
 
 
 def _get_boot_time() -> int:
