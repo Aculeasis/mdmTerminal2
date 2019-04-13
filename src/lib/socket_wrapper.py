@@ -106,6 +106,10 @@ class Connect:
     def port(self):
         return self._ip_info[1] if self._ip_info else None
 
+    @property
+    def info(self) -> tuple:
+        return self.proto.upper(), self.ip, self.port
+
     def settimeout(self, timeout):
         if self._conn:
             self._conn.settimeout(timeout)

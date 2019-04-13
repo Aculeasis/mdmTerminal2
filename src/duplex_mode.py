@@ -8,6 +8,13 @@ from lib.socket_api_handler import SocketAPIHandler
 from owner import Owner
 
 
+def make_dict_reply(cmd: str or None) -> dict:
+    if cmd:
+        return {'result': 'ok', 'id': cmd}
+    else:
+        return {'method': 'ping', 'params': [str(time.time())], 'id': 'pong'}
+
+
 class DuplexMode(SocketAPIHandler):
     UPGRADE_DUPLEX = 'upgrade duplex'
 
@@ -54,6 +61,14 @@ class DuplexMode(SocketAPIHandler):
         self.duplex = False
         self._conn.close()
 
+    def _conn_open(self):
+        self.duplex = True
+        self._notify_duplex('open')
+
+    def _conn_close(self):
+        self._api_close()
+        self._notify_duplex('close')
+
     def do_ws_allow(self, *args, **kwargs):
         return False
 
@@ -64,28 +79,26 @@ class DuplexMode(SocketAPIHandler):
                 break
 
             self._conn, cmd = conn
-            info = (self._conn.proto.upper(), self._conn.ip, self._conn.port)
-            self.duplex = True
-            self._notify_duplex('open')
-            if cmd:
-                cmd = {'result': 'ok', 'id': cmd}
-            else:
-                cmd = {'method': 'ping', 'params': [str(time.time())], 'id': 'pong'}
-            try:
-                self._conn.write(cmd)
-            except RuntimeError as e:
-                self._api_close()
-                self.log('OPEN ERROR {}::{}:{}: {}'.format(*info, e), logger.ERROR)
-                self._notify_duplex('close')
-                continue
-            else:
-                self.log('OPEN {}::{}:{}'.format(*info), logger.INFO)
 
+            self._conn_open()
             try:
-                for line in self._conn.read():
-                    self.parse(line)
+                self._processing(make_dict_reply(cmd))
             finally:
-                self._api_close()
-                self.log('CLOSE {}::{}:{}'.format(*info), logger.INFO)
-                self._notify_duplex('close')
+                self._conn_close()
         self._api_close()
+
+    def _processing(self, cmd: dict):
+        info = self._conn.info
+        if self._testing(info, cmd):
+            self.log('OPEN {}::{}:{}'.format(*info), logger.INFO)
+            for line in self._conn.read():
+                self.parse(line)
+            self.log('CLOSE {}::{}:{}'.format(*info), logger.INFO)
+
+    def _testing(self, info: tuple, cmd: dict) -> bool:
+        try:
+            self._conn.write(cmd)
+        except RuntimeError as e:
+            self.log('OPEN ERROR {}::{}:{}: {}'.format(*info, e), logger.ERROR)
+            return False
+        return True
