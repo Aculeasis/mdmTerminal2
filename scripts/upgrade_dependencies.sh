@@ -31,9 +31,14 @@ fi
 sudo apt-get update -y
 sed 's/#.*//' "$install_path"/Requirements/system-requirements.txt | xargs sudo apt-get install -y
 
+if ! [ -d ~/tmp ]; then
+    mkdir ~/tmp
+fi
 export TMPDIR=~/tmp
+
 env/bin/python -m pip install --upgrade pip setuptools wheel
 env/bin/python -m pip install -r "$install_path"/Requirements/pip-requirements.txt
+
 rm -R ~/tmp
 
 echo "success"
