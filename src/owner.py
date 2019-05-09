@@ -325,10 +325,10 @@ class Owner:
     def recognition_forever(self, interrupt_check: callable, callback: callable):
         raise NotImplementedError
 
-    def get_detector(self, source_or_mic, vad_mode=None, vad_lvl=None, energy_lvl=None, energy_dynamic=None):
+    def get_vad_detector(self, source_or_mic, vad_mode=None, vad_lvl=None, energy_lvl=None, energy_dynamic=None):
         raise NotImplementedError
 
-    def listener_listen(self, r=None, mic=None, detector=None):
+    def listener_listen(self, r=None, mic=None, vad=None):
         raise NotImplementedError
 
     def background_listen(self):

@@ -5,9 +5,9 @@ import threading
 try:
     # FIX: ValueError: signal only works in main thread
     import socketio
-except ImportError as e:
+except ImportError as _e:
     class socketio:
-        e = e
+        e = _e
 
         @classmethod
         def Client(cls, *_, **__):

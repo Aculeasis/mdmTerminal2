@@ -170,7 +170,6 @@ class UPNPServer(threading.Thread):
             except socket.timeout:
                 continue
             try:
-                # Прикидываеся HTTP-сервером
                 if read().startswith(b'GET / '):
                     send_xml()
             finally:

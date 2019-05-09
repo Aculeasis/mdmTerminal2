@@ -332,7 +332,8 @@ class API:
         for target in path:
             obj = getattr(obj, target, None)
             if obj is None:
-                raise InternalException(code=4, msg='method \'{}\' not found in \'{}\''.format(target, '.'.join(walked)))
+                msg = 'method \'{}\' not found in \'{}\''.format(target, '.'.join(walked))
+                raise InternalException(code=4, msg=msg)
             walked.append(target)
         try:
             result = obj(*args, **kwargs)

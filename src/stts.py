@@ -335,14 +335,14 @@ class SpeechToText:
         try:
             if alarm:
                 self.own.play(self._cfg.path['dong'], lvl, blocking=2)
-            detector = self.own.get_detector(mic)
+            vad = self.own.get_vad_detector(mic)
             if file_path:
                 self.own.play(file_path, lvl, blocking=120)
         finally:
             if alarm or file_path:
                 self.own.say_callback(False)
 
-        audio, record_time, energy_threshold = self.own.listener_listen(r, mic, detector)
+        audio, record_time, energy_threshold = self.own.listener_listen(r, mic, vad)
         if record_time < 0.5 and not self_call:
             # Если от инициализации микрофона до записи прошло больше 20-35 сек, то запись ломается
             # Игнорируем полученную запись и запускаем новую, без приветствий
@@ -371,12 +371,12 @@ class SpeechToText:
         self.own.say(file_path, lvl, True, is_file=True, blocking=120)
         r = sr.Recognizer()
         mic = sr.Microphone(device_index=self.get_mic_index())
-        detector = self.own.get_detector(mic)
+        vad = self.own.get_vad_detector(mic)
         self.own.play(self._cfg.path['ding'], lvl, blocking=3)
         with mic as source:
             record_time = time.time()
             try:
-                adata = r.listen1(source=source, detector=detector, timeout=5, phrase_time_limit=8)
+                adata = r.listen1(source=source, vad=vad, timeout=5, phrase_time_limit=8)
             except sr.WaitTimeoutError as e:
                 return str(e)
             if time.time() - record_time < 0.5:

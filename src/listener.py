@@ -30,18 +30,18 @@ class Listener:
         while not interrupt_check():
             chrome_mode = self.cfg.gts('chrome_mode')
             with sr.Microphone(device_index=self.own.mic_index) as source:
-                detector, noising = self._get_detector(source, self.cfg.gt('listener', 'vad_chrome') or None)
-                if not isinstance(detector, SnowboyDetector):
-                    sn = self._get_hw_detector(source.SAMPLE_WIDTH, source.SAMPLE_RATE, detector)
+                vad, noising = self._get_vad_detector(source, self.cfg.gt('listener', 'vad_chrome') or None)
+                if not isinstance(vad, SnowboyDetector):
+                    hw_detector = self._get_hw_detector(source.SAMPLE_WIDTH, source.SAMPLE_RATE, vad)
                 else:
-                    sn = detector
+                    hw_detector = vad
                 try:
-                    snowboy_result, frames, elapsed_time = r.snowboy_wait(source, sn, interrupt_check, noising)
+                    model_id, frames, elapsed_time = sr.wait_detection(source, hw_detector, interrupt_check, noising)
                 except sr.Interrupted:
                     continue
                 except RuntimeError:
                     return
-                model_name, phrase, msg = self.cfg.model_info_by_id(snowboy_result)
+                model_name, phrase, msg = self.cfg.model_info_by_id(model_id)
                 if chrome_mode:
                     if not phrase:
                         # модель без триггера?
@@ -50,13 +50,13 @@ class Listener:
                     if self.cfg.gts('chrome_choke'):
                         self.own.full_quiet()
                     try:
-                        adata = self._listen(r, source, detector, frames=frames, sn_time=elapsed_time)
+                        adata = self._listen(r, source, vad, frames=frames, hw_time=elapsed_time)
                     except (sr.WaitTimeoutError, RuntimeError):
                         continue
             if chrome_mode:
-                self._adata_parse(adata, model_name, phrase, detector.energy_threshold, callback)
+                self._adata_parse(adata, model_name, phrase, vad.energy_threshold, callback)
             else:
-                sn.reset()
+                hw_detector.reset()
                 self._detected(model_name, phrase, msg, callback)
 
     def _adata_parse(self, adata, model_name: str, phrases: str, energy_threshold, callback):
@@ -98,31 +98,29 @@ class Listener:
         self.log(LNG['activate_by'].format(model_name, model_msg), logger.INFO)
         cb(False, msg, model_name)
 
-    def listen(self, r=None, mic=None, detector=None):
+    def listen(self, r=None, mic=None, vad=None):
         r = r or sr.Recognizer(self.own.record_callback, self.cfg.gt('listener', 'silent_multiplier'))
         mic = mic or sr.Microphone(device_index=self.own.mic_index)
         with mic as source:
-            detector = detector or self.get_detector(source)
+            vad = vad or self.get_vad_detector(source)
             record_time = time.time()
             try:
-                adata = self._listen(r, source, detector)
+                adata = self._listen(r, source, vad)
             except (sr.WaitTimeoutError, RuntimeError):
                 adata = None
             record_time = time.time() - record_time
-        return adata, record_time, detector.energy_threshold if isinstance(detector, sr.EnergyDetector) else None
+        return adata, record_time, vad.energy_threshold if isinstance(vad, sr.EnergyDetector) else None
 
-    def _listen(self, r, source, detector, frames=None, sn_time=None):
-        phrase_time_limit = self.cfg.gts('phrase_time_limit')
-        if phrase_time_limit < 1:
-            phrase_time_limit = None
-        timeout = self.cfg.gt('listener', 'speech_timeout')
-        if timeout < 1:
-            timeout = None
+    def _listen(self, r, source, vad, frames=None, hw_time=None):
+        def positive_or_none(val):
+            return None if val < 1 else val
+        phrase_time_limit = positive_or_none(self.cfg.gts('phrase_time_limit'))
+        timeout = positive_or_none(self.cfg.gt('listener', 'speech_timeout'))
 
         if self.cfg.gt('listener', 'stream_recognition'):
-            return r.listen2(source, detector, self.own.voice_recognition, timeout, phrase_time_limit, frames, sn_time)
+            return r.listen2(source, vad, self.own.voice_recognition, timeout, phrase_time_limit, frames, hw_time)
         else:
-            return r.listen1(source, detector, timeout, phrase_time_limit, frames, sn_time)
+            return r.listen1(source, vad, timeout, phrase_time_limit, frames, hw_time)
 
     def background_listen(self):
         def callback(interrupt_check, mic, detector):
@@ -140,13 +138,13 @@ class Listener:
             return adata, detector.energy_threshold if isinstance(detector, sr.EnergyDetector) else None
 
         mic_ = sr.Microphone(device_index=self.own.mic_index)
-        return NonBlockListener(callback, mic_, self.get_detector(mic_))
+        return NonBlockListener(callback, mic_, self.get_vad_detector(mic_))
 
-    def get_detector(self, source_or_mic, vad_mode=None, vad_lvl=None, energy_lvl=None, energy_dynamic=None):
-        detector, _ = self._get_detector(source_or_mic, vad_mode, vad_lvl, energy_lvl, energy_dynamic)
+    def get_vad_detector(self, source_or_mic, vad_mode=None, vad_lvl=None, energy_lvl=None, energy_dynamic=None):
+        detector, _ = self._get_vad_detector(source_or_mic, vad_mode, vad_lvl, energy_lvl, energy_dynamic)
         return detector
 
-    def _get_detector(self, source_or_mic, vad_mode=None, vad_lvl=None, energy_lvl=None, energy_dynamic=None):
+    def _get_vad_detector(self, source_or_mic, vad_mode=None, vad_lvl=None, energy_lvl=None, energy_dynamic=None):
         vad = self._select_vad(vad_mode)
         vad_lvl = vad_lvl if vad_lvl is not None else self.cfg.gt('listener', 'vad_lvl')
         vad_lvl = min(3, max(0, vad_lvl))

@@ -110,45 +110,8 @@ class Recognizer(speech_recognition.Recognizer):
         finally:
             proxies.monkey_patching_disable()
 
-    # part of https://github.com/Uberi/speech_recognition/blob/master/speech_recognition/__init__.py#L574
-    @staticmethod
-    def snowboy_wait(source, snowboy, interrupt_check, noising=None):
-
-        elapsed_time = 0
-        seconds_per_buffer = float(source.CHUNK) / source.SAMPLE_RATE
-        # buffers capable of holding 3 seconds of original and resampled audio
-        five_seconds_buffer_count = int(math.ceil(3 / seconds_per_buffer))
-        frames = collections.deque(maxlen=five_seconds_buffer_count)
-        start_time = time.time() + 0.2
-        snowboy_result = 0
-        source.stream.deactivate()
-        while True:
-            elapsed_time += seconds_per_buffer
-
-            buffer = source.stream.read(source.CHUNK)
-            if not buffer:
-                break  # reached end of the stream
-            frames.append(buffer)
-            snowboy_result = snowboy.detect(buffer)
-            if snowboy_result > 0:
-                # wake word found
-                break
-            elif snowboy_result == -1:
-                raise RuntimeError("Error initializing streams or reading audio data")
-
-            if time.time() > start_time:
-                if interrupt_check():
-                    raise Interrupted('Interrupted')
-                if elapsed_time > 180:
-                    raise Interrupted("listening timed out while waiting for hotword to be said")
-                start_time = time.time() + 0.2
-
-            if noising and not noising():
-                snowboy.dynamic_energy()
-        return snowboy_result, source.stream.reactivate(frames), elapsed_time if elapsed_time < 5 else 5.0
-
     # part of https://github.com/Uberi/speech_recognition/blob/master/speech_recognition/__init__.py#L616
-    def listen1(self, source, detector, timeout=None, phrase_time_limit=None, sn_buffer=None, sn_time=None):
+    def listen1(self, source, vad, timeout=None, phrase_time_limit=None, hw_buffer=None, hw_time=None):
         seconds_per_buffer = float(source.CHUNK) / source.SAMPLE_RATE
         # number of buffers of non-speaking audio during a phrase, before the phrase should be considered complete
         pause_buffer_count = int(math.ceil(self.pause_threshold / seconds_per_buffer))
@@ -165,7 +128,7 @@ class Recognizer(speech_recognition.Recognizer):
         # Use snowboy to words detecting instead of energy_threshold
         while True:
             frames = collections.deque()
-            if sn_time is None:
+            if hw_time is None:
                 # store audio input until the phrase starts
                 while True:
                     # handle waiting too long for phrase by raising an exception
@@ -179,20 +142,21 @@ class Recognizer(speech_recognition.Recognizer):
                     if not buffer:
                         break  # reached end of the stream
                     frames.append(buffer)
-                    if len(frames) > non_speaking_buffer_count:  # ensure we only keep the needed amount of non-speaking buffers
+                    if len(frames) > non_speaking_buffer_count:
+                        # ensure we only keep the needed amount of non-speaking buffers
                         frames.popleft()
 
                     # detect whether speaking has started on audio input
-                    if detector.is_speech(buffer):
+                    if vad.is_speech(buffer):
                         break
                     # dynamically adjust the energy threshold using asymmetric weighted average
-                    detector.dynamic_energy()
+                    vad.dynamic_energy()
             else:
-                elapsed_time += sn_time
-                if not sn_buffer:
+                elapsed_time += hw_time
+                if not hw_buffer:
                     break  # reached end of the stream
-                frames.append(b''.join(sn_buffer))
-                sn_buffer, sn_time = None, None
+                frames.append(b''.join(hw_buffer))
+                hw_buffer, hw_time = None, None
 
             # read audio input until the phrase ends
             pause_count, phrase_count = 0, 0
@@ -213,7 +177,7 @@ class Recognizer(speech_recognition.Recognizer):
                 phrase_count += 1
 
                 # check if speaking has stopped for longer than the pause threshold on the audio input
-                if detector.is_speech(buffer):
+                if vad.is_speech(buffer):
                     pause_count = 0
                 else:
                     pause_count += 1
@@ -233,7 +197,7 @@ class Recognizer(speech_recognition.Recognizer):
             self._record_callback(False)
         return AudioData(frame_data, source.SAMPLE_RATE, source.SAMPLE_WIDTH)
 
-    def listen2(self, source, detector, recognition, timeout, phrase_time_limit=None, sn_buffer=None, sn_time=None):
+    def listen2(self, source, vad, recognition, timeout, phrase_time_limit=None, hw_buffer=None, hw_time=None):
         timeout = timeout or 5
         seconds_per_buffer = float(source.CHUNK) / source.SAMPLE_RATE
         # number of buffers of non-speaking audio during a phrase, before the phrase should be considered complete
@@ -250,7 +214,7 @@ class Recognizer(speech_recognition.Recognizer):
         send_record_starting = False
         voice_recognition = StreamRecognition(recognition)
         while voice_recognition.processing:
-            if sn_time is None:
+            if hw_time is None:
                 # store audio input until the phrase starts
                 silent_frames = collections.deque(maxlen=non_speaking_buffer_count)
                 while voice_recognition.processing:
@@ -268,20 +232,20 @@ class Recognizer(speech_recognition.Recognizer):
 
                     # detect whether speaking has started on audio input
                     silent_frames.append(buffer)
-                    if detector.is_speech(buffer):
+                    if vad.is_speech(buffer):
                         if voice_recognition.ready:
                             voice_recognition.write(b''.join(silent_frames))
                         else:
                             voice_recognition.init(silent_frames, None, source.SAMPLE_RATE, source.SAMPLE_WIDTH)
                         break
                     # dynamically adjust the energy threshold using asymmetric weighted average
-                    detector.dynamic_energy()
+                    vad.dynamic_energy()
             else:
-                elapsed_time += sn_time
-                if not sn_buffer:
+                elapsed_time += hw_time
+                if not hw_buffer:
                     break  # reached end of the stream
-                voice_recognition.init(sn_buffer, None, source.SAMPLE_RATE, source.SAMPLE_WIDTH)
-                sn_buffer, sn_time = None, None
+                voice_recognition.init(hw_buffer, None, source.SAMPLE_RATE, source.SAMPLE_WIDTH)
+                hw_buffer, hw_time = None, None
 
             # read audio input until the phrase ends
             pause_count, phrase_count = 0, 0
@@ -307,7 +271,7 @@ class Recognizer(speech_recognition.Recognizer):
                 voice_recognition.write(buffer)
                 phrase_count += 1
 
-                if detector.is_speech(buffer):
+                if vad.is_speech(buffer):
                     pause_count = 0
                 else:
                     pause_count += 1
@@ -379,6 +343,42 @@ class EnergyDetector:
         damping = self.dynamic_energy_adjustment_damping ** self._seconds_per_buffer
         target_energy = self._energy * self.dynamic_energy_ratio
         self.energy_threshold = self.energy_threshold * damping + target_energy * (1 - damping)
+
+
+# part of https://github.com/Uberi/speech_recognition/blob/master/speech_recognition/__init__.py#L574
+def wait_detection(source, snowboy, interrupt_check, noising=None):
+    elapsed_time = 0
+    seconds_per_buffer = float(source.CHUNK) / source.SAMPLE_RATE
+    # buffers capable of holding 3 seconds of original and resampled audio
+    five_seconds_buffer_count = int(math.ceil(3 / seconds_per_buffer))
+    frames = collections.deque(maxlen=five_seconds_buffer_count)
+    start_time = time.time() + 0.2
+    snowboy_result = 0
+    source.stream.deactivate()
+    while True:
+        elapsed_time += seconds_per_buffer
+
+        buffer = source.stream.read(source.CHUNK)
+        if not buffer:
+            break  # reached end of the stream
+        frames.append(buffer)
+        snowboy_result = snowboy.detect(buffer)
+        if snowboy_result > 0:
+            # wake word found
+            break
+        elif snowboy_result == -1:
+            raise RuntimeError("Error initializing streams or reading audio data")
+
+        if time.time() > start_time:
+            if interrupt_check():
+                raise Interrupted('Interrupted')
+            if elapsed_time > 180:
+                raise Interrupted("listening timed out while waiting for hotword to be said")
+            start_time = time.time() + 0.2
+
+        if noising and not noising():
+            snowboy.dynamic_energy()
+    return snowboy_result, source.stream.reactivate(frames), elapsed_time if elapsed_time < 5 else 5.0
 
 
 def google_reply_parser(text: str) -> str:

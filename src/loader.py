@@ -332,11 +332,11 @@ class Loader(Owner):
     def recognition_forever(self, interrupt_check: callable, callback: callable):
         return self._listen.recognition_forever(interrupt_check, callback)
 
-    def get_detector(self, source_or_mic, vad_mode=None, vad_lvl=None, energy_lvl=None, energy_dynamic=None):
-        return self._listen.get_detector(source_or_mic, vad_mode, vad_lvl, energy_lvl, energy_dynamic)
+    def get_vad_detector(self, source_or_mic, vad_mode=None, vad_lvl=None, energy_lvl=None, energy_dynamic=None):
+        return self._listen.get_vad_detector(source_or_mic, vad_mode, vad_lvl, energy_lvl, energy_dynamic)
 
-    def listener_listen(self, r=None, mic=None, detector=None):
-        return self._listen.listen(r, mic, detector)
+    def listener_listen(self, r=None, mic=None, vad=None):
+        return self._listen.listen(r, mic, vad)
 
     def background_listen(self):
         return self._listen.background_listen()
