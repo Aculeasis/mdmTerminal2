@@ -155,6 +155,11 @@ class ConfigHandler(dict):
         for file in ('ding', 'dong', 'bimp'):
             self._lost_file(self.path[file])
 
+    def _select_hw_detector(self):
+        self._porcupine_switcher()
+        msg_lvl = logger.INFO if self.detector else logger.WARN
+        self.log('Hotword detection: {}'.format(str(self.detector).capitalize()), msg_lvl)
+
     def _porcupine_switcher(self):
         try:
             if not utils.porcupine_check(self.path['home']):
@@ -167,7 +172,6 @@ class ConfigHandler(dict):
         self.path['model_supports'].clear()
         self.path['model_supports'].append(self.path['model_ext'])
         self.detector = 'porcupine'
-        self.log('Change detector to Porcupine', logger.INFO)
 
     def allow_connect(self, ip: str) -> bool:
         if ip not in self._allow_addresses:
@@ -210,7 +214,7 @@ class ConfigHandler(dict):
 
         self.proxies_init()
         self.apm_configure()
-        self._porcupine_switcher()
+        self._select_hw_detector()
 
         self.models_load()
         self.allow_addresses_init()
