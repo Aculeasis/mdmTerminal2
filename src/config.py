@@ -236,10 +236,7 @@ class ConfigHandler(dict):
         proxies.configure(self.get('proxy', {}))
 
     def apm_configure(self):
-        apm = APMSettings()
-        apm.cfg(**self['noise_suppression'])
-        if apm.failed:
-            self.log(apm.failed, logger.CRIT)
+        APMSettings().cfg(**self['noise_suppression'])
 
     def _cfg_check(self, to_save=False):
         for key in ['providerstt', 'providerstt']:

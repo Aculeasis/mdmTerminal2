@@ -9,28 +9,26 @@ from speech_recognition import Microphone, AudioData
 
 from utils import singleton, is_int, porcupine_lib
 
-try:
+
+# VAD
+def _loader_apm():
     # noinspection PyUnresolvedReferences
     from webrtc_audio_processing import AudioProcessingModule
-    APM_ERR = None
-except ImportError as e:
-    APM_ERR = 'Error importing webrtc_audio_processing: {}'.format(e)
+    return AudioProcessingModule
 
-try:
+
+def _loader_webrtc():
     from webrtcvad import Vad
-except ImportError as e:
-    Vad = None
-    print('Error importing webrtcvad: {}'.format(e))
+    return Vad
 
 
-@lru_cache(maxsize=1)
-def lazy_snowboy():
+# HWD
+def _loader_snowboy():
     from lib import snowboydetect
     return snowboydetect.SnowboyDetect
 
 
-@lru_cache(maxsize=1)
-def lazy_porcupine():
+def _loader_porcupine():
     import struct
     import ctypes
     from lib.porcupine import Porcupine as Porcupine_
@@ -60,12 +58,56 @@ def lazy_porcupine():
 
 def get_hot_word_detector(**kwargs):
     if kwargs.get('detector') == 'porcupine':
-        return PorcupineDetector(**kwargs)
-    return SnowboyDetector(**kwargs)
+        return PorcupineHWD(**kwargs)
+    return SnowboyHWD(**kwargs)
+
+
+@singleton
+class ModuleLoader:
+    def __init__(self):
+        # apm, webrtc, snowboy, porcupine
+        self._loaded = dict()
+        self._try = set()
+        self._error_msg = list()
+        self._lock = threading.Lock()
+
+    def is_loaded(self, name: str) -> bool:
+        if name not in self._try:
+            with self._lock:
+                self._loader(name)
+                self._try.add(name)
+        return name in self._loaded
+
+    def _loader(self, name: str):
+        callback = '_loader_{}'.format(name)
+        try:
+            module = globals()[callback]()
+            if not module:
+                raise ValueError('Internal error - wrong return')
+        except Exception as e:
+            self._error_msg.append('Error loading {}, {}: {}'.format(name, type(e).__name__, e))
+        else:
+            self._loaded[name] = module
+
+    def get(self, name: str):
+        try:
+            return self._loaded[name]
+        except KeyError:
+            raise RuntimeError('Getting module {} before loading!'.format(name))
+
+    def extract_errors(self) -> tuple:
+        if self._error_msg:
+            try:
+                return tuple(self._error_msg)
+            finally:
+                self._error_msg.clear()
+        return ()
 
 
 @singleton
 class APMSettings:
+    NAME = 'apm'
+
     def __init__(self):
         self._cfg = {
             'enable': False,
@@ -106,17 +148,11 @@ class APMSettings:
 
     @property
     def enable(self):
-        return not APM_ERR and self._cfg['enable']
+        return self._cfg['enable'] and ModuleLoader().is_loaded(self.NAME)
 
     @property
     def conservative(self):
         return self._cfg['conservative']
-
-    @property
-    def failed(self):
-        if self._cfg['enable'] and APM_ERR:
-            return APM_ERR
-        return None
 
     @property
     def instance(self):
@@ -132,7 +168,7 @@ class APMSettings:
 
     @lru_cache(maxsize=1)
     def _constructor(self, **kwargs):
-        ap = AudioProcessingModule(aec_type=kwargs['aec_type'], enable_ns=True, agc_type=kwargs['agc_type'])
+        ap = ModuleLoader().get(self.NAME)(aec_type=kwargs['aec_type'], enable_ns=True, agc_type=kwargs['agc_type'])
         if kwargs['ns_lvl'] is not None:
             ap.set_ns_level(kwargs['ns_lvl'])
         if kwargs['aec_type'] and kwargs['aec_lvl'] is not None:
@@ -238,10 +274,10 @@ class Detector:
         return buffer
 
 
-class SnowboyDetector(Detector):
+class SnowboyHWD(Detector):
     def __init__(self, resource_path, hot_word_files, sensitivity,
                  audio_gain, width, rate, another, apply_frontend, **_):
-        self._snowboy = SnowboyDetector._constructor(
+        self._snowboy = SnowboyHWD._constructor(
             resource_path, sensitivity, audio_gain, apply_frontend, *hot_word_files)
         super().__init__(150, width, rate, self._snowboy.SampleRate())
         self._another = another
@@ -278,7 +314,7 @@ class SnowboyDetector(Detector):
     @classmethod
     @lru_cache(maxsize=1)
     def _constructor(cls, resource_path, sensitivity, audio_gain, apply_frontend, *hot_word_files):
-        sn = lazy_snowboy()(
+        sn = ModuleLoader().get('snowboy')(
             resource_filename=os.path.join(resource_path, 'resources', 'common.res').encode(),
             model_str=",".join(hot_word_files).encode()
         )
@@ -288,10 +324,10 @@ class SnowboyDetector(Detector):
         return sn
 
 
-class PorcupineDetector(Detector):
+class PorcupineHWD(Detector):
     def __init__(self, resource_path, hot_word_files, sensitivity,
                  width, rate, another, **_):
-        self._porcupine = PorcupineDetector._constructor(resource_path, sensitivity, *hot_word_files)
+        self._porcupine = PorcupineHWD._constructor(resource_path, sensitivity, *hot_word_files)
         super().__init__(1, width, rate, self._porcupine.sample_rate)
         self._sample_size = width * self._porcupine.frame_length
         self._another = another
@@ -333,16 +369,16 @@ class PorcupineDetector(Detector):
         sensitivities = [sensitivity] * len(hot_word_files)
         library_path = os.path.join(home, porcupine_lib())
         model_file_path = os.path.join(home, 'porcupine_params.pv')
-        return lazy_porcupine()(
+        return ModuleLoader().get('porcupine')(
             library_path=library_path, model_file_path=model_file_path, keyword_file_paths=hot_word_files,
             sensitivities=sensitivities,
         )
 
 
-class DetectorVAD(Detector):
+class WebRTCVAD(Detector):
     def __init__(self, width, rate, lvl, **_):
         super().__init__(30, width, rate, 16000)
-        self._vad = DetectorVAD._constructor(lvl)
+        self._vad = WebRTCVAD._constructor(lvl)
 
     def _detector(self, chunk: bytes):
         self._state = self._vad.is_speech(chunk, self._resample_rate)
@@ -350,13 +386,13 @@ class DetectorVAD(Detector):
     @classmethod
     @lru_cache(maxsize=1)
     def _constructor(cls, lvl):
-        return Vad(lvl)
+        return ModuleLoader().get('webrtc')(lvl)
 
 
-class DetectorAPM(Detector):
+class APMVAD(Detector):
     def __init__(self, width, rate, lvl, **_):
         super().__init__(10, width, rate, 16000)
-        self._apm = DetectorAPM._constructor(lvl)
+        self._apm = APMVAD._constructor(lvl)
 
     def is_speech(self, data: bytes) -> bool:
         self._call_detector(self._resampler(data))
@@ -369,7 +405,7 @@ class DetectorAPM(Detector):
     @classmethod
     @lru_cache(maxsize=1)
     def _constructor(cls, lvl):
-        apm = AudioProcessingModule(enable_vad=True)
+        apm = ModuleLoader().get('apm')(enable_vad=True)
         apm.set_vad_level(lvl)
         return apm
 

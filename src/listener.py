@@ -6,8 +6,8 @@ import time
 import logger
 from languages import TERMINAL as LNG
 from lib import sr_wrapper as sr
-from lib.audio_utils import APM_ERR, Vad
-from lib.audio_utils import SnowboyDetector, DetectorVAD, DetectorAPM, get_hot_word_detector
+from lib.audio_utils import ModuleLoader
+from lib.audio_utils import SnowboyHWD, WebRTCVAD, APMVAD, get_hot_word_detector
 from owner import Owner
 
 
@@ -17,11 +17,18 @@ class Listener:
         self.log = log
         self.own = owner
 
+    def _print_loading_errors(self):
+        for msg in ModuleLoader().extract_errors():
+            self.log(msg, logger.CRIT)
+
     def recognition_forever(self, interrupt_check: callable, callback: callable):
         if not self.cfg.detector:
             self.log('Wake word detection don\'t work on this system: {}'.format(self.cfg.platform), logger.WARN)
         elif self.cfg.path['models_list'] and self.own.max_mic_index != -2:
-            return lambda: self._smart_listen(interrupt_check, callback)
+            if ModuleLoader().is_loaded(self.cfg.detector):
+                return lambda: self._smart_listen(interrupt_check, callback)
+            else:
+                self._print_loading_errors()
         return None
 
     def _smart_listen(self, interrupt_check, callback):
@@ -31,7 +38,7 @@ class Listener:
             chrome_mode = self.cfg.gts('chrome_mode')
             with sr.Microphone(device_index=self.own.mic_index) as source:
                 vad, noising = self._get_vad_detector(source, self.cfg.gt('listener', 'vad_chrome') or None)
-                if not isinstance(vad, SnowboyDetector):
+                if not isinstance(vad, SnowboyHWD):
                     hw_detector = self._get_hw_detector(source.SAMPLE_WIDTH, source.SAMPLE_RATE, vad)
                 else:
                     hw_detector = vad
@@ -109,7 +116,7 @@ class Listener:
             except (sr.WaitTimeoutError, RuntimeError):
                 adata = None
             record_time = time.time() - record_time
-        return adata, record_time, vad.energy_threshold if isinstance(vad, sr.EnergyDetector) else None
+        return adata, record_time, vad.energy_threshold if isinstance(vad, sr.EnergyDetectorVAD) else None
 
     def _listen(self, r, source, vad, frames=None, hw_time=None):
         def positive_or_none(val):
@@ -135,7 +142,7 @@ class Listener:
                     except RuntimeError:
                         adata = None
                     break
-            return adata, detector.energy_threshold if isinstance(detector, sr.EnergyDetector) else None
+            return adata, detector.energy_threshold if isinstance(detector, sr.EnergyDetectorVAD) else None
 
         mic_ = sr.Microphone(device_index=self.own.mic_index)
         return NonBlockListener(callback, mic_, self.get_vad_detector(mic_))
@@ -158,7 +165,7 @@ class Listener:
             sensitivity=self.cfg.gts('sensitivity'), audio_gain=self.cfg.gts('audio_gain'), another=None,
             apply_frontend=self.cfg.gt('noise_suppression', 'snowboy_apply_frontend')
         )
-        if isinstance(vad, sr.EnergyDetector):
+        if isinstance(vad, sr.EnergyDetectorVAD):
             if not energy_lvl:
                 manual_exit = source_or_mic.stream is None
                 try:
@@ -182,14 +189,20 @@ class Listener:
         )
 
     def _select_vad(self, vad_mode=None):
+        def is_loaded():
+            return ModuleLoader().is_loaded(vad_mode)
+
         vad_mode = vad_mode if vad_mode is not None else self.cfg.gt('listener', 'vad_mode')
-        if vad_mode == 'snowboy' and self.cfg.path['models_list'] and self.cfg.detector == 'snowboy':
-            return SnowboyDetector
-        if vad_mode == 'webrtc' and Vad:
-            return DetectorVAD
-        if vad_mode == 'apm' and not APM_ERR:
-            return DetectorAPM
-        return sr.EnergyDetector
+        if vad_mode == 'snowboy' and self.cfg.path['models_list'] and self.cfg.detector == 'snowboy' and is_loaded():
+            vad = SnowboyHWD
+        elif vad_mode == 'webrtc' and is_loaded():
+            vad = WebRTCVAD
+        elif vad_mode == 'apm' and is_loaded():
+            vad = APMVAD
+        else:
+            vad = sr.EnergyDetectorVAD
+        self._print_loading_errors()
+        return vad
 
 
 class NonBlockListener(threading.Thread):

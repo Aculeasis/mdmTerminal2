@@ -297,7 +297,7 @@ class Recognizer(speech_recognition.Recognizer):
         return voice_recognition
 
 
-class EnergyDetector:
+class EnergyDetectorVAD:
     def __init__(self, source, width, rate, energy_lvl, energy_dynamic, **_):
         self.dynamic_energy_adjustment_damping = 0.15
         self.dynamic_energy_ratio = 1.5
