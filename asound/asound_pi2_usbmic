@@ -1,0 +1,5 @@
+pcm.!default {
+    type asym
+    playback.pcm "hw:0,0"
+    capture.pcm "hw:1,0"
+}
