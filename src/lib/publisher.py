@@ -40,7 +40,7 @@ class PubSub(threading.Thread):
         if self._work:
             self._work = False
             self._queue.put_nowait(None)
-            super().join(timeout)
+            super().join(timeout=timeout)
 
     def run(self):
         while self._work:

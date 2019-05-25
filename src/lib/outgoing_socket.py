@@ -64,7 +64,7 @@ class OutgoingSocket(threading.Thread):
             self.work = False
             self.own.unsubscribe(self.EVENT, self._duplex_mode_event)
             self._wait.set()
-            super().join(timeout)
+            super().join(timeout=timeout)
 
     def run(self):
         while self.work:

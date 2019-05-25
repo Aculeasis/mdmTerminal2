@@ -104,12 +104,12 @@ class BaseControl(threading.Thread):
     def allow(self):
         return self.is_conn and self._work
 
-    def join(self, timeout=None):
+    def join(self, timeout=30):
         if self._work:
             self._work = False
             self._queue.put_nowait(None)
             self.log('stopping...', logger.DEBUG)
-            super().join(timeout)
+            super().join(timeout=timeout)
             self.log('stop.', logger.INFO)
 
     def start(self):

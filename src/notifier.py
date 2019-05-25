@@ -112,14 +112,14 @@ class MajordomoNotifier(threading.Thread):
         super().start()
         self.outgoing.start()
 
-    def join(self, timeout=None):
+    def join(self, timeout=30):
         if self._work:
             self._work = False
             self._save()
             self._queue.put_nowait(None)
             self.log('stopping...', logger.DEBUG)
-            super().join()
-            self.outgoing.join(20)
+            super().join(timeout=timeout)
+            self.outgoing.join(timeout=timeout)
             self.log('stop.', logger.INFO)
 
     def run(self):

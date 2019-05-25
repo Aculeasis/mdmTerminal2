@@ -36,12 +36,12 @@ class Updater(threading.Thread):
         super().start()
         self.log('start', logger.INFO)
 
-    def join(self, timeout=None):
+    def join(self, timeout=30):
         if self._work:
             self._work = False
             self._sleep.set()
             self.log('stopping...')
-            super().join(timeout)
+            super().join(timeout=timeout)
             self.log('stop.', logger.INFO)
 
     def update(self):

@@ -83,7 +83,7 @@ class Loader(Owner):
         self._terminal.join()
         self._updater.join()
         self._notifier.join()
-        self._duplex_mode.join(20)
+        self._duplex_mode.join()
 
         self._play.quiet()
         self._play.kill_popen()
@@ -91,7 +91,7 @@ class Loader(Owner):
 
         self._stt.stop()
         self._play.stop()
-        self._music.join(20)
+        self._music.join()
         self._logger.join()
         self._pub.join()
 

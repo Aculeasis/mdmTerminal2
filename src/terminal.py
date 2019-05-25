@@ -57,12 +57,12 @@ class MDTerminal(threading.Thread):
             self._old_listener = not self._old_listener
         self._wait.set()
 
-    def join(self, timeout=None):
+    def join(self, timeout=30):
         if self._work:
             self._work = False
             self._wait.set()
             self.log('stopping...', logger.DEBUG)
-            super().join()
+            super().join(timeout=timeout)
             self.log('stop.', logger.INFO)
 
     def start(self):

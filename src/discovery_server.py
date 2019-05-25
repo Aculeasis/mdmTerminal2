@@ -94,13 +94,13 @@ class DiscoveryServer(threading.Thread):
             super().start()
             self.log('start', logger.INFO)
 
-    def join(self, timeout=20):
+    def join(self, timeout=30):
         if self._work:
             self._work = False
             self.log('stopping...')
-            super().join(timeout)
+            super().join(timeout=timeout)
             self._server.close()
-            self._http.join(timeout)
+            self._http.join(timeout=timeout)
             self.log('stop.', logger.INFO)
 
     def run(self):

@@ -469,12 +469,12 @@ class SocketAPIHandler(threading.Thread, APIHandler):
             return msg
         return 'already'
 
-    def join(self, timeout=None):
+    def join(self, timeout=30):
         if self.work:
             self.work = False
             self._conn.close()
             self.log('stopping...')
-            super().join(timeout)
+            super().join(timeout=timeout)
             self.log('stop.', logger.INFO)
 
     def start(self):

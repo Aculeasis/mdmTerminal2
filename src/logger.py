@@ -122,10 +122,10 @@ class Logger(threading.Thread):
     def reload(self):
         self._queue.put_nowait('reload')
 
-    def join(self, timeout=None):
+    def join(self, timeout=30):
         self.log('stop.', INFO)
         self._queue.put_nowait(None)
-        super().join()
+        super().join(timeout=timeout)
 
     def run(self):
         while True:

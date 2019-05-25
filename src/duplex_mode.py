@@ -30,9 +30,9 @@ class DuplexMode(SocketAPIHandler):
         self._has_started = True
         super().start()
 
-    def join(self, timeout=None):
+    def join(self, timeout=30):
         self._queue.put_nowait(None)
-        super().join(timeout)
+        super().join(timeout=timeout)
 
     def send_on_socket(self, data):
         if self.duplex:
