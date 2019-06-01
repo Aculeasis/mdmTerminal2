@@ -2,6 +2,12 @@ from utils import state_cache
 
 
 class Owner:
+    def join_thread(self, obj):
+        """
+        Выполняет остановку треда с определенной сигнатурой.
+        """
+        raise NotImplementedError
+
     def subscribe(self, event, callback, channel='default') -> bool:
         """
         Оформление подписки на событие или события. Можно подписаться сразу на много событий или

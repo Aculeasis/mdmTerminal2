@@ -25,7 +25,7 @@ class MajordomoNotifier(threading.Thread):
         self._cfg = cfg['smarthome']
         self.log = log
         self.own = owner
-        self._work = False
+        self.work = False
         self._queue = MyQueue(maxsize=50)
         self._lock = threading.Lock()
         self._boot_time = None
@@ -105,7 +105,7 @@ class MajordomoNotifier(threading.Thread):
                 self.outgoing.reload()
 
     def start(self):
-        self._work = True
+        self.work = True
         self._load()
         self.log('start', logger.INFO)
         self._subscribe()
@@ -113,19 +113,15 @@ class MajordomoNotifier(threading.Thread):
         self.outgoing.start()
 
     def join(self, timeout=30):
-        if self._work:
-            self._work = False
-            self._save()
-            self._queue.put_nowait(None)
-            self.log('stopping...', logger.DEBUG)
-            super().join(timeout=timeout)
-            self.outgoing.join(timeout=timeout)
-            self.log('stop.', logger.INFO)
+        self._save()
+        self._queue.put_nowait(None)
+        super().join(timeout=timeout)
+        self.outgoing.join(timeout=timeout)
 
     def run(self):
         def ignore():
             return not self._allow_notify or self._skip.is_skip
-        while self._work:
+        while self.work:
             to_sleep = self._cfg['heartbeat_timeout']
             if to_sleep <= 0:
                 to_sleep = None

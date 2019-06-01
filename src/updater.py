@@ -22,7 +22,7 @@ class Updater(threading.Thread):
 
         self._old_hash = None
         self._last = self._load_cfg()
-        self._work = False
+        self.work = False
         self._sleep = threading.Event()
         self._action = None
 
@@ -32,17 +32,13 @@ class Updater(threading.Thread):
         if self._cfg.platform != 'Linux':
             self.log('don\'t support this system: {}'.format(self._cfg.platform), logger.WARN)
             return
-        self._work = True
+        self.work = True
         super().start()
         self.log('start', logger.INFO)
 
     def join(self, timeout=30):
-        if self._work:
-            self._work = False
-            self._sleep.set()
-            self.log('stopping...')
-            super().join(timeout=timeout)
-            self.log('stop.', logger.INFO)
+        self._sleep.set()
+        super().join(timeout=timeout)
 
     def update(self):
         self._action = 'update'
@@ -60,10 +56,10 @@ class Updater(threading.Thread):
         self.own.terminal_call('tts', msg)
 
     def run(self):
-        while self._work:
+        while self.work:
             to_sleep = self._to_sleep()
             self._sleep.wait(to_sleep)
-            if not self._work:
+            if not self.work:
                 break
             if self._sleep.is_set():
                 self._sleep.clear()

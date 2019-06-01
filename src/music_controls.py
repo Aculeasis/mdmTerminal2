@@ -346,7 +346,7 @@ def music_constructor(cfg, logger, owner: Owner, old=None) -> BaseControl:
             old.reload()
             return old
         else:
-            old.join(20)
+            owner.join_thread(old)
             old = create()
             old.start()
     else:

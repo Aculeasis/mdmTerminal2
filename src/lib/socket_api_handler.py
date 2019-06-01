@@ -470,12 +470,8 @@ class SocketAPIHandler(threading.Thread, APIHandler):
         return 'already'
 
     def join(self, timeout=30):
-        if self.work:
-            self.work = False
-            self._conn.close()
-            self.log('stopping...')
-            super().join(timeout=timeout)
-            self.log('stop.', logger.INFO)
+        self._conn.close()
+        super().join(timeout=timeout)
 
     def start(self):
         if not self.work:

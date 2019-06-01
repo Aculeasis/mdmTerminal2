@@ -76,7 +76,7 @@ class DiscoveryServer(threading.Thread):
         self.cfg = cfg
         self.log = log
         self._address = (ip, port)
-        self._work = False
+        self.work = False
         self._server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
 
         multicast_req = struct.pack('4sl', socket.inet_aton(multicast_group), socket.INADDR_ANY)
@@ -89,19 +89,15 @@ class DiscoveryServer(threading.Thread):
         except Exception as e:
             self.log('UDP binding error: {}'.format(e), logger.ERROR)
         else:
-            self._work = True
+            self.work = True
             self._http.start()
             super().start()
             self.log('start', logger.INFO)
 
     def join(self, timeout=30):
-        if self._work:
-            self._work = False
-            self.log('stopping...')
-            super().join(timeout=timeout)
-            self._server.close()
-            self._http.join(timeout=timeout)
-            self.log('stop.', logger.INFO)
+        super().join(timeout=timeout)
+        self._server.close()
+        self._http.join(timeout=timeout)
 
     def run(self):
         def make_reply() -> bytes:
@@ -111,7 +107,7 @@ class DiscoveryServer(threading.Thread):
             xml_url = '{}:{}'.format(ip, self._address[1])
             return REPLY.format(server=server, xml_url=xml_url, location=location).encode()
 
-        while self._work:
+        while self.work:
             try:
                 msg, address = self._server.recvfrom(BUFFER_SIZE)
             except socket.timeout:

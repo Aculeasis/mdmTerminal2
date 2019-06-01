@@ -33,7 +33,7 @@ class BaseControl(threading.Thread):
         self._cfg = cfg  # ip, port, wait, quieter, control, etc.
         self.log = log
         self.own = owner
-        self._work = False
+        self.work = False
 
         self.is_conn = False
         self._errors_metric = 0
@@ -102,23 +102,19 @@ class BaseControl(threading.Thread):
         raise NotImplementedError
 
     def allow(self):
-        return self.is_conn and self._work
+        return self.is_conn and self.work
 
     def join(self, timeout=30):
-        if self._work:
-            self._work = False
-            self._queue.put_nowait(None)
-            self.log('stopping...', logger.DEBUG)
-            super().join(timeout=timeout)
-            self.log('stop.', logger.INFO)
+        self._queue.put_nowait(None)
+        super().join(timeout=timeout)
 
     def start(self):
-        if not self._work:
-            self._work = True
+        if not self.work:
+            self.work = True
             super().start()
 
     def reload(self):
-        if self._work:
+        if self.work:
             self._queue.put_nowait(('reload', None))
 
     def _init(self):
@@ -279,7 +275,7 @@ class BaseControl(threading.Thread):
     def run(self):
         self._init()
         self._subscribe()
-        while self._work:
+        while self.work:
             try:
                 cmd = self._queue.get(timeout=self._check_time)
             except queue.Empty:

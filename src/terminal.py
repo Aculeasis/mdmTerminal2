@@ -22,7 +22,7 @@ class MDTerminal(threading.Thread):
         self.log = log
         self._cfg = cfg
         self.own = owner
-        self._work = False
+        self.work = False
         self._listening = True
         self._snowboy = None
         self._old_listener = None
@@ -58,15 +58,11 @@ class MDTerminal(threading.Thread):
         self._wait.set()
 
     def join(self, timeout=30):
-        if self._work:
-            self._work = False
-            self._wait.set()
-            self.log('stopping...', logger.DEBUG)
-            super().join(timeout=timeout)
-            self.log('stop.', logger.INFO)
+        self._wait.set()
+        super().join(timeout=timeout)
 
     def start(self):
-        self._work = True
+        self.work = True
         self.log('start', logger.INFO)
         super().start()
 
@@ -75,11 +71,11 @@ class MDTerminal(threading.Thread):
         return self._cfg['listener']['no_listen_music'] and self.own.music_plays
 
     def _interrupt_check(self):
-        return not self._work or self._queue.qsize() or self._no_listen()
+        return not self.work or self._queue.qsize() or self._no_listen()
 
     def run(self):
         self._reload()
-        while self._work:
+        while self.work:
             self._listen()
             self._external_check()
 
@@ -93,13 +89,13 @@ class MDTerminal(threading.Thread):
             try:
                 self._snowboy()
             except OSError as e:
-                self._work = False
+                self.work = False
                 self.log('Critical error, bye: {}'.format(e), logger.CRIT)
                 self.log(traceback.format_exc(), logger.CRIT)
                 self.own.die_in(1)
 
     def _external_check(self):
-        while self._queue.qsize() and self._work:
+        while self._queue.qsize() and self.work:
             try:
                 (cmd, data, lvl, late) = self._queue.get_nowait()
             except queue.Empty:

@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 
 import threading
+import time
 
+import logger
 import stts
 from config import ConfigHandler
 from discovery_server import DiscoveryServer
@@ -13,7 +15,6 @@ from lib.available_version import available_version_msg
 from lib.proxy import proxies
 from lib.publisher import PubSub
 from listener import Listener
-from logger import Logger, INFO
 from modules_manager import ModuleManager
 from music_controls import music_constructor
 from notifier import MajordomoNotifier
@@ -23,7 +24,7 @@ from plugins import Plugins
 from server import server_constructor
 from terminal import MDTerminal
 from updater import Updater
-from utils import state_cache, Messenger
+from utils import state_cache, Messenger, pretty_time
 
 
 def is_sub_dict(key, data: dict):
@@ -36,13 +37,15 @@ class Loader(Owner):
         self.reload = False
         self._lock = threading.Lock()
         self._stts_lock = threading.Lock()
+        self._join_lock = threading.Lock()
 
         self._pub = PubSub()
 
-        self._logger = Logger()
+        self._logger = logger.Logger()
         proxies.add_logger(self._logger.add('Proxy'))
         self._cfg = ConfigHandler(cfg=init_cfg, path=path, log=self._logger.add('CFG'), owner=self)
         self._logger.init(cfg=self._cfg, owner=self)
+        self.log = self._logger.add('SYSTEM')
 
         self._listen = Listener(cfg=self._cfg, log=self._logger.add('REC'), owner=self)
         self._notifier = MajordomoNotifier(cfg=self._cfg, log=self._logger.add('Notifier'), owner=self)
@@ -71,19 +74,19 @@ class Loader(Owner):
         self._server.start()
         self._discovery.start()
         self._plugins.start()
-        self.messenger(lambda: self._logger.add('SYSTEM')(available_version_msg(self._cfg.version_info), INFO), None)
+        self.messenger(lambda: self.log(available_version_msg(self._cfg.version_info), logger.INFO), None)
         self.sub_call('default', 'version', self._cfg.version_str)
 
     def stop_all_systems(self):
         self._cfg.config_save(final=True)
         self._plugins.stop()
         self._mm.stop()
-        self._discovery.join()
-        self._server.join()
-        self._terminal.join()
-        self._updater.join()
-        self._notifier.join()
-        self._duplex_mode.join()
+        self.join_thread(self._discovery)
+        self.join_thread(self._server)
+        self.join_thread(self._terminal)
+        self.join_thread(self._updater)
+        self.join_thread(self._notifier)
+        self.join_thread(self._duplex_mode)
 
         self._play.quiet()
         self._play.kill_popen()
@@ -91,9 +94,32 @@ class Loader(Owner):
 
         self._stt.stop()
         self._play.stop()
-        self._music.join()
+        self.join_thread(self._music)
+        self.join_thread(self._pub)
+
         self._logger.join()
-        self._pub.join()
+
+    def join_thread(self, obj):
+        def obj_log(msg_: str, lvl=logger.DEBUG):
+            if log_present:
+                obj.log(msg_, lvl)
+        with self._join_lock:
+            if not obj.work:
+                return
+            log_present = callable(getattr(obj, 'log', None))
+            obj.work = False
+            obj_log('stopping...')
+            stop_time = time.time()
+            obj.join()
+            stop_time = time.time() - stop_time
+            if not obj.is_alive():
+                obj_log('stop.', logger.INFO)
+            else:
+                obj.log('stopping error.', logger.ERROR)
+                name_ = '.'.join(getattr(obj.log, 'name', [''])) if log_present else None
+                name_ = name_ or str(obj)
+                msg = 'Thread \'{}\' stuck and not stopping in {}!'.format(name_, pretty_time(stop_time))
+                self.log(msg, logger.ERROR)
 
     def subscribe(self, event, callback, channel='default') -> bool:
         return self._pub.subscribe(event, callback, channel)

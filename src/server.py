@@ -68,10 +68,15 @@ class MDTServer(SocketAPIHandler):
 
 
 class DummyServer:
+    work = False
+
     def start(self):
         pass
 
     def join(self, *args, **kwargs):
+        pass
+
+    def is_alive(self):
         pass
 
 
@@ -85,7 +90,7 @@ def server_constructor(cfg, logger, owner: Owner, old=None) -> MDTServer or Dumm
         old.start()
     elif isinstance(old, MDTServer):
         if not on:
-            old.join(20)
+            owner.join_thread(old)
             old = DummyServer()
     else:
         raise TypeError('Wrong type: {}'.format(type(old)))

@@ -9,7 +9,7 @@ class PubSub(threading.Thread):
         self._event_callbacks = {}
         # Очередь вызовов, все вызовы и изменения подписок делаем в треде
         self._queue = queue.Queue()
-        self._work = True
+        self.work = True
         self.start()
 
     def subscribe(self, event, callback, channel='default') -> bool:
@@ -37,13 +37,11 @@ class PubSub(threading.Thread):
         self._queue.put_nowait((channel, name, args, kwargs))
 
     def join(self, timeout=30):
-        if self._work:
-            self._work = False
-            self._queue.put_nowait(None)
-            super().join(timeout=timeout)
+        self._queue.put_nowait(None)
+        super().join(timeout=timeout)
 
     def run(self):
-        while self._work:
+        while self.work:
             self._processing(self._queue.get())
 
     def _processing(self, data):
