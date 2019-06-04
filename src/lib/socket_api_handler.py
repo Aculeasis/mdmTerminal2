@@ -356,10 +356,16 @@ class API:
 
 
 class APIHandler(API):
+    def __init__(self, cfg, log, owner: Owner):
+        super().__init__(cfg, log, owner)
+        self.is_jsonrpc = False
+
     def extract(self, line: str) -> tuple:
         if line.startswith('{'):
+            self.is_jsonrpc = True
             return self._extract_json(line)
         else:
+            self.is_jsonrpc = False
             return self._extract_str(line)
 
     def _extract_json(self, line: str) -> tuple:
@@ -418,7 +424,8 @@ class APIHandler(API):
         line = line.split(':', 1)
         if len(line) != 2:
             line.append('')
-        return line[0], line[1], None
+        # id = cmd
+        return line[0], line[1], line[0]
 
 
 class SocketAPIHandler(threading.Thread, APIHandler):
@@ -498,19 +505,19 @@ class SocketAPIHandler(threading.Thread, APIHandler):
             self._handle_exception(InternalException(code=-32603, msg=str(e), id_=id_), cmd, logger.CRIT)
         else:
             if id_ is not None:
-                self._write({'result': result, 'id': id_})
+                self._send_reply({'result': result, 'id': id_})
 
     def _handle_exception(self, e: InternalException, cmd='method', code=0, log_lvl=logger.WARN):
         e.method = cmd
         e.cmd_code(code or self.API_CODE.get(cmd, 1000))
         self.log('API.{}'.format(e), log_lvl)
         if e.id is not None:
-            self._write(e.data)
+            self._send_reply(e.data)
 
     def parse(self, data: str):
         def write_none():
             if id_ is not None:
-                self._write({'result': None, 'id': id_})
+                self._send_reply({'result': None, 'id': id_})
 
         if not data:
             self._handle_exception(InternalException(code=-32600, msg='no data'))
@@ -549,6 +556,19 @@ class SocketAPIHandler(threading.Thread, APIHandler):
             cmd = repr(cmd)[1:-1]
             msg = 'Unknown command: \'{}\''.format(cmd[:100])
             self._handle_exception(InternalException(code=-32601, msg=msg, id_=id_), cmd)
+
+    def _send_reply(self, data: dict):
+        if self.is_jsonrpc:
+            self._write(data)
+        else:
+            cmd = data.pop('id', None)
+            if not cmd or cmd == 'method':
+                return
+            try:
+                reply = '{}:{}'.format(cmd, json.dumps(data, ensure_ascii=False))
+            except TypeError:
+                return
+            self._write(reply, True)
 
     def _write(self, data, quite=False):
         try:
