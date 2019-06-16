@@ -7,10 +7,12 @@ import time
 import traceback
 
 import lib.snowboy_training as training_service
+import lib.sr_wrapper as sr
 import logger
 import utils
 from languages import LANG_CODE
 from languages import TERMINAL as LNG
+from listener import NonBlockListener
 from owner import Owner
 
 
@@ -47,6 +49,30 @@ class MDTerminal(threading.Thread):
         if self._cfg.detector != 'porcupine':
             self.ARGS_CALL['compile'] = self._rec_compile
 
+    def _mic_tester(self):
+        if self.own.max_mic_index == -2:
+            return
+        if self._test_mic_record():
+            self.log('Microphone test: OK', logger.INFO)
+        else:
+            self.own.max_mic_index = -2
+            self.log('Microphone test: STUCK', logger.ERROR)
+            self.own.sub_call('default', 'mic_test_error')
+
+    def _test_mic_record(self) -> bool:
+        def callback(_, mic, detector):
+            with mic as source:
+                try:
+                    sr.Recognizer().listen1(source=source, vad=detector, timeout=0.8, phrase_time_limit=0.5)
+                except sr.WaitTimeoutError:
+                    pass
+            return None, None
+        mic_ = sr.Microphone(device_index=self.own.mic_index)
+        listen = NonBlockListener(callback, mic_, self.own.get_vad_detector(mic_, vad_mode='energy'))
+        listen.start()
+        listen.stop(10)
+        return not listen.is_alive()
+
     def _reload(self, *_):
         if self._listening:
             self._snowboy = self.own.recognition_forever(self._interrupt_check, self._detected_parse)
@@ -74,6 +100,7 @@ class MDTerminal(threading.Thread):
         return not self.work or self._queue.qsize() or self._no_listen()
 
     def run(self):
+        self._mic_tester()
         self._reload()
         while self.work:
             self._listen()

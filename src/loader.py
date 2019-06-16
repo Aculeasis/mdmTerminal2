@@ -250,6 +250,10 @@ class Loader(Owner):
     def max_mic_index(self) -> int:
         return self._stt.max_mic_index
 
+    @max_mic_index.setter
+    def max_mic_index(self, val: int):
+        self._stt.max_mic_index = val
+
     @property
     def mic_index(self) -> int:
         return self._stt.get_mic_index()

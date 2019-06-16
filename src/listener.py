@@ -227,11 +227,11 @@ class NonBlockListener(threading.Thread):
         self._work = True
         super().start()
 
-    def stop(self):
+    def stop(self, timeout=30):
         self._has_stop = True
         if self._work:
             self._work = False
-            self.join(30)
+            self.join(timeout)
 
     def _interrupt_check(self):
         return self._has_stop

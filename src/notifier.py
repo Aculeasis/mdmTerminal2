@@ -17,7 +17,7 @@ from utils import REQUEST_ERRORS
 class MajordomoNotifier(threading.Thread):
     FILE = 'notifications'
     EVENTS = ('speech_recognized_unsuccess', 'speech_recognized_success', 'voice_activated', 'ask_again',
-              'music_status', 'start_record', 'stop_record', 'start_talking', 'stop_talking',)
+              'music_status', 'start_record', 'stop_record', 'start_talking', 'stop_talking', 'mic_test_error')
 
     def __init__(self, cfg, log, owner: Owner):
         super().__init__(name='Notifier')

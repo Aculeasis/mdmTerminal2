@@ -227,6 +227,10 @@ class Owner:
     def max_mic_index(self) -> int:
         raise NotImplementedError
 
+    @max_mic_index.setter
+    def max_mic_index(self, val):
+        raise NotImplementedError
+
     @property
     def mic_index(self) -> int:
         raise NotImplementedError

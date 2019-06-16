@@ -13,11 +13,11 @@ import pyaudio
 import lib.STT as STT
 import lib.TTS as TTS
 import lib.sr_wrapper as sr
-from lib.audio_utils import StreamRecognition
 import logger
 import utils
 from languages import LANG_CODE
 from languages import STTS as LNG
+from lib.audio_utils import StreamRecognition
 from owner import Owner
 
 
@@ -468,18 +468,24 @@ class SpeechToText:
             raise RuntimeError()
 
     def _sample_rate_tester(self):
-        rates = (32000, 8000, 48000, 44100, None)
-        if self.max_mic_index == -2:
-            return
-        if self._test_rate():
-            return
-        for rate in rates:
-            msg = 'Microphone does not support sample rate {}, fallback to {}'.format(sr.Microphone.DEFAULT_RATE, rate)
-            self.log(msg, logger.WARN)
-            sr.Microphone.DEFAULT_RATE = rate
+        def tester():
+            rates = (32000, 8000, 48000, 44100, None)
+            if self.max_mic_index == -2:
+                return
             if self._test_rate():
                 return
-        raise RuntimeError('Microphone is broken. Supported sample rate not found')
+            for rate in rates:
+                msg = 'Microphone does not support sample rate {}, fallback to {}'.format(sr.Microphone.DEFAULT_RATE, rate)
+                self.log(msg, logger.WARN)
+                sr.Microphone.DEFAULT_RATE = rate
+                if self._test_rate():
+                    return
+            raise RuntimeError('Microphone is broken. Supported sample rate not found')
+        try:
+            tester()
+        except RuntimeError as e:
+            self.max_mic_index = -2
+            self.log(e, logger.ERROR)
 
     def _test_rate(self):
         try:
