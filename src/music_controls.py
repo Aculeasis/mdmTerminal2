@@ -20,7 +20,7 @@ import logger as logger_
 from languages import MUSIC_CONTROL as LNG
 from lib.base_music_controller import str_to_int, BaseControl, auto_reconnect
 from owner import Owner
-from utils import get_ip_address
+from utils import get_ip_address, url_builder_cached
 
 
 class MPDControl(BaseControl):
@@ -260,7 +260,7 @@ class Volumio2Control(BaseControl):
             return False
         self._status_wait.clear()
         try:
-            self._ws.connect('http://{}:{}'.format(self._cfg['ip'], self._cfg['port']))
+            self._ws.connect(url_builder_cached(self._cfg['ip'], def_port=self._cfg['port']))
             self._status_wait.wait(0.5)
             self._status_wait.clear()
             self._ws.emit('getStatus')

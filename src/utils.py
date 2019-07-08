@@ -12,7 +12,9 @@ import subprocess
 import threading
 import time
 import traceback
+import urllib.parse
 from copy import deepcopy
+from functools import lru_cache
 
 import requests
 import socks  # install socks-proxy dependencies - pip install requests[socks]
@@ -376,3 +378,21 @@ def dict_to_file(file_path: str, data: dict, pretty: bool):
                 raise RuntimeError('Unknown format: {}'.format(ext))
     except (TypeError, OSError) as e:
         raise RuntimeError(e)
+
+
+@lru_cache(maxsize=32)
+def url_builder_cached(url_ip: str, def_port='', def_proto='http', def_path='') -> str:
+    return url_builder(url_ip, def_port, def_proto, def_path)
+
+
+def url_builder(url_ip: str, def_port='', def_proto='http', def_path='') -> str:
+    if not url_ip.startswith(('http://', 'https://')):
+        # url:ip, url:ip/path
+        url_ip = '{}://{}'.format(def_proto, url_ip)
+    url = urllib.parse.urlparse(url_ip)
+    scheme = url.scheme or def_proto
+    hostname = url.hostname or url_ip
+    path = url.path.rstrip('/') if url.hostname and url.path and url.path != '/' else def_path
+    selected_port = url.port or def_port
+    port = ':{}'.format(selected_port) if selected_port else ''
+    return '{}://{}{}{}'.format(scheme, hostname, port, path)

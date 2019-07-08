@@ -7,7 +7,7 @@ from io import BytesIO
 import requests
 
 import lib.streaming_converter as streaming_converter
-from utils import REQUEST_ERRORS, RuntimeErrorTrace
+from utils import REQUEST_ERRORS, RuntimeErrorTrace, url_builder_cached
 from .audio_utils import StreamRecognition
 from .keys_utils import requests_post, xml_yandex
 from .proxy import proxies
@@ -242,8 +242,8 @@ class Azure(BaseSTT):
 
 class PocketSphinxREST(BaseSTT):
     # https://github.com/Aculeasis/pocketsphinx-rest
-    def __init__(self, audio_data: AudioData, url='http://127.0.0.1:8085', **_):
-        url = '{}/stt'.format(url)
+    def __init__(self, audio_data: AudioData, url='', **_):
+        url = url_builder_cached(url or '127.0.0.1', def_port=8085, def_path='/stt')
         super().__init__(url, audio_data, 'wav', {'Content-Type': 'audio/wav'}, 16000, 2, 'stt_pocketsphinx-rest')
 
     def _parse_response(self):

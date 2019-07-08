@@ -3,7 +3,6 @@
 import queue
 import threading
 import time
-import urllib.parse
 from functools import lru_cache
 
 import requests
@@ -11,7 +10,7 @@ import requests
 import logger
 from lib.outgoing_socket import OutgoingSocket
 from owner import Owner
-from utils import REQUEST_ERRORS
+from utils import url_builder, REQUEST_ERRORS
 
 
 class MajordomoNotifier(threading.Thread):
@@ -201,12 +200,7 @@ class MajordomoNotifier(threading.Thread):
             target_path = 'command.php'
         else:
             return ''
-        url = urllib.parse.urlparse(ip)
-        scheme = url.scheme or 'http'
-        hostname = url.hostname or ip
-        path = url.path.rstrip('/') if url.hostname and url.path and url.path != '/' else ''
-        port = ':{}'.format(url.port) if url.port else ''
-        return '{}://{}{}{}/{}'.format(scheme, hostname, port, path, target_path)
+        return '{}/{}'.format(url_builder(ip), target_path)
 
     def _send_over_http(self, target: str, params: dict, auth: tuple or None) -> str:
         url = self._make_url(target)

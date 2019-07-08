@@ -7,7 +7,7 @@ from shlex import quote
 
 import requests
 
-from utils import REQUEST_ERRORS, RuntimeErrorTrace, yandex_speed_normalization
+from utils import REQUEST_ERRORS, RuntimeErrorTrace, yandex_speed_normalization, url_builder_cached
 from .gtts_wrapper import Google, gTTSError
 from .polly_boto3 import AWSBoto3
 from .polly_signing import signing as polly_signing
@@ -201,7 +201,8 @@ class Azure(AWS):
 
 class RHVoiceREST(BaseTTS):
     def __init__(self, text, buff_size, speaker, audio_format, url, sets, *_, **__):
-        super().__init__('{}/say'.format(url or 'http://127.0.0.1:8080'), 'tts_rhvoice-rest', buff_size=buff_size,
+        url = url_builder_cached(url or '127.0.0.1', def_port=8080, def_path='/say')
+        super().__init__(url, 'tts_rhvoice-rest', buff_size=buff_size,
                          text=text, format=audio_format, voice=speaker or 'anna', **sets)
 
 
