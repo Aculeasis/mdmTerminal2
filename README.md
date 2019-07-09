@@ -69,6 +69,15 @@
 ```bash
     sudo systemctl status mdmterminal2.service
 ```
+
+### Удаление
+Удалить сервис и директорию терминала, все данные и настройки будут также удалены:
+```bash
+cd ~/
+./mdmTerminal2/scripts/systemd_remove.sh
+rm -rf mdmTerminal2/
+```
+
 # Настройка
 ### [Описание всех настроек](https://github.com/Aculeasis/mdmTerminal2/wiki/settings.ini)
 **Важно!** Значительная часть настроек не доступна через MDM VoiceAssistant, их можно изменить отредактировав `mdmTerminal2/src/settings.ini`.
