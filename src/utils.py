@@ -396,3 +396,9 @@ def url_builder(url_ip: str, def_port='', def_proto='http', def_path='') -> str:
     selected_port = url.port or def_port
     port = ':{}'.format(selected_port) if selected_port else ''
     return '{}://{}{}{}'.format(scheme, hostname, port, path)
+
+
+def recognition_msg(msg, energy, rms) -> str:
+    energy_str = '; energy_threshold: {}'.format(energy) if energy else ''
+    rms_str = '; rms: {}'.format(rms) if rms else ''
+    return 'Recognized: {}{}{}'.format(msg, energy_str, rms_str)

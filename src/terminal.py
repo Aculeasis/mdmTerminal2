@@ -66,7 +66,7 @@ class MDTerminal(threading.Thread):
                     sr.Recognizer().listen1(source=source, vad=detector, timeout=0.8, phrase_time_limit=0.5)
                 except sr.WaitTimeoutError:
                     pass
-            return None, None
+            return None
         mic_ = sr.Microphone(device_index=self.own.mic_index)
         listen = NonBlockListener(callback, mic_, self.own.get_vad_detector(mic_, vad_mode='energy'))
         listen.start()
@@ -140,9 +140,9 @@ class MDTerminal(threading.Thread):
             if cmd == 'tts':
                 self.own.say(data, lvl=lvl)
             elif cmd == 'ask' and data:
-                self._detected_parse(True, self.own.listen(data))
+                self._detected_parse(True, *self.own.listen(data))
             elif cmd == 'voice' and not data:
-                self._detected_parse(False, self.own.listen(voice=True))
+                self._detected_parse(False, *self.own.listen(voice=True))
             elif cmd in self.DATA_CALL:
                 self.DATA_CALL[cmd](data)
             elif cmd in self.ARGS_CALL:
@@ -364,14 +364,14 @@ class MDTerminal(threading.Thread):
         self._queue.put_nowait((cmd, data, lvl, time.time() if save_time else 0))
         self._wait.set()
 
-    def _detected_parse(self, voice: bool, reply: str, model=None):
+    def _detected_parse(self, voice: bool, reply: str, rms, model=None):
         caller = False
         self.own.speech_recognized_callback(bool(reply))
         if reply or voice:
             while caller is not None:
-                reply, caller = self.own.modules_tester(reply, caller, model)
+                reply, caller = self.own.modules_tester(reply, caller, rms, model)
                 if caller:
-                    reply = self.own.listen(reply or '', voice=not reply)
+                    reply, rms = self.own.listen(reply or '', voice=not reply)
                     self.own.speech_recognized_callback(bool(reply))
         if reply:
             self.own.say(reply)

@@ -215,37 +215,38 @@ class SpeechToText:
     def busy(self):
         return self._lock.locked() and self._work
 
-    def listen(self, hello: str = '', deaf: bool = True, voice: bool = False) -> str:
+    def listen(self, hello: str = '', deaf: bool = True, voice: bool = False) -> tuple:
+        msg, rms = '', None
         if not self._work:
-            return ''
-        if self.max_mic_index != -2:
+            pass
+        elif self.max_mic_index != -2:
             self._lock.acquire()
             self._start_stt_event()
             try:
-                msg = self._listen_and_take(hello, deaf, voice)
+                msg, rms = self._listen_and_take(hello, deaf, voice)
             finally:
                 self._stop_stt_event()
                 self._lock.release()
         else:
             self.log(LNG['no_mics'], logger.ERROR)
             msg = LNG['no_mics']
-        return msg
+        return msg, rms
 
-    def _listen_and_take(self, hello, deaf, voice) -> str:
+    def _listen_and_take(self, hello, deaf, voice) -> tuple:
         ask_me_again = self._cfg.get_uint('ask_me_again')
-        msg = self._listen(hello, voice)
+        msg, rms = self._listen(hello, voice)
         again = msg is None and ask_me_again > 0
 
         while again:  # Переспрашиваем
             self.own.ask_again_callback()
-            msg = self._listen(self.sys_say.ask, False)
+            msg, rms = self._listen(self.sys_say.ask, False)
             ask_me_again -= 1
             again = msg is None and ask_me_again
         if msg is None and deaf:
             say = self.sys_say.deaf
             if say:
                 self.own.say(say, blocking=120 if self._cfg.gts('blocking_listener') else 0)
-        return msg or ''
+        return msg or '', rms
 
     def get_mic_index(self):
         device_index = self._cfg.gts('mic_index', -1)
@@ -258,7 +259,7 @@ class SpeechToText:
             return None
         return None if device_index < 0 else device_index
 
-    def _listen(self, hello: str, voice) -> str or None:
+    def _listen(self, hello: str, voice) -> tuple:
         lvl = 5  # Включаем монопольный режим
         commands = None
 
@@ -273,9 +274,9 @@ class SpeechToText:
         file_path = self.own.tts(hello) if not voice and hello else None
 
         if self._cfg.gts('blocking_listener'):
-            audio, record_time, energy_threshold = self._block_listen(hello, lvl, file_path)
+            audio, record_time, energy, rms = self._block_listen(hello, lvl, file_path)
         else:
-            audio, record_time, energy_threshold = self._non_block_listen(hello, lvl, file_path)
+            audio, record_time, energy, rms = self._non_block_listen(hello, lvl, file_path)
 
         self.log(LNG['record_for'].format(utils.pretty_time(record_time)), logger.INFO)
         # Выключаем монопольный режим
@@ -287,11 +288,8 @@ class SpeechToText:
             commands = self.voice_recognition(audio)
 
         if commands:
-            msg = ''
-            if energy_threshold:
-                msg = ', energy_threshold={}'.format(int(energy_threshold))
-            self.log('Recognized: {}{}'.format(commands, msg), logger.INFO)
-        return commands
+            self.log(utils.recognition_msg(commands, energy, rms), logger.INFO)
+        return commands, rms
 
     def _non_block_listen(self, hello, lvl, file_path):
         max_play_time = 120  # максимальное время воспроизведения приветствия
@@ -323,7 +321,7 @@ class SpeechToText:
         record_time = time.time() - start_wait
         listener.stop()
         self.own.record_callback(False)
-        return listener.audio, record_time, listener.energy_threshold
+        return listener.audio, record_time, listener.energy_threshold, listener.rms
 
     def _block_listen(self, hello, lvl, file_path, self_call=False):
         r = sr.Recognizer(self.own.record_callback, self._cfg.gt('listener', 'silent_multiplier'))
@@ -342,14 +340,14 @@ class SpeechToText:
             if alarm or file_path:
                 self.own.say_callback(False)
 
-        audio, record_time, energy_threshold = self.own.listener_listen(r, mic, vad)
+        audio, record_time, energy_threshold, rms = self.own.listener_listen(r, mic, vad)
         if record_time < 0.5 and not self_call:
             # Если от инициализации микрофона до записи прошло больше 20-35 сек, то запись ломается
             # Игнорируем полученную запись и запускаем новую, без приветствий
             self.log('Long ask fix!', logger.DEBUG)
             return self._block_listen(hello=True, lvl=lvl, file_path=None, self_call=True)
         else:
-            return audio, record_time, energy_threshold
+            return audio, record_time, energy_threshold, rms
 
     def voice_record(self, hello: str, save_to: str, convert_rate=None, convert_width=None):
         if self.max_mic_index == -2:

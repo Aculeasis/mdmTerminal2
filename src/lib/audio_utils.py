@@ -104,6 +104,35 @@ class ModuleLoader:
         return ()
 
 
+class RMS:
+    WRONG_RMS = 32768
+
+    def __init__(self, width):
+        self._width = width
+        self.min, self.max = -1, -1
+        self._frames, self._rms_sum = 0, 0
+
+    def measure(self, fragment):
+        self.calc(audioop.rms(fragment, self._width))
+
+    def calc(self, rms):
+        if rms == self.WRONG_RMS:
+            return
+        if self.max == -1:
+            self.min, self.max = rms, rms
+        elif rms > self.max:
+            self.max = rms
+        elif rms < self.min:
+            self.min = rms
+        self._frames += 1
+        self._rms_sum += rms
+
+    def result(self) -> tuple or None:
+        if not self._frames:
+            return None
+        return self.min, self.max, self._rms_sum // self._frames
+
+
 @singleton
 class APMSettings:
     NAME = 'apm'
@@ -234,7 +263,8 @@ class MicrophoneStreamAPM(MicrophoneStream):
 
 
 class Detector:
-    def __init__(self, duration, width, rate, resample_rate):
+    def __init__(self, duration, width, rate, resample_rate, rms):
+        self._another = None
         self.energy_threshold = None
         self._resample_rate = resample_rate
         self._rate = rate
@@ -243,17 +273,25 @@ class Detector:
         self._resample_state = None
         self._buffer = b''
         self._state = False
+        self._rms = RMS(width) if rms else None
         if self._rate == self._resample_rate:
             self._resampler = lambda x: x
         else:
             self._resampler = self._audio_resampler
 
     def is_speech(self, data: bytes) -> bool:
+        if self._rms:
+            self._rms.measure(data)
         self._call_detector(self._resampler(data))
         return self._state
 
     def dynamic_energy(self):
         pass
+
+    def rms(self) -> tuple or None:
+        if self._another:
+            return self._another.rms()
+        return self._rms.result() if self._rms else None
 
     def _detector(self, chunk: bytes):
         pass
@@ -276,10 +314,10 @@ class Detector:
 
 class SnowboyHWD(Detector):
     def __init__(self, resource_path, hot_word_files, sensitivity,
-                 audio_gain, width, rate, another, apply_frontend, **_):
+                 audio_gain, width, rate, another, apply_frontend, rms, **_):
         self._snowboy = SnowboyHWD._constructor(
             resource_path, sensitivity, audio_gain, apply_frontend, *hot_word_files)
-        super().__init__(150, width, rate, self._snowboy.SampleRate())
+        super().__init__(150, width, rate, self._snowboy.SampleRate(), rms and not another)
         self._another = another
         self._current_state = -2
 
@@ -287,6 +325,8 @@ class SnowboyHWD(Detector):
         return self._detector(buffer)
 
     def is_speech(self, buffer: bytes) -> bool:
+        if self._rms:
+            self._rms.measure(buffer)
         return self._detector(buffer, True) >= 0
 
     def dynamic_energy(self):
@@ -326,9 +366,9 @@ class SnowboyHWD(Detector):
 
 class PorcupineHWD(Detector):
     def __init__(self, resource_path, hot_word_files, sensitivity,
-                 width, rate, another, **_):
+                 width, rate, another, rms, **_):
         self._porcupine = PorcupineHWD._constructor(resource_path, sensitivity, *hot_word_files)
-        super().__init__(1, width, rate, self._porcupine.sample_rate)
+        super().__init__(1, width, rate, self._porcupine.sample_rate, rms and not another)
         self._sample_size = width * self._porcupine.frame_length
         self._another = another
         self._current_state = -2
@@ -338,6 +378,8 @@ class PorcupineHWD(Detector):
         return self._current_state
 
     def is_speech(self, buffer: bytes) -> bool:
+        if self._rms:
+            self._rms.measure(buffer)
         result = self._detector(self._resampler(buffer), True) >= 0
         self._buffer = b''
         return result
@@ -376,8 +418,8 @@ class PorcupineHWD(Detector):
 
 
 class WebRTCVAD(Detector):
-    def __init__(self, width, rate, lvl, **_):
-        super().__init__(30, width, rate, 16000)
+    def __init__(self, width, rate, lvl, rms, **_):
+        super().__init__(30, width, rate, 16000, rms)
         self._vad = WebRTCVAD._constructor(lvl)
 
     def _detector(self, chunk: bytes):
@@ -390,11 +432,13 @@ class WebRTCVAD(Detector):
 
 
 class APMVAD(Detector):
-    def __init__(self, width, rate, lvl, **_):
-        super().__init__(10, width, rate, 16000)
+    def __init__(self, width, rate, lvl, rms, **_):
+        super().__init__(10, width, rate, 16000, rms)
         self._apm = APMVAD._constructor(lvl)
 
     def is_speech(self, data: bytes) -> bool:
+        if self._rms:
+            self._rms.measure(data)
         self._call_detector(self._resampler(data))
         self._state = self._apm.has_voice()
         return self._state

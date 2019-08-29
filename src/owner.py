@@ -214,7 +214,7 @@ class Owner:
     def kill_popen(self):
         raise NotImplementedError
 
-    def listen(self, hello: str = '', deaf: bool = True, voice: bool = False) -> str:
+    def listen(self, hello: str = '', deaf: bool = True, voice: bool = False) -> tuple:
         raise NotImplementedError
 
     def voice_record(self, hello: str, save_to: str, convert_rate=None, convert_width=None):
@@ -302,7 +302,7 @@ class Owner:
     def volume_callback(self, volume: int):
         raise NotImplementedError
 
-    def send_to_srv(self, qry: str, username=None) -> str:
+    def send_to_srv(self, qry: str, username=None, more=None) -> str:
         raise NotImplementedError
 
     @property
@@ -319,7 +319,7 @@ class Owner:
     def manual_rollback(self):
         raise NotImplementedError
 
-    def modules_tester(self, phrase: str, call_me=None, model=None):
+    def modules_tester(self, phrase: str, call_me=None, rms=None, model=None):
         raise NotImplementedError
 
     def die_in(self, wait, reload=False):

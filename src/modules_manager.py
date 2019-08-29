@@ -119,6 +119,8 @@ class ModuleManager:
         self.by_name = None
         # код вызова
         self._code = 0
+        # RMS полученный при записи распознанной фразы (min, max, avg) или None
+        self.rms = None
         # Название модели которым был активирован терминал или None
         self.model = None
         # Имя модуля (.__name__) который вызван в данный момент.
@@ -337,8 +339,9 @@ class ModuleManager:
                 return self._return_wrapper(f, reply)
         return self._return_wrapper(None, None)
 
-    def tester(self, phrase: str, call_me=None, model=None):
+    def tester(self, phrase: str, call_me=None, rms=None, model=None):
         with self._lock:
+            self.rms = rms
             self.model = model
             reply = Next
             f = None

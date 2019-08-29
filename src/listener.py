@@ -9,6 +9,7 @@ from lib import sr_wrapper as sr
 from lib.audio_utils import ModuleLoader
 from lib.audio_utils import SnowboyHWD, WebRTCVAD, APMVAD, get_hot_word_detector
 from owner import Owner
+from utils import recognition_msg
 
 
 class Listener:
@@ -61,12 +62,12 @@ class Listener:
                     except (sr.WaitTimeoutError, RuntimeError):
                         continue
             if chrome_mode:
-                self._adata_parse(adata, model_name, phrase, vad.energy_threshold, callback)
+                self._adata_parse(adata, model_name, phrase, vad, callback)
             else:
                 hw_detector.reset()
                 self._detected(model_name, phrase, msg, callback)
 
-    def _adata_parse(self, adata, model_name: str, phrases: str, energy_threshold, callback):
+    def _adata_parse(self, adata, model_name: str, phrases: str, vad, callback):
         if self.cfg.gts('chrome_alarmstt'):
             self.own.play(self.cfg.path['dong'])
         msg = self.own.voice_recognition(adata)
@@ -78,10 +79,10 @@ class Listener:
             if clear_msg is not None:
                 # Нашли триггер в сообщении
                 model_msg = ': "{}"'.format(phrase)
-                self._detected_sr(clear_msg, model_name, model_msg, energy_threshold, callback)
+                self._detected_sr(clear_msg, model_name, model_msg, vad, callback)
                 return
         # Не наши триггер в сообщении - snowboy false positive
-        self._detected_sr(msg, phrases, None, energy_threshold)
+        self._detected_sr(msg, phrases, None, vad)
 
     def _detected(self, model_name, phrase, msg, cb):
         self.own.voice_activated_callback()
@@ -90,20 +91,17 @@ class Listener:
         if phrase and self.own.sys_say_chance and not no_hello:
             hello = LNG['model_listened'].format(phrase)
         self.log(LNG['activate_by'].format(model_name, msg), logger.INFO)
-        cb(hello, self.own.listen(hello, voice=no_hello), model_name)
+        cb(hello, *self.own.listen(hello, voice=no_hello), model_name)
 
-    def _detected_sr(self, msg: str, model_name: str, model_msg: str or None, energy: int or None, cb=None):
+    def _detected_sr(self, msg: str, model_name: str, model_msg: str or None, vad, cb=None):
+        energy, rms = (vad.energy_threshold, vad.rms()) if vad is not None else (None, None)
         if not cb:
-            msg = 'Activation error: \'{}\', trigger: \'{}\', energy_threshold: {}'.format(msg, model_name, energy)
+            msg = recognition_msg('Activation error: \'{}\', trigger: \'{}\''.format(msg, model_name), energy, rms)
             self.log(msg, logger.DEBUG)
             return
-        if self.cfg.gt('listener', 'energy_threshold', 0) < 1:
-            energy = ', energy_threshold={}'.format(energy)
-        else:
-            energy = ''
-        self.log('Recognized: {}{}'.format(msg, energy), logger.INFO)
+        self.log(recognition_msg(msg, energy, rms), logger.INFO)
         self.log(LNG['activate_by'].format(model_name, model_msg), logger.INFO)
-        cb(False, msg, model_name)
+        cb(False, msg, rms, model_name)
 
     def listen(self, r=None, mic=None, vad=None):
         r = r or sr.Recognizer(self.own.record_callback, self.cfg.gt('listener', 'silent_multiplier'))
@@ -116,7 +114,7 @@ class Listener:
             except (sr.WaitTimeoutError, RuntimeError):
                 adata = None
             record_time = time.time() - record_time
-        return adata, record_time, vad.energy_threshold if isinstance(vad, sr.EnergyDetectorVAD) else None
+        return adata, record_time, vad.energy_threshold, vad.rms()
 
     def _listen(self, r, source, vad, frames=None, hw_time=None):
         def positive_or_none(val):
@@ -142,7 +140,7 @@ class Listener:
                     except RuntimeError:
                         adata = None
                     break
-            return adata, detector.energy_threshold if isinstance(detector, sr.EnergyDetectorVAD) else None
+            return adata
 
         mic_ = sr.Microphone(device_index=self.own.mic_index)
         return NonBlockListener(callback, mic_, self.get_vad_detector(mic_))
@@ -163,7 +161,8 @@ class Listener:
             lvl=vad_lvl, width=source_or_mic.SAMPLE_WIDTH, rate=source_or_mic.SAMPLE_RATE,
             resource_path=self.cfg.path['home'], hot_word_files=self.cfg.path['models_list'],
             sensitivity=self.cfg.gts('sensitivity'), audio_gain=self.cfg.gts('audio_gain'), another=None,
-            apply_frontend=self.cfg.gt('noise_suppression', 'snowboy_apply_frontend')
+            apply_frontend=self.cfg.gt('noise_suppression', 'snowboy_apply_frontend'),
+            rms=self.cfg.gt('smarthome', 'send_rms')
         )
         if isinstance(vad, sr.EnergyDetectorVAD):
             if not energy_lvl:
@@ -213,11 +212,13 @@ class NonBlockListener(threading.Thread):
         self._detector = detector
         self.audio = None
         self.energy_threshold = None
+        self.rms = None
         self._has_stop = False
         self._work = False
 
     def run(self):
-        self.audio, self.energy_threshold = self._listener(self._interrupt_check, self._mic, self._detector)
+        self.audio = self._listener(self._interrupt_check, self._mic, self._detector)
+        self.energy_threshold, self.rms = self._detector.energy_threshold, self._detector.rms()
         self._has_stop = True
 
     def work(self):

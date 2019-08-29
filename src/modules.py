@@ -299,8 +299,9 @@ def majordomo(self, _, phrase):
         phrase = LNG['srv_rep_say_s'] + phrase[1:]
 
     username = self.cfg.gt('persons', self.model) if self.model else None
+    more = dict(zip(('rms_min', 'rms_max', 'rms_avg'), self.rms)) if self.rms else None
     try:
-        self.log(LNG['srv_ok'].format(self.own.send_to_srv(phrase, username)), logger.DEBUG)
+        self.log(LNG['srv_ok'].format(self.own.send_to_srv(phrase, username, more)), logger.DEBUG)
     except RuntimeError as e:
         e = '[{}] {}'.format(self.own.srv_ip, e)
         self.log(LNG['err_srv'].format(e), logger.ERROR)

@@ -32,7 +32,7 @@ import time
 
 import speech_recognition
 
-from .audio_utils import APMSettings, MicrophoneStreamAPM, MicrophoneStream, StreamRecognition
+from .audio_utils import APMSettings, MicrophoneStreamAPM, MicrophoneStream, StreamRecognition, RMS
 from .proxy import proxies
 
 AudioData = speech_recognition.AudioData
@@ -298,19 +298,26 @@ class Recognizer(speech_recognition.Recognizer):
 
 
 class EnergyDetectorVAD:
-    def __init__(self, source, width, rate, energy_lvl, energy_dynamic, **_):
+    WRONG_RMS = 32768
+
+    def __init__(self, source, width, rate, energy_lvl, energy_dynamic, rms, **_):
         self.dynamic_energy_adjustment_damping = 0.15
         self.dynamic_energy_ratio = 1.5
         self._width = width
         self._dynamic_energy_threshold = energy_dynamic
         self._seconds_per_buffer = float(source.CHUNK) / rate
+        self._rms = RMS(width) if rms else None
         if not energy_lvl:
-            self.energy_threshold = 500
+            self._energy_threshold = 500
             self._energy = None
         else:
-            self.energy_threshold = energy_lvl
+            self._energy_threshold = energy_lvl
             self._energy = energy_lvl
             self._dynamic_energy()
+
+    @property
+    def energy_threshold(self):
+        return int(self._energy_threshold) if self._energy_threshold else self._energy_threshold
 
     def adjust_for_ambient_noise(self, stream, chunk, duration=1):
         elapsed_time = 0
@@ -323,17 +330,22 @@ class EnergyDetectorVAD:
                 break
             # energy of the audio signal
             energy = audioop.rms(buffer,  self._width)
-            if energy != 32768:
+            if energy != self.WRONG_RMS:
                 self._energy = energy
                 self._dynamic_energy()
 
     def is_speech(self, buffer: bytes) -> bool:
         energy = audioop.rms(buffer,  self._width)
-        if energy == 32768:
+        if energy == self.WRONG_RMS:
             return False
-        result = energy > self.energy_threshold
+        if self._rms:
+            self._rms.calc(energy)
+        result = energy > self._energy_threshold
         self._energy = None if result else energy
         return result
+
+    def rms(self) -> tuple or None:
+        return self._rms.result() if self._rms else None
 
     def dynamic_energy(self):
         if self._energy is not None and self._dynamic_energy_threshold:
@@ -342,7 +354,7 @@ class EnergyDetectorVAD:
     def _dynamic_energy(self):
         damping = self.dynamic_energy_adjustment_damping ** self._seconds_per_buffer
         target_energy = self._energy * self.dynamic_energy_ratio
-        self.energy_threshold = self.energy_threshold * damping + target_energy * (1 - damping)
+        self._energy_threshold = self._energy_threshold * damping + target_energy * (1 - damping)
 
 
 # part of https://github.com/Uberi/speech_recognition/blob/master/speech_recognition/__init__.py#L574

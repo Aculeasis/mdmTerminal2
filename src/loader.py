@@ -237,7 +237,7 @@ class Loader(Owner):
     def kill_popen(self):
         self._play.kill_popen()
 
-    def listen(self, hello: str = '', deaf: bool = True, voice: bool = False) -> str:
+    def listen(self, hello: str = '', deaf: bool = True, voice: bool = False) -> tuple:
         return self._stt.listen(hello, deaf, voice)
 
     def voice_record(self, hello: str, save_to: str, convert_rate=None, convert_width=None):
@@ -327,8 +327,8 @@ class Loader(Owner):
     def volume_callback(self, volume: int):
         self._pub.call('volume', volume)
 
-    def send_to_srv(self, qry: str, username=None) -> str:
-        return self._notifier.send(qry, username)
+    def send_to_srv(self, qry: str, username=None, more=None) -> str:
+        return self._notifier.send(qry, username, more)
 
     @property
     def srv_ip(self) -> str:
@@ -344,8 +344,8 @@ class Loader(Owner):
     def manual_rollback(self):
         self._updater.manual_rollback()
 
-    def modules_tester(self, phrase: str, call_me=None, model=None):
-        return self._mm.tester(phrase, call_me, model)
+    def modules_tester(self, phrase: str, call_me=None, rms=None, model=None):
+        return self._mm.tester(phrase, call_me, rms, model)
 
     def die_in(self, wait, reload=False):
         self.reload = reload

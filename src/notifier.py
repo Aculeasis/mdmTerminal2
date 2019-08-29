@@ -137,8 +137,11 @@ class MajordomoNotifier(threading.Thread):
                     continue
             self._send_notify(data)
 
-    def send(self, qry: str, user=None) -> str:
-        return self._send('cmd', {'qry': qry}, user)
+    def send(self, qry: str, user, more) -> str:
+        params = {'qry': qry}
+        if more and isinstance(more, dict):
+            params.update(more)
+        return self._send('cmd', params, user)
 
     @property
     def _uptime(self) -> int:
