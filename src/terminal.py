@@ -31,6 +31,9 @@ class MDTerminal(threading.Thread):
         self._listener_event = owner.registration('listener')
         self._queue = queue.Queue()
         self._wait = threading.Event()
+        # Что делает терминал, для диагностики зависаний треда
+        # 0 - ничего, 1 - слушает микрофон, 2 - тестирут микрофон, 3 - обрабатывает результат, 4 - внешний вызов
+        self.stage = 0
 
         self.DATA_CALL = {
             'reload': self._reload,
@@ -49,15 +52,62 @@ class MDTerminal(threading.Thread):
         if self._cfg.detector != 'porcupine':
             self.ARGS_CALL['compile'] = self._rec_compile
 
+    def join(self, timeout=30):
+        self._wait.set()
+        super().join(timeout=timeout)
+
+    def start(self):
+        self.work = True
+        self.log('start', logger.INFO)
+        super().start()
+
+    def run(self):
+        self._mic_tester()
+        self._reload()
+        while self.work:
+            self._listen()
+            self.stage = 4
+            self._external_check()
+            self.stage = 0
+
+    def call(self, cmd: str, data='', lvl: int = 0, save_time: bool = True):
+        if cmd == 'tts' and not lvl:
+            if self._cfg.gts('no_background_play'):
+                lvl = 2
+            else:
+                self.own.say(data, lvl=0)
+                return
+        self._queue.put_nowait((cmd, data, lvl, time.time() if save_time else 0))
+        self._wait.set()
+
+    def diagnostic_msg(self) -> str:
+        msg = {
+            0: 'No special action - unknown error.',
+            1: 'Listening action - microphone broken?',
+            2: 'Testing mic action - microphone broken?',
+            3: 'Processing recognition result - unknown error.',
+            4: 'External call - unknown error.',
+        }.get(self.stage, 'INTERNAL ERROR!')
+        return '[{}]: {}'.format(self.stage, msg)
+
+    @utils.state_cache(interval=0.1)
+    def _no_listen(self):
+        return self._cfg['listener']['no_listen_music'] and self.own.music_plays
+
+    def _interrupt_check(self):
+        return not self.work or self._queue.qsize() or self._no_listen()
+
     def _mic_tester(self):
         if self.own.max_mic_index == -2:
             return
+        self.stage = 2
         if self._test_mic_record():
             self.log('Microphone test: OK', logger.INFO)
         else:
             self.own.max_mic_index = -2
             self.log('Microphone test: STUCK', logger.ERROR)
             self.own.sub_call('default', 'mic_test_error')
+        self.stage = 0
 
     def _test_mic_record(self) -> bool:
         def callback(_, mic, detector):
@@ -83,29 +133,6 @@ class MDTerminal(threading.Thread):
             self._old_listener = not self._old_listener
         self._wait.set()
 
-    def join(self, timeout=30):
-        self._wait.set()
-        super().join(timeout=timeout)
-
-    def start(self):
-        self.work = True
-        self.log('start', logger.INFO)
-        super().start()
-
-    @utils.state_cache(interval=0.1)
-    def _no_listen(self):
-        return self._cfg['listener']['no_listen_music'] and self.own.music_plays
-
-    def _interrupt_check(self):
-        return not self.work or self._queue.qsize() or self._no_listen()
-
-    def run(self):
-        self._mic_tester()
-        self._reload()
-        while self.work:
-            self._listen()
-            self._external_check()
-
     def _listen(self):
         if self._snowboy is None:
             self._wait.wait(2)
@@ -114,7 +141,9 @@ class MDTerminal(threading.Thread):
             time.sleep(0.2)
         else:
             try:
+                self.stage = 1
                 self._snowboy()
+                self.stage = 0
             except OSError as e:
                 self.work = False
                 self.log('Critical error, bye: {}'.format(e), logger.CRIT)
@@ -354,17 +383,9 @@ class MDTerminal(threading.Thread):
             self._listening = listening
             self._reload()
 
-    def call(self, cmd: str, data='', lvl: int = 0, save_time: bool = True):
-        if cmd == 'tts' and not lvl:
-            if self._cfg.gts('no_background_play'):
-                lvl = 2
-            else:
-                self.own.say(data, lvl=0)
-                return
-        self._queue.put_nowait((cmd, data, lvl, time.time() if save_time else 0))
-        self._wait.set()
-
     def _detected_parse(self, voice: bool, reply: str, rms, model=None):
+        # callback, нужно восстановить прошлую стадию
+        _stage, self.stage = self.stage, 3
         caller = False
         self.own.speech_recognized_callback(bool(reply))
         if reply or voice:
@@ -375,3 +396,4 @@ class MDTerminal(threading.Thread):
                     self.own.speech_recognized_callback(bool(reply))
         if reply:
             self.own.say(reply)
+        self.stage = _stage

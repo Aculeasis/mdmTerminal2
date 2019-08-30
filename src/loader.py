@@ -103,6 +103,11 @@ class Loader(Owner):
         def obj_log(msg_: str, lvl=logger.DEBUG):
             if log_present:
                 obj.log(msg_, lvl)
+
+        def diagnostic_msg() -> str:
+            _call = getattr(obj, 'diagnostic_msg', None)
+            return ' {}'.format(_call()) if callable(_call) else ''
+
         with self._join_lock:
             if not obj.work:
                 return
@@ -115,10 +120,11 @@ class Loader(Owner):
             if not obj.is_alive():
                 obj_log('stop.', logger.INFO)
             else:
-                obj.log('stopping error.', logger.ERROR)
+                obj_log('stopping error.', logger.ERROR)
                 name_ = '.'.join(getattr(obj.log, 'name', [''])) if log_present else None
                 name_ = name_ or str(obj)
-                msg = 'Thread \'{}\' stuck and not stopping in {}!'.format(name_, pretty_time(stop_time))
+                msg = 'Thread \'{}\' stuck and not stopping in {}!{}'.format(
+                    name_, pretty_time(stop_time), diagnostic_msg())
                 self.log(msg, logger.ERROR)
 
     def subscribe(self, event, callback, channel='default') -> bool:
