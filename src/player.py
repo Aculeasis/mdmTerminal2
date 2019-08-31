@@ -16,7 +16,7 @@ class Player:
     MAX_BUSY_WAIT = 300  # Макс время блокировки, потом отлуп. Поможет от возможных зависаний
 
     def __init__(self, cfg, log, owner: Owner):
-        self._cfg = cfg
+        self.cfg = cfg
         self.log = log
         self.own = owner
         # 0 - играем в фоне, до 5 снимаем блокировку автоматически. 5 - монопольный режим, нужно снять блокировку руками
@@ -33,7 +33,7 @@ class Player:
         alternative = ', '.join([key for key in play_utils.BACKENDS.keys() if key])
         if alternative:
             self.log('Available universal players: {}'.format(alternative), logger.INFO)
-        software_player = self._cfg.gts('software_player')
+        software_player = self.cfg.gts('software_player')
         if software_player in play_utils.BACKENDS:
             self.log('Use universal player: {}'.format(play_utils.BACKENDS[software_player][0]), logger.INFO)
 
@@ -108,12 +108,12 @@ class Player:
                 pass
 
     def _no_background_play(self, lvl, blocking):
-        if not self._cfg.gts('no_background_play'):
+        if not self.cfg.gts('no_background_play'):
             return lvl, blocking
         return lvl if lvl >= 5 else 2, 250
 
     def play(self, file, lvl: int = 2, wait=0, blocking: int = 0):
-        if not lvl and not self._cfg.gts('no_background_play'):
+        if not lvl and not self.cfg.gts('no_background_play'):
             self.log('low play \'{}\' pause {}'.format(file, wait), logger.DEBUG)
             return self._lp_play.play(file, wait)
         self._only_one.acquire()
@@ -130,12 +130,12 @@ class Player:
             time.sleep(wait)
 
     def say_info(self, msg: str, lvl: int = 2, alarm=None, wait=0, is_file: bool = False):
-        if self._cfg.gts('quiet'):
+        if self.cfg.gts('quiet'):
             return
         self.say(msg, lvl, alarm, wait, is_file)
 
     def say(self, msg: str, lvl: int = 2, alarm=None, wait=0, is_file: bool = False, blocking: int = 0):
-        if not lvl and not self._cfg.gts('no_background_play'):
+        if not lvl and not self.cfg.gts('no_background_play'):
             self.log('low say \'{}\' pause {}'.format(msg, wait), logger.DEBUG)
             return self._lp_play.say(msg, wait, is_file)
         self._only_one.acquire()
@@ -144,11 +144,11 @@ class Player:
             return
         self.own.say_callback(True)
         if alarm is None:
-            alarm = self._cfg.gts('alarmtts')
+            alarm = self.cfg.gts('alarmtts')
 
         file = self.own.tts(msg) if not is_file else msg
         if alarm:
-            self._play(self._cfg.path['dong'])
+            self._play(self.cfg.path['dong'])
             self._wait_popen()
         self._play(file, self.own.say_callback)
         if blocking:
@@ -176,7 +176,7 @@ class Player:
             return self.log(LNG['unknown_type'].format(ext), logger.CRIT)
         self.log(LNG['play' if stream is None else 'stream'].format(path, logger.DEBUG))
         try:
-            self._popen = play_utils.get_popen(ext, path, stream, callback, self._cfg.gts('software_player'))
+            self._popen = play_utils.get_popen(ext, path, stream, callback, self.cfg.gts('software_player'))
         except FileNotFoundError as e:
             self.log('Playing error: {}'.format(e), logger.ERROR)
 

@@ -23,13 +23,13 @@ from owner import Owner
 class TextToSpeech:
     def __init__(self, cfg, log):
         self._log = log
-        self._cfg = cfg
+        self.cfg = cfg
 
     def tts(self, msg, realtime: bool = True):
         if callable(msg):
             # Audio already synthesized
             return msg
-        return _TTSWorker(self._cfg, self._log, msg, realtime).get
+        return _TTSWorker(self.cfg, self._log, msg, realtime).get
 
 
 class _TTSWorker(threading.Thread):
@@ -179,7 +179,7 @@ class _TTSWorker(threading.Thread):
 class SpeechToText:
     def __init__(self, cfg, log, owner: Owner):
         self.log = log
-        self._cfg = cfg
+        self.cfg = cfg
         self.own = owner
         self.sys_say = Phrases(log, cfg)
         self._lock = threading.Lock()
@@ -199,7 +199,7 @@ class SpeechToText:
             self.max_mic_index = -2
 
     def reload(self):
-        self.sys_say = Phrases(self.log, self._cfg)
+        self.sys_say = Phrases(self.log, self.cfg)
 
     def start(self):
         self._work = True
@@ -232,7 +232,7 @@ class SpeechToText:
         return msg, rms
 
     def _listen_and_take(self, hello, deaf, voice) -> tuple:
-        ask_me_again = self._cfg.get_uint('ask_me_again')
+        ask_me_again = self.cfg.get_uint('ask_me_again')
         msg, rms = self._listen(hello, voice)
         again = msg is None and ask_me_again > 0
 
@@ -244,11 +244,11 @@ class SpeechToText:
         if msg is None and deaf:
             say = self.sys_say.deaf
             if say:
-                self.own.say(say, blocking=120 if self._cfg.gts('blocking_listener') else 0)
+                self.own.say(say, blocking=120 if self.cfg.gts('blocking_listener') else 0)
         return msg or '', rms
 
     def get_mic_index(self):
-        device_index = self._cfg.gts('mic_index', -1)
+        device_index = self.cfg.gts('mic_index', -1)
         if device_index > self.max_mic_index:
             if self.max_mic_index >= 0:
                 mics = LNG['mics_to'].format(self.max_mic_index + 1, self.max_mic_index)
@@ -262,8 +262,8 @@ class SpeechToText:
         lvl = 5  # Включаем монопольный режим
         commands = None
 
-        if self._cfg.gts('alarmkwactivated'):
-            self.own.play(self._cfg.path['ding'], lvl, blocking=2)
+        if self.cfg.gts('alarmkwactivated'):
+            self.own.play(self.cfg.path['ding'], lvl, blocking=2)
         else:
             self.own.set_lvl(lvl)
             self.own.kill_popen()
@@ -272,7 +272,7 @@ class SpeechToText:
         hello = hello or self.sys_say.hello
         file_path = self.own.tts(hello) if not voice and hello else None
 
-        if self._cfg.gts('blocking_listener'):
+        if self.cfg.gts('blocking_listener'):
             audio, record_time, energy, rms = self._block_listen(hello, lvl, file_path)
         else:
             audio, record_time, energy, rms = self._non_block_listen(hello, lvl, file_path)
@@ -281,8 +281,8 @@ class SpeechToText:
         # Выключаем монопольный режим
         self.own.clear_lvl()
 
-        if self._cfg.gts('alarmstt'):
-            self.own.play(self._cfg.path['dong'])
+        if self.cfg.gts('alarmstt'):
+            self.own.play(self.cfg.path['dong'])
         if audio is not None:
             commands = self.voice_recognition(audio)
 
@@ -299,8 +299,8 @@ class SpeechToText:
         start_wait = time.time()
         if file_path:
             self.own.say(file_path, lvl, False if hello else None, is_file=True)
-        elif self._cfg.gts('alarmtts') and not hello:
-            self.own.say(self._cfg.path['dong'], lvl, False, is_file=True)
+        elif self.cfg.gts('alarmtts') and not hello:
+            self.own.say(self.cfg.path['dong'], lvl, False, is_file=True)
 
         # Начинаем фоновое распознавание голосом после того как запустился плей.
         listener.start()
@@ -323,15 +323,15 @@ class SpeechToText:
         return listener.audio, record_time, listener.energy_threshold, listener.rms
 
     def _block_listen(self, hello, lvl, file_path, self_call=False):
-        r = sr.Recognizer(self.own.record_callback, self._cfg.gt('listener', 'silent_multiplier'))
+        r = sr.Recognizer(self.own.record_callback, self.cfg.gt('listener', 'silent_multiplier'))
         mic = sr.Microphone(device_index=self.get_mic_index())
-        alarm = self._cfg.gts('alarmtts') and not hello
+        alarm = self.cfg.gts('alarmtts') and not hello
 
         if alarm or file_path:
             self.own.say_callback(True)
         try:
             if alarm:
-                self.own.play(self._cfg.path['dong'], lvl, blocking=2)
+                self.own.play(self.cfg.path['dong'], lvl, blocking=2)
             vad = self.own.get_vad_detector(mic)
             if file_path:
                 self.own.play(file_path, lvl, blocking=120)
@@ -369,7 +369,7 @@ class SpeechToText:
         r = sr.Recognizer()
         mic = sr.Microphone(device_index=self.get_mic_index())
         vad = self.own.get_vad_detector(mic)
-        self.own.play(self._cfg.path['ding'], lvl, blocking=3)
+        self.own.play(self.cfg.path['ding'], lvl, blocking=3)
         with mic as source:
             record_time = time.time()
             try:
@@ -400,8 +400,8 @@ class SpeechToText:
         def say(text: str):
             if not quiet:
                 self.own.say(text)
-        quiet = quiet or not self._cfg.gts('say_stt_error')
-        prov = self._cfg.gts('providerstt', 'unset')
+        quiet = quiet or not self.cfg.gts('say_stt_error')
+        prov = self.cfg.gts('providerstt', 'unset')
         if not STT.support(prov):
             self.log(LNG['err_unknown_prov'].format(prov), logger.CRIT)
             say(LNG['err_unknown_prov'].format(''))
@@ -412,11 +412,11 @@ class SpeechToText:
             command = STT.GetSTT(
                 prov,
                 audio_data=audio,
-                key=self._cfg.key(prov, 'apikeystt'),
-                lang=self._cfg.stt_lang(prov),
-                url=self._cfg.gt(prov, 'server'),
-                yandex_api=self._cfg.yandex_api(prov),
-                grpc=self._cfg.gt(prov, 'grpc'),
+                key=self.cfg.key(prov, 'apikeystt'),
+                lang=self.cfg.stt_lang(prov),
+                url=self.cfg.gt(prov, 'server'),
+                yandex_api=self.cfg.yandex_api(prov),
+                grpc=self.cfg.gt(prov, 'grpc'),
             ).text()
         except STT.UnknownValueError:
             command = ''
@@ -452,7 +452,7 @@ class SpeechToText:
     def _print_mic_info(self):
         if self.max_mic_index < 0:
             return
-        index = self._cfg.gts('mic_index', -1)
+        index = self.cfg.gts('mic_index', -1)
         name = sr.Microphone.get_microphone_name(index if index > -1 else None)
         self.log('Microphone: "{}: {}"'.format(index if index > -1 else 'Default', name), logger.INFO)
 

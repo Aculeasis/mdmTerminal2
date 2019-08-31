@@ -22,7 +22,7 @@ class MDTerminal(threading.Thread):
     def __init__(self, cfg, log, owner: Owner):
         super().__init__(name='MDTerminal')
         self.log = log
-        self._cfg = cfg
+        self.cfg = cfg
         self.own = owner
         self.work = False
         self._listening = True
@@ -50,7 +50,7 @@ class MDTerminal(threading.Thread):
             'del': self._rec_del,
             'send_model': self._send_model,
         }
-        if self._cfg.detector != 'porcupine':
+        if self.cfg.detector != 'porcupine':
             self.ARGS_CALL['compile'] = self._rec_compile
 
     def join(self, timeout=30):
@@ -73,7 +73,7 @@ class MDTerminal(threading.Thread):
 
     def call(self, cmd: str, data='', lvl: int = 0, save_time: bool = True):
         if cmd == 'tts' and not lvl:
-            if self._cfg.gts('no_background_play'):
+            if self.cfg.gts('no_background_play'):
                 lvl = 2
             else:
                 self.own.say(data, lvl=0)
@@ -93,7 +93,7 @@ class MDTerminal(threading.Thread):
 
     @utils.state_cache(interval=0.1)
     def _no_listen(self):
-        return self._cfg['listener']['no_listen_music'] and self.own.music_plays
+        return self.cfg['listener']['no_listen_music'] and self.own.music_plays
 
     def _interrupt_check(self):
         return not self.work or self._queue.qsize() or self._no_listen()
@@ -186,13 +186,13 @@ class MDTerminal(threading.Thread):
             self.log('{}: {}'.format(LNG['err_rec_param'], sample), logger.ERROR)
             self.own.say(LNG['err_rec_param'])
             return
-        pmdl_name = ''.join(['model', model, self._cfg.path['model_ext']])
-        if not self._cfg.is_model_name(pmdl_name):
+        pmdl_name = ''.join(['model', model, self.cfg.path['model_ext']])
+        if not self.cfg.is_model_name(pmdl_name):
             self.log('Wrong model filename: {}'.format(repr(pmdl_name)), logger.ERROR)
             return
 
         hello = LNG['rec_hello'].format(LNG['rec_nums'][sample])
-        save_to = self._cfg.path_to_sample(model, sample)
+        save_to = self.cfg.path_to_sample(model, sample)
         self.log(hello, logger.INFO)
         err = self.own.voice_record(hello=hello, save_to=save_to, convert_rate=16000, convert_width=2)
         if err is None:
@@ -205,7 +205,7 @@ class MDTerminal(threading.Thread):
             self.own.say(err)
 
     def _rec_play(self, model, sample):
-        file = self._cfg.path_to_sample(model, sample)
+        file = self.cfg.path_to_sample(model, sample)
         if os.path.isfile(file):
             self.own.say(file, is_file=True)
         else:
@@ -215,7 +215,7 @@ class MDTerminal(threading.Thread):
     def _rec_compile(self, model, username):
         samples = []
         for num in ('1', '2', '3'):
-            sample_path = self._cfg.path_to_sample(model, num)
+            sample_path = self.cfg.path_to_sample(model, num)
             if not os.path.isfile(sample_path):
                 self.log(LNG['compile_no_file'].format(sample_path), logger.ERROR)
                 self.own.say(LNG['compile_no_file'].format(os.path.basename(sample_path)))
@@ -227,9 +227,9 @@ class MDTerminal(threading.Thread):
 
     def _rec_del(self, model, _):
         is_del = False
-        pmdl_name = ''.join(['model', model, self._cfg.path['model_ext']])
-        pmdl_path = os.path.join(self._cfg.path['models'], pmdl_name)
-        if not self._cfg.is_model_name(pmdl_name):
+        pmdl_name = ''.join(['model', model, self.cfg.path['model_ext']])
+        pmdl_path = os.path.join(self.cfg.path['models'], pmdl_name)
+        if not self.cfg.is_model_name(pmdl_name):
             self.log('Wrong model filename: {}'.format(repr(pmdl_name)), logger.ERROR)
             return
 
@@ -252,30 +252,30 @@ class MDTerminal(threading.Thread):
             self.own.say(msg)
 
         # remove model record in config
-        to_save = self._cfg['models'].pop(pmdl_name, None) is not None
-        to_save |= self._cfg['persons'].pop(pmdl_name, None) is not None
+        to_save = self.cfg['models'].pop(pmdl_name, None) is not None
+        to_save |= self.cfg['persons'].pop(pmdl_name, None) is not None
 
         if to_save:
-            self._cfg.config_save()
+            self.cfg.config_save()
         if is_del:
-            self._cfg.models_load()
+            self.cfg.models_load()
             self._reload()
 
     def _compile_model(self, model, samples, username):
         phrase, match_count = self.own.phrase_from_files(samples)
-        pmdl_name = ''.join(['model', model, self._cfg.path['model_ext']])
-        pmdl_path = os.path.join(self._cfg.path['models'], pmdl_name)
-        if not self._cfg.is_model_name(pmdl_name):
+        pmdl_name = ''.join(['model', model, self.cfg.path['model_ext']])
+        pmdl_path = os.path.join(self.cfg.path['models'], pmdl_name)
+        if not self.cfg.is_model_name(pmdl_name):
             self.log('Wrong model filename: {}'.format(repr(pmdl_name)), logger.ERROR)
             return
 
         # Начальные параметры для API сноубоя
-        params = {key: self._cfg.gt('snowboy', key) for key in ('token', 'name', 'age_group', 'gender', 'microphone')}
+        params = {key: self.cfg.gt('snowboy', key) for key in ('token', 'name', 'age_group', 'gender', 'microphone')}
         params['language'] = LANG_CODE['ISO']
 
         if match_count != len(samples):
             msg = LNG['no_consensus'].format(pmdl_name, match_count, len(samples))
-            if self._cfg.gt('snowboy', 'clear_models') or self._cfg.gts('chrome_mode'):
+            if self.cfg.gt('snowboy', 'clear_models') or self.cfg.gts('chrome_mode'):
                 # Не создаем модель если не все фразы идентичны
                 self.log(msg, logger.ERROR)
                 self.own.say(LNG['err_no_consensus'].format(model))
@@ -304,13 +304,13 @@ class MDTerminal(threading.Thread):
 
         # Удаляем временные файлы
         try:
-            self._cfg.remove_samples(model)
+            self.cfg.remove_samples(model)
         except RuntimeError as e:
             self.log('remove samples \'{}\': {}'.format(model, e), logger.ERROR)
 
     def _send_model(self, filename, body, username, phrase):
         # Получили модель от сервера (send - это для сервера)
-        pmdl_path = os.path.join(self._cfg.path['models'], filename)
+        pmdl_path = os.path.join(self.cfg.path['models'], filename)
         self.log('Model {} received from server: phrase={}, username={}, size={} bytes.'.format(
             repr(filename), repr(phrase), repr(username), len(body)), logger.INFO)
         with open(pmdl_path, 'wb') as fp:
@@ -321,8 +321,8 @@ class MDTerminal(threading.Thread):
         model_data = {'models': {pmdl_name: phrase}}
         if username:
             model_data['persons'] = {pmdl_name: username}
-        self._cfg.update_from_dict(model_data)
-        self._cfg.models_load()
+        self.cfg.update_from_dict(model_data)
+        self.cfg.models_load()
         self._reload()
 
     def _set_volume_quiet(self, value):
