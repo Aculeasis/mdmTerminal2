@@ -15,7 +15,6 @@ import lib.TTS as TTS
 import lib.sr_wrapper as sr
 import logger
 import utils
-from languages import LANG_CODE
 from languages import STTS as LNG
 from lib.audio_utils import StreamRecognition
 from owner import Owner
@@ -414,7 +413,7 @@ class SpeechToText:
                 prov,
                 audio_data=audio,
                 key=self._cfg.key(prov, 'apikeystt'),
-                lang=LANG_CODE['IETF'],
+                lang=self._cfg.stt_lang(prov),
                 url=self._cfg.gt(prov, 'server'),
                 yandex_api=self._cfg.yandex_api(prov),
                 grpc=self._cfg.gt(prov, 'grpc'),

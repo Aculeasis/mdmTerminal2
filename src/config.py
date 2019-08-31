@@ -106,10 +106,21 @@ class ConfigHandler(dict):
 
     @staticmethod
     def tts_lang(provider: str) -> str:
-        if provider == 'google':
+        name = '{}_tts'.format(provider)
+        if name in LANG_CODE:
+            return LANG_CODE[name]
+        elif provider == 'google':
             return LANG_CODE['ISO']
         elif provider == 'aws':
             return LANG_CODE['aws']
+        else:
+            return LANG_CODE['IETF']
+
+    @staticmethod
+    def stt_lang(provider: str) -> str:
+        name = '{}_stt'.format(provider)
+        if name in LANG_CODE:
+            return LANG_CODE[name]
         else:
             return LANG_CODE['IETF']
 

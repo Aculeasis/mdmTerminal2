@@ -42,6 +42,7 @@ class MDTerminal(threading.Thread):
             'music_volume': self._set_music_volume,
             'music_volume_q': self._set_music_volume_quiet,
             'listener': self._change_listener,
+            'callme': self._call_me,
         }
         self.ARGS_CALL = {
             'rec': self._rec_rec,
@@ -382,6 +383,16 @@ class MDTerminal(threading.Thread):
         if listening is not None and listening != self._listening:
             self._listening = listening
             self._reload()
+
+    def _call_me(self, data):
+        # Для скармливания треду колбеков
+        if callable(data):
+            try:
+                data()
+            except Exception as e:
+                self.log('callme error: {}'.format(e), logger.ERROR)
+        else:
+            self.log('Wrong \'callme\' - data must be callable, get {}'.format(type(data)), logger.ERROR)
 
     def _detected_parse(self, voice: bool, reply: str, rms, model=None):
         # callback, нужно восстановить прошлую стадию
