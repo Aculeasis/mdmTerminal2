@@ -14,6 +14,8 @@ PLUG_FILE = 'main.py'
 API = 'API'
 DISABLE_1 = 'DISABLE'
 DISABLE_2 = 'disable'
+TERMINAL_VER_MIN = 'TERMINAL_VER_MIN'
+TERMINAL_VER_MAX = 'TERMINAL_VER_MAX'
 
 
 class Plugins:
@@ -141,8 +143,11 @@ class Plugins:
         if api < self.cfg.API:
             if name not in self._status['deprecated']:
                 self._status['deprecated'][name] = plugin_dir
-            msg = 'Plugin \'{}\' deprecated. Plugin api: {}, terminal api: {}. Ignore.'.format(name, api, self.cfg.API)
-            self.log(msg, logger.WARN)
+            msg = 'Plugin deprecated. Plugin api: {}, terminal api: {}. Ignore.'.format(api, self.cfg.API)
+            self._log(name, msg, logger.WARN)
+            return
+
+        if not self._version_check(module, name):
             return
 
         self._init[name] = (getattr(module, ENTRYPOINT)(cfg=self.cfg, log=self._get_log(name), owner=self.own), reload)
@@ -212,6 +217,32 @@ class Plugins:
         if self._blacklist and name in self._blacklist:
             self.log('Ignore \'{}\': blacklisted'.format(name), logger.DEBUG)
             return False
+        return True
+
+    def _version_check(self, module, name : str) -> bool:
+        def str_ver(_ver: tuple) -> str:
+            return '.'.join(map(str, _ver))
+
+        def correct_ver(_ver) -> bool:
+            return isinstance(_ver, tuple) and len(_ver) == 3 and all([isinstance(x, int) for x in _ver])
+
+        ver_min, ver_max = getattr(module, TERMINAL_VER_MIN, None), getattr(module, TERMINAL_VER_MAX, None)
+        if ver_min:
+            if not correct_ver(ver_min):
+                self._log(name, 'Wrong {} - ignore'.format(TERMINAL_VER_MIN))
+            elif ver_min > self.cfg.version_info:
+                msg = 'Terminal too old, plugin disabled (min {}, current {})'.format(
+                    str_ver(ver_min), self.cfg.version_str)
+                self._log(name, msg, logger.WARN)
+                return False
+        if ver_max:
+            if not correct_ver(ver_max):
+                self._log(name, 'Wrong {} - ignore'.format(TERMINAL_VER_MAX))
+            elif ver_max < self.cfg.version_info:
+                msg = 'Terminal too new, plugin disabled (max {}, current {})'.format(
+                    str_ver(ver_max), self.cfg.version_str)
+                self._log(name, msg, logger.WARN)
+                return False
         return True
 
 

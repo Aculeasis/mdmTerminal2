@@ -72,7 +72,7 @@ class ConfigHandler(dict):
 
     @property
     def version_str(self) -> str:
-        return '.'.join(str(x) for x in self._version_info)
+        return '.'.join(map(str, self._version_info))
 
     @property
     def wiki_desc(self) -> dict:
