@@ -167,10 +167,12 @@ class Owner:
         """
         raise NotImplementedError
 
-    def add_notifications(self, events: list) -> list:
+    def add_notifications(self, events: list, is_self=False) -> list:
         """
         Подписывает notifier на новые ивенты.
         :param events: список ивентов
+        :param is_self: использовать имена ивентов как имена событий (вместо status), можно задать для уже существующих
+        ивентов, сохраняется до перезапуска.
         :return: список добавленных ивентов
         """
         raise NotImplementedError

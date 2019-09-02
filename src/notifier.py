@@ -17,6 +17,7 @@ class MajordomoNotifier(threading.Thread):
     FILE = 'notifications'
     EVENTS = ('speech_recognized_unsuccess', 'speech_recognized_success', 'voice_activated', 'ask_again',
               'music_status', 'start_record', 'stop_record', 'start_talking', 'stop_talking', 'mic_test_error')
+    SELF_EVENTS = ('volume', 'music_volume', 'updater', 'listener', 'version')
 
     def __init__(self, cfg, log, owner: Owner):
         super().__init__(name='Notifier')
@@ -29,7 +30,7 @@ class MajordomoNotifier(threading.Thread):
         self._lock = threading.Lock()
         self._boot_time = None
         self._skip = SkipNotifications()
-        self._self_events = ('volume', 'music_volume', 'updater', 'listener', 'version')
+        self._dynamic_self_events = set(self.SELF_EVENTS)
         self._events = ()
         self.outgoing = OutgoingSocket(self._cfg, log.add('O'), self.own)
 
@@ -37,16 +38,20 @@ class MajordomoNotifier(threading.Thread):
         with self._lock:
             return list(self._events)
 
-    def add_notifications(self, events: list) -> list:
+    def add_notifications(self, events: list, is_self=False) -> list:
         added = []
+        self_events = set()
         events = set(events)
         with self._lock:
             for event in events:
-                if not isinstance(event, str):
+                if not (event and isinstance(event, str) and event != '*') :
                     continue
                 event = event.lower()
-                if event not in self._events and event != '*':
+                self_events.add(event)
+                if event not in self._events:
                     added.append(event)
+            if is_self:
+                self._dynamic_self_events.update(self_events)
             if added:
                 self._unsubscribe()
                 self._events += tuple(added)
@@ -80,7 +85,7 @@ class MajordomoNotifier(threading.Thread):
         if isinstance(data, dict) and isinstance(data.get('events'), list):
             self._events = tuple(data['events'])
         else:
-            self._events = self.EVENTS + self._self_events
+            self._events = self.EVENTS + self.SELF_EVENTS
 
     def _save(self):
         self.cfg.save_dict(self.FILE, {'events': self._events})
@@ -158,7 +163,7 @@ class MajordomoNotifier(threading.Thread):
         if not self._allow_notify:
             return
         kwargs = {'uptime': self._uptime}
-        if name in self._self_events:
+        if name in self._dynamic_self_events:
             kwargs[name] = data
         elif name == 'music_status':
             kwargs['status'] = 'music_{}'.format(data)

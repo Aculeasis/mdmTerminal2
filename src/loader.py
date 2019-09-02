@@ -206,8 +206,8 @@ class Loader(Owner):
     def list_notifications(self) -> list:
         return self._notifier.list_notifications()
 
-    def add_notifications(self, events: list) -> list:
-        return self._notifier.add_notifications(events)
+    def add_notifications(self, events: list, is_self=False) -> list:
+        return self._notifier.add_notifications(events, is_self)
 
     def remove_notifications(self, events: list) -> list:
         return self._notifier.remove_notifications(events)
