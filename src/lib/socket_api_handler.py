@@ -285,6 +285,9 @@ class API:
         if not self.cfg.gt('smarthome', 'unsafe_rpc'):
             raise InternalException(msg='[smarthome] unsafe_rpc = off')
         path, args, kwargs = self._rpc_data_extractor(data)
+        for key in path:
+            if key.startswith('_'):
+                raise InternalException(code=4, msg='Private path \'{}\' - ignore'.format(key))
         if cmd == 'call.plugin':
             try:
                 entry = self.own.get_plugin(path[0])
