@@ -6,7 +6,7 @@
 **Возможности**
 - Запуск распознавания по любым ключевым словам.
 - Передача команд на сервер.
-- Поддержка [MajorDroid API](http://majordomo.smartliving.ru/forum/viewtopic.php?f=5&t=518) (sayReply, ask etc.).
+- Поддержка [MajorDroid API](https://mjdm.ru/forum/viewtopic.php?f=5&t=518) (sayReply, ask etc.).
 - [Отправка уведомлений](https://github.com/Aculeasis/mdmTerminal2/wiki/callback) на сервер.
 - [Работа через прокси](https://github.com/Aculeasis/mdmTerminal2/wiki/proxy).
 - [Модули](https://github.com/Aculeasis/mdmTerminal2/wiki/modules).
@@ -46,7 +46,7 @@
 ```
 и отредактировать если нужно `"hw:X,0"` в `/etc/asound.conf`
 
-Если запись или воспроизведение все еще не работают, можно поискать решение [на форуме](https://majordomo.smartliving.ru/forum/viewtopic.php?f=5&t=5460)
+Если запись или воспроизведение все еще не работают, можно поискать решение [на форуме](https://mjdm.ru/forum/viewtopic.php?f=5&t=5460)
 
 ### Установка
 Клонируйте репозиторий и запустите скрипт установки:
@@ -160,7 +160,7 @@ rm -rf swig/
 аудиоданных. Прослушайте соответствующие семплы, перепишите их и попробуйте снова.
 
 # Сообщество
-- [Обсуждение на форуме MajorDoMo](https://majordomo.smartliving.ru/forum/viewtopic.php?f=5&t=5460)
+- [Обсуждение на форуме MajorDoMo](https://mjdm.ru/forum/viewtopic.php?f=5&t=5460)
 - [Группа в Telegram](https://t.me/mdmPiTerminal)
 
 # Ссылки
