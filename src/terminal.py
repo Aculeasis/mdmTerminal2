@@ -34,13 +34,13 @@ class MDTerminal(threading.Thread):
         # Что делает терминал, для диагностики зависаний треда
         # 0 - ничего, 1 - слушает микрофон, 2 - тестирут микрофон, 3 - обрабатывает результат, 4 - внешний вызов
         self.stage = 0
-
         self.DATA_CALL = {
             'reload': self._reload,
-            'volume': self._set_volume,
-            'volume_q': self._set_volume_quiet,
-            'music_volume': self._set_music_volume,
-            'music_volume_q': self._set_music_volume_quiet,
+            'volume': self._set_volume_quiet,  # volume == nvolume
+            'nvolume': self._set_volume_quiet,
+            'mvolume': self._set_music_volume_quiet,
+            'nvolume_say': self._set_volume,
+            'mvolume_say' : self._set_music_volume,
             'listener': self._change_listener,
             'callme': self._call_me,
         }

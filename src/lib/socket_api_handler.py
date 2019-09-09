@@ -11,6 +11,13 @@ from lib.socket_wrapper import Connect
 from owner import Owner
 from utils import file_to_base64, pretty_time
 
+# old -> new
+LEGACY_CMD = {
+    'hi': 'voice',
+    'volume_q': 'volume',
+    'music_volume_q': 'mvolume'
+}
+
 
 def api_commands(*commands):
     def wrapper(f):
@@ -104,10 +111,11 @@ class API:
         """NotImplemented"""
         raise InternalException(msg='Not implemented yet - {}'.format(cmd))
 
-    @api_commands('hi', 'voice', 'tts', 'ask', 'volume', 'volume_q', 'music_volume', 'music_volume_q', 'listener')
+    @api_commands('hi', 'voice', 'tts', 'ask', 'volume', 'nvolume', 'mvolume', 'nvolume_say', 'mvolume_say', 'listener',
+                  'volume_q', 'music_volume_q')
     def _api_terminal_direct(self, name: str, cmd: str):
-        if name == 'hi':
-            name = 'voice'
+        if name in LEGACY_CMD:
+            name = LEGACY_CMD[name]
         self.own.terminal_call(name, cmd)
 
     @api_commands('play')
@@ -452,8 +460,8 @@ class SocketAPIHandler(threading.Thread, APIHandler):
         self.id = None
         # Команды API не требующие авторизации
         self.NON_AUTH = {
-            'authorization', 'hi', 'voice', 'play', 'pause', 'tts', 'ask', 'settings', 'volume', 'volume_q', 'rec',
-            'remote_log', 'music_volume', 'music_volume_q', 'listener',
+            'authorization', 'hi', 'voice', 'play', 'pause', 'tts', 'ask', 'settings', 'rec', 'remote_log', 'listener',
+            'volume', 'nvolume', 'mvolume', 'nvolume_say', 'mvolume_say'
         }
 
     @api_commands('authorization')

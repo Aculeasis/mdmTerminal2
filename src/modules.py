@@ -278,9 +278,9 @@ def volume(self, trigger, phrase):
     elif not phrase.isdigit():
         return Next
     if trigger == LNG['volume_name']:
-        self.own.terminal_call('volume', phrase)
+        self.own.terminal_call('nvolume_say', phrase)
     else:
-        self.own.terminal_call('music_volume', phrase)
+        self.own.terminal_call('mvolume_say', phrase)
 
 
 @mod.name(NM, LNG['srv_name'], LNG['srv_desc'])
