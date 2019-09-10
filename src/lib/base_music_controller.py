@@ -8,6 +8,15 @@ from owner import Owner
 
 __all__ = ['str_to_int', 'BaseControl', 'auto_reconnect']
 
+PAUSE_STATES = {
+    'start_record': 0b100,
+    'stop_record': 0b100,
+    'start_talking': 0b010,
+    'stop_talking': 0b010,
+    'start_stt_event': 0b001,
+    'stop_stt_event': 0b001,
+}
+
 
 def auto_reconnect(func):
     def wrapper(*args):
@@ -52,17 +61,7 @@ class BaseControl(threading.Thread):
         self._saved_volume = None
         self._saved_state = None
 
-        # Состояния для автопаузы
-        self._pause_flags = {
-            'start_record': 0b100,
-            'stop_record': 0b100,
-            'start_talking': 0b010,
-            'stop_talking': 0b010,
-            'start_stt_event': 0b001,
-            'stop_stt_event': 0b001,
-        }
-        # Состояние автопаузы
-        self._pause_flag = 0b000
+        self._pause_state = 0b000
         self._events = (
             (('start_record', 'start_talking', 'start_stt_event', 'voice_activated'), self._cb_pause),
             (('stop_record', 'stop_talking', 'stop_stt_event'), self._cb_unpause)
@@ -78,15 +77,15 @@ class BaseControl(threading.Thread):
             self.own.unsubscribe(events, callback)
 
     def _cb_unpause(self, name, *_, **__):
-        if name in self._pause_flags:
-            self._pause_flag ^= self._pause_flags[name]
-        if not self._pause_flag:
+        if name in PAUSE_STATES:
+            self._pause_state ^= PAUSE_STATES[name]
+        if not self._pause_state:
             self.pause(False)
 
     def _cb_pause(self, name, *_, **__):
         self.pause(True)
-        if name in self._pause_flags:
-            self._pause_flag |= self._pause_flags[name]
+        if name in PAUSE_STATES:
+            self._pause_state |= PAUSE_STATES[name]
 
     @property
     def name(self) -> str:
