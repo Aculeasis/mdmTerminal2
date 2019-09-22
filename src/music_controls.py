@@ -13,25 +13,59 @@ except ImportError as _e:
         def Client(cls, *_, **__):
             raise ImportError(cls.e)
 
-import mpd
-from pylms.server import Server as LMSServer  # install git+https://github.com/Aculeasis/PyLMS.git
-
 import logger as logger_
 from languages import MUSIC_CONTROL as LNG
 from lib.base_music_controller import str_to_int, BaseControl, auto_reconnect
 from owner import Owner
 from utils import get_ip_address, url_builder_cached
+from lib.dlna.dlna import find_MediaRenderer
+from lib.dlna import media_render
+
+
+class DummyControl:
+    name = 'DummyControl'
+    work = False
+    plays = False
+    get_track_name = None
+    is_conn = False
+
+    def __init__(self, *_, **__):
+        pass
+
+    def start(self):
+        pass
+
+    def join(self, timeout=None):
+        pass
+
+    def pause(self, paused=None):
+        pass
+
+    def reload(self):
+        pass
+
+    def play(self, uri):
+        pass
+
+    @staticmethod
+    def allow():
+        return False
+
+    volume = property(lambda self: -1, play)
+    real_volume = volume
 
 
 class MPDControl(BaseControl):
     def __init__(self, name, cfg: dict, log, owner: Owner):
         super().__init__(name, cfg, log, owner)
-        self._mpd = mpd.MPDClient(use_unicode=True)
+        import mpd
+        self.__lib = mpd
+        self._mpd = self.__lib.MPDClient(use_unicode=True)
 
     def reconnect_wrapper(self, func, *args):
         try:
             return func(*args)
-        except (mpd.MPDError, IOError):
+        except (self.__lib.MPDError, IOError):
             self._connect()
             if not self.is_conn:
                 return None
@@ -46,7 +80,7 @@ class MPDControl(BaseControl):
             return False
         try:
             self._mpd.connect(self._cfg['ip'], self._cfg['port'], 15)
-        except (mpd.MPDError, IOError) as e:
+        except (self.__lib.MPDError, IOError) as e:
             msg = LNG['err_conn'].format(self._name.upper())
             self.log('{}: {}'.format(msg, e), logger_.ERROR)
             self.is_conn = False
@@ -59,12 +93,12 @@ class MPDControl(BaseControl):
         self.is_conn = False
         try:
             self._mpd.close()
-        except (mpd.MPDError, IOError):
+        except (self.__lib.MPDError, IOError):
             pass
         try:
             self._mpd.disconnect()
-        except (mpd.MPDError, IOError):
-            self._mpd = mpd.MPDClient(use_unicode=True)
+        except (self.__lib.MPDError, IOError):
+            self._mpd = self.__lib.MPDClient(use_unicode=True)
 
     @auto_reconnect
     def _ctl_pause(self, pause=None):
@@ -110,7 +144,9 @@ class MPDControl(BaseControl):
 class LMSControl(BaseControl):
     def __init__(self, name, cfg: dict, log, owner: Owner):
         super().__init__(name, cfg, log, owner)
-        self._lms = LMSServer()
+        from pylms.server import Server as LMSServer  # install git+https://github.com/Aculeasis/PyLMS.git
+        self.__lib = LMSServer
+        self._lms = self.__lib()
         self._player = None
         self._lock = threading.Lock()
 
@@ -132,7 +168,7 @@ class LMSControl(BaseControl):
         self.is_conn = False
         if not self._cfg['control']:
             return False
-        self._lms = LMSServer(self._cfg['ip'], self._cfg['port'], self._cfg['username'], self._cfg['password'])
+        self._lms = self.__lib(self._cfg['ip'], self._cfg['port'], self._cfg['username'], self._cfg['password'])
         try:
             try:
                 self._lms.connect()
@@ -156,7 +192,7 @@ class LMSControl(BaseControl):
             self._lms.disconnect()
         except (AttributeError, IOError, EOFError, ValueError):
             pass
-        self._lms = LMSServer()
+        self._lms = self.__lib()
 
     @auto_reconnect
     def _ctl_pause(self, pause=None):
@@ -325,22 +361,105 @@ class Volumio2Control(BaseControl):
             return 'error'
 
 
+class DLNAControl(BaseControl):
+    def __init__(self, name, cfg: dict, log, owner: Owner):
+        super().__init__(name, cfg, log, owner)
+        self._dlna = media_render.MediaRender({})
+
+    def reconnect_wrapper(self, func, *args):
+        try:
+            return func(*args)
+        except media_render.Error:
+            self._connect()
+            if not self.is_conn:
+                return None
+            else:
+                return func(*args)
+
+    def _connect(self):
+        if self.is_conn:
+            self._disconnect()
+        self.is_conn = False
+        if not self._cfg['control']:
+            return False
+        try:
+            self._dlna = find_MediaRenderer(self._cfg['ip'], self._cfg['ip'])
+        except media_render.Error as e:
+            msg = LNG['err_conn'].format(self._name.upper())
+            self.log('{}: {}'.format(msg, e), logger_.ERROR)
+            self.is_conn = False
+            return False
+        else:
+            self.log('Connected to {}'.format(self._dlna.pretty_name), logger_.INFO)
+            self._dlna.log_cb = lambda x: self.log(x, logger_.WARN)
+            self.is_conn = True
+            return True
+
+    def _disconnect(self):
+        self.is_conn = False
+        self._dlna.broken = True
+
+    @auto_reconnect
+    def _ctl_pause(self, pause=None):
+        self._dlna.pause(pause)
+
+    @auto_reconnect
+    def _ctl_add(self, uri):
+        self._dlna.play(uri)
+
+    @auto_reconnect
+    def _ctl_set_volume(self, vol):
+        self._dlna.volume = vol
+
+    @auto_reconnect
+    def _ctl_get_volume(self):
+        return str_to_int(self._dlna.volume)
+
+    def _ctl_is_play(self) -> bool:
+        return self._ctl_get_state() == 'play'
+
+    @auto_reconnect
+    def _ctl_get_state(self):
+        return self._dlna.state()
+
+    def _ctl_get_status(self) -> dict:
+        return {'state': self._ctl_get_state(),  'volume': self._ctl_get_volume()}
+
+    @auto_reconnect
+    def _ctl_get_track_name(self):
+        song = self._dlna.currentsong()
+        try:
+            return '{title} from {artist}'.format(**song)
+        except (KeyError, TypeError):
+            pass
+
+
 TYPE_MAP = {
     'mpd': MPDControl,
     'lms': LMSControl,
     'volumio2': Volumio2Control,
+    'dlna': DLNAControl
 }
 
 
-def music_constructor(cfg, logger, owner: Owner, old=None) -> BaseControl:
+def music_constructor(cfg, logger, owner: Owner, old=None):
     def create():
-        return TYPE_MAP[name](name, cfg['music'], logger.add(name.upper()), owner)
-    if not (old is None or isinstance(old, BaseControl)):
+        if name not in TYPE_MAP:
+            cls = DummyControl
+            owner.log('Wrong type of player controller - \'{}\''.format(name), logger_.ERROR)
+        else:
+            cls = TYPE_MAP[name]
+        log = logger.add(name.upper())
+        try:
+            return cls(name, cfg['music'], log, owner)
+        except Exception as e:
+            log('Init Error: {}'.format(e), logger_.CRIT)
+            return DummyControl()
+
+    if not (old is None or isinstance(old, (BaseControl, DummyControl))):
         raise TypeError('Wrong type: {}'.format(type(old)))
 
     name = cfg.gt('music', 'type', '').lower()
-    if name not in TYPE_MAP:
-        name = 'mpd'
     if old:
         if old.name == name:
             old.reload()

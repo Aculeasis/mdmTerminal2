@@ -1,7 +1,11 @@
 from utils import state_cache
+from logging import DEBUG
 
 
 class Owner:
+    def log(self, msg: str, lvl=DEBUG):
+        raise NotImplementedError
+
     def join_thread(self, obj):
         """
         Выполняет остановку треда с определенной сигнатурой.
