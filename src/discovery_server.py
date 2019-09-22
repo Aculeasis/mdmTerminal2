@@ -1,10 +1,10 @@
-import errno
 import socket
 import struct
 import threading
 import uuid
 
 import logger
+from utils import server_init
 
 
 def lf_to_crlf(data: str) -> str:
@@ -57,17 +57,16 @@ HTTP_XML_REPLY = lf_to_crlf('''<root>
 </root>''')
 
 
-def server_init(sock: socket.socket, address: tuple):
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    sock.settimeout(TIMEOUT)
-    try:
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-    except AttributeError:
-        pass
-    except socket.error as e:
-        if e.errno != errno.ENOPROTOOPT:
-            raise
-    sock.bind(address)
+def valid_request(msg: bytes) -> bool:
+    st = ''
+    for line in msg.split(b'\r\n')[1:]:
+        el = line.split(b':', maxsplit=1)
+        if len(el) == 2 and el[0].upper() == b'ST':
+            st = el[1].decode().lstrip(' ').strip('"')
+            break
+    return st and (
+            st in ('ssdp:all', 'upnp:rootdevice') or
+            st.startswith(('urn:schemas-upnp-org:device:MediaRenderer', 'rn:schemas-upnp-org:service:mdmTerminal2')))
 
 
 class DiscoveryServer(threading.Thread):
@@ -85,7 +84,7 @@ class DiscoveryServer(threading.Thread):
 
     def start(self):
         try:
-            server_init(self._server, self._address)
+            server_init(self._server, self._address, TIMEOUT)
         except Exception as e:
             self.log('UDP binding error: {}'.format(e), logger.ERROR)
         else:
@@ -116,10 +115,11 @@ class DiscoveryServer(threading.Thread):
                 self.log('UDP socket error: {}'.format(e), logger.ERROR)
                 continue
             if msg.startswith(M_SEARCH):
-                try:
-                    self._server.sendto(make_reply(), address)
-                except Exception as e:
-                    self.log('UDP reply sending error to {}:{}: {}'.format(*address, e), logger.WARN)
+                if valid_request(msg):
+                    try:
+                        self._server.sendto(make_reply(), address)
+                    except Exception as e:
+                        self.log('UDP reply sending error to {}:{}: {}'.format(*address, e), logger.WARN)
             elif not msg.startswith(NOTIFY):
                 self.log('Wrong UDP request from {}:{}: {}'.format(*address, repr(msg.rstrip(b'\0'))))
 
@@ -135,7 +135,7 @@ class UPNPServer(threading.Thread):
 
     def start(self):
         try:
-            server_init(self._server, self._address)
+            server_init(self._server, self._address, TIMEOUT)
         except Exception as e:
             self.log('TCP binding error {}:{}: {}'.format(*self._address, e), logger.ERROR)
         else:

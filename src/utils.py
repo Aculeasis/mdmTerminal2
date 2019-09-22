@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import base64
+import errno
 import functools
 import json
 import os
@@ -402,3 +403,16 @@ def recognition_msg(msg, energy, rms) -> str:
     energy_str = '; energy_threshold: {}'.format(energy) if energy else ''
     rms_str = '; rms: {}'.format(rms) if rms else ''
     return 'Recognized: {}{}{}'.format(msg, energy_str, rms_str)
+
+
+def server_init(sock: socket.socket, address: tuple, timeout):
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    sock.settimeout(timeout)
+    try:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+    except AttributeError:
+        pass
+    except socket.error as e:
+        if e.errno != errno.ENOPROTOOPT:
+            raise
+    sock.bind(address)
