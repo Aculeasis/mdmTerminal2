@@ -81,8 +81,9 @@ class Listener:
                 model_msg = ': "{}"'.format(phrase)
                 self._detected_sr(clear_msg, model_name, model_msg, vad, callback)
                 return
+        model_msg = ': "{}"'.format(phrases)
         # Не наши триггер в сообщении - snowboy false positive
-        self._detected_sr(msg, phrases, None, vad)
+        self._detected_sr(msg, model_name, model_msg, vad)
 
     def _detected(self, model_name, phrase, msg, cb):
         self.own.voice_activated_callback()
@@ -96,7 +97,8 @@ class Listener:
     def _detected_sr(self, msg: str, model_name: str, model_msg: str or None, vad, cb=None):
         energy, rms = (vad.energy_threshold, vad.rms()) if vad is not None else (None, None)
         if not cb:
-            msg = recognition_msg('Activation error: \'{}\', trigger: \'{}\''.format(msg, model_name), energy, rms)
+            msg = 'Activation error: \'{}\', trigger: {}{}'.format(msg, model_name, model_msg)
+            msg = recognition_msg(msg, energy, rms)
             self.log(msg, logger.DEBUG)
             return
         self.log(recognition_msg(msg, energy, rms), logger.INFO)
