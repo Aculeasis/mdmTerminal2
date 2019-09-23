@@ -189,7 +189,7 @@ class MajordomoNotifier(threading.Thread):
 
         auth = (username, password) if username and password else None
         if terminal:
-            params['terminal'] = terminal
+            params['linkedRoom'] = terminal
         if calling_user:
             params['username'] = calling_user
         if self.own.duplex_mode_on:
