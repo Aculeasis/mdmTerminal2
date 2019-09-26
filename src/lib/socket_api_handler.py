@@ -12,19 +12,34 @@ from owner import Owner
 from utils import file_to_base64, pretty_time
 
 # old -> new
-LEGACY_CMD = {
+OLD_CMD = {
     'hi': 'voice',
     'volume_q': 'volume',
     'music_volume_q': 'mvolume'
 }
 
 
-def api_commands(*commands):
+def api_commands(*commands, true_json=None, true_legacy=None):
+    """
+    Враппер для связывания команд с методом.
+    :param commands: Список команд.
+    :param true_json: Список команд, при обработке которых в data, будет исходный params а не строка,
+    для старых команд будет ['<str>'].
+    :param true_legacy: Если обработчик вернет dict, передаст только его в строке ('key:val', 'key:val;key2:val2')
+    или строку из 'cmd:result' без преобразования в json если result простой тип.
+    :return: Исходный метод.
+    """
+    def filling(f, attr, data):
+        if data:
+            for command in data:
+                if not (isinstance(command, str) and command):
+                    raise RuntimeError('{} command must be a non empty string: {}'.format(f, command))
+            setattr(f, attr, data)
+
     def wrapper(f):
-        for command in commands:
-            if not (isinstance(command, str) and command):
-                raise RuntimeError('{} command must be a non empty string: {}'.format(f, command))
-        f.api_commands = commands
+        filling(f, 'api_commands', commands)
+        filling(f, 'true_json', true_json)
+        filling(f, 'true_legacy', true_legacy)
         return f
     return wrapper
 
@@ -87,12 +102,21 @@ class InternalException(Exception):
 class API:
     def __init__(self, cfg, log, owner: Owner):
         self.API, self.API_CODE = {}, {}
+        self.TRUE_JSON, self.TRUE_LEGACY = set(), set()
         self._collector()
         self.cfg = cfg
         self.log = log
         self.own = owner
 
     def _collector(self):
+        def filling(target: set, sets, name_):
+            if not (sets and isinstance(sets, tuple)):
+                return
+            for set_ in sets:
+                if set_ in target:
+                    raise RuntimeError('command {} already marked as {}'.format(set_, name_))
+                target.add(set_)
+
         for attr in dir(self):
             if attr.startswith('__'):
                 continue
@@ -104,7 +128,25 @@ class API:
                 if command in self.API:
                     raise RuntimeError('command {} already linked to {}'.format(command, self.API[command]))
                 self.API[command] = obj
+            filling(self.TRUE_JSON, getattr(obj, 'true_json', None), 'true_json')
+            filling(self.TRUE_LEGACY, getattr(obj, 'true_legacy', None), 'true_legacy')
         self.API_CODE = {name: index for index, name in enumerate(self.API.keys(), 1)}
+
+    @api_commands('get', true_json=('get',), true_legacy=('get',))
+    def _api_get(self, _, data):
+        cmd_map = {
+            'volume': self.own.get_volume,
+            'nvolume': self.own.get_volume,
+            'mvolume': lambda : self.own.music_real_volume
+        }
+
+        def get_volume(key) -> int:
+            if key not in cmd_map:
+                raise InternalException(msg='Unknown command: {}'.format(repr(key)))
+            vol = cmd_map[key]()
+            return vol if vol is not None else -1
+
+        return {key: get_volume(key) for key in data}
 
     @api_commands('home', 'url', 'rts', 'run')
     def _api_no_implement(self, cmd: str, _):
@@ -114,9 +156,7 @@ class API:
     @api_commands('hi', 'voice', 'tts', 'ask', 'volume', 'nvolume', 'mvolume', 'nvolume_say', 'mvolume_say', 'listener',
                   'volume_q', 'music_volume_q')
     def _api_terminal_direct(self, name: str, cmd: str):
-        if name in LEGACY_CMD:
-            name = LEGACY_CMD[name]
-        self.own.terminal_call(name, cmd)
+        self.own.terminal_call(OLD_CMD[name] if name in OLD_CMD else name, cmd)
 
     @api_commands('play')
     def _api_play(self, _, cmd: str):
@@ -414,7 +454,9 @@ class APIHandler(API):
         if not isinstance(method, str):
             raise InternalException(code=-32600, msg='method must be a str', id_=id_)
         params = line.get('params')
-        if params:
+        if method in self.TRUE_JSON:
+            pass
+        elif params:
             # FIXME: legacy
             if isinstance(params, list) and len(params) == 1 and isinstance(params[0], str):
                 params = params[0]
@@ -430,13 +472,14 @@ class APIHandler(API):
         id_ = None if isinstance(id_, Null) else id_
         return method, params, id_
 
-    @staticmethod
-    def _extract_str(line: str) -> tuple:
+    def _extract_str(self, line: str) -> tuple:
         line = line.split(':', 1)
         if len(line) != 2:
             line.append('')
         # id = cmd
-        return line[0], line[1], line[0]
+        cmd = line[0]
+        data = [line[1]] if cmd in self.TRUE_JSON else line[1]
+        return cmd, data, cmd
 
 
 class SocketAPIHandler(threading.Thread, APIHandler):
@@ -461,7 +504,7 @@ class SocketAPIHandler(threading.Thread, APIHandler):
         # Команды API не требующие авторизации
         self.NON_AUTH = {
             'authorization', 'hi', 'voice', 'play', 'pause', 'tts', 'ask', 'settings', 'rec', 'remote_log', 'listener',
-            'volume', 'nvolume', 'mvolume', 'nvolume_say', 'mvolume_say'
+            'volume', 'nvolume', 'mvolume', 'nvolume_say', 'mvolume_say', 'get'
         }
 
     @api_commands('authorization')
@@ -575,8 +618,15 @@ class SocketAPIHandler(threading.Thread, APIHandler):
             cmd = data.pop('id', None)
             if not cmd or cmd == 'method':
                 return
+            reply = None
+            if cmd in self.TRUE_LEGACY:
+                result = data.get('result', None)
+                if isinstance(result, (int, float, str)):
+                    reply = '{}:{}'.format(cmd, result)
+                elif result and isinstance(result, dict):
+                    reply = ';'.join('{}:{}'.format(key, val) for key, val in result.items())
             try:
-                reply = '{}:{}'.format(cmd, json.dumps(data, ensure_ascii=False))
+                reply = reply or '{}:{}'.format(cmd, json.dumps(data, ensure_ascii=False))
             except TypeError:
                 return
             self._write(reply, True)
