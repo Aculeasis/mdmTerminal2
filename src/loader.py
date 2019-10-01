@@ -45,7 +45,7 @@ class Loader(Owner):
         proxies.add_logger(self._logger.add('Proxy'))
         self._cfg = ConfigHandler(cfg=init_cfg, path=path, log=self._logger.add('CFG'), owner=self)
         self._logger.init(cfg=self._cfg, owner=self)
-        self.log = self._logger.add('SYSTEM')
+        self._log = self._logger.add('SYSTEM')
 
         self._listen = Listener(cfg=self._cfg, log=self._logger.add('REC'), owner=self)
         self._notifier = MajordomoNotifier(cfg=self._cfg, log=self._logger.add('Notifier'), owner=self)
@@ -74,8 +74,10 @@ class Loader(Owner):
         self._server.start()
         self._discovery.start()
         self._plugins.start()
+
         self.messenger(lambda: self.log(available_version_msg(self._cfg.version_info), logger.INFO), None)
         self.sub_call('default', 'version', self._cfg.version_str)
+        self.volume_callback(self.get_volume())
 
     def stop_all_systems(self):
         self._cfg.config_save(final=True)
@@ -98,6 +100,9 @@ class Loader(Owner):
         self.join_thread(self._pub)
 
         self._logger.join()
+
+    def log(self, msg: str, lvl=logger.DEBUG):
+        self._log(msg, lvl)
 
     def join_thread(self, obj):
         def obj_log(msg_: str, lvl=logger.DEBUG):

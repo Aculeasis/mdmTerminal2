@@ -5,6 +5,7 @@ import queue
 import threading
 import time
 import traceback
+from functools import lru_cache
 
 import lib.snowboy_training as training_service
 import lib.sr_wrapper as sr
@@ -27,8 +28,6 @@ class MDTerminal(threading.Thread):
         self.work = False
         self._listening = True
         self._snowboy = None
-        self._old_listener = None
-        self._listener_event = owner.registration('listener')
         self._queue = queue.Queue()
         self._wait = threading.Event()
         # Что делает терминал, для диагностики зависаний треда
@@ -56,6 +55,7 @@ class MDTerminal(threading.Thread):
     def join(self, timeout=30):
         self._wait.set()
         super().join(timeout=timeout)
+        self._listener_notify(False)
 
     def start(self):
         self.work = True
@@ -129,9 +129,7 @@ class MDTerminal(threading.Thread):
             self._snowboy = self.own.recognition_forever(self._interrupt_check, self._detected_parse)
         else:
             self._snowboy = None
-        if bool(self._snowboy) != self._old_listener:
-            self._listener_event('on' if self._snowboy else 'off')
-            self._old_listener = not self._old_listener
+        self._listener_notify(bool(self._snowboy))
         self._wait.set()
 
     def _listen(self):
@@ -383,6 +381,10 @@ class MDTerminal(threading.Thread):
         if listening is not None and listening != self._listening:
             self._listening = listening
             self._reload()
+
+    @lru_cache(maxsize=1)
+    def _listener_notify(self, state: bool):
+        self.own.sub_call('default', 'listener', 'on' if state else 'off')
 
     def _call_me(self, data):
         # Для скармливания треду колбеков
