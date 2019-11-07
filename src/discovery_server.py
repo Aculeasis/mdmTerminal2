@@ -75,14 +75,18 @@ class DiscoveryServer(threading.Thread):
         self.cfg = cfg
         self.log = log
         self._address = (ip, port)
+        self._multicast_req = struct.pack('4sl', socket.inet_aton(multicast_group), socket.INADDR_ANY)
         self.work = False
         self._server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
-
-        multicast_req = struct.pack('4sl', socket.inet_aton(multicast_group), socket.INADDR_ANY)
-        self._server.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, multicast_req)
         self._http = UPNPServer(cfg, log, self._address)
 
     def start(self):
+        try:
+            # FIXME: OSError: [Errno 19] No such device
+            self._server.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, self._multicast_req)
+        except OSError as e:
+            self.log('Unexpected \'setsockopt\' error: {}'.format(e), logger.ERROR)
+            return
         try:
             server_init(self._server, self._address, TIMEOUT)
         except Exception as e:
