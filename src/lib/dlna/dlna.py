@@ -20,7 +20,10 @@ WAIT = 4
 
 
 def find_MediaRenderer(name=None, ip=None,) -> MediaRender:
-    data = UPNPScan()
+    try:
+        data = UPNPScan()
+    except OSError as e:
+        raise Error(e)
     if not data:
         raise Error('MediaRender\'s not found')
 
