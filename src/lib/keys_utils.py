@@ -14,7 +14,7 @@ AZURE_ACCESS_ENDPOINT = 'https://{}.api.cognitive.microsoft.com/sts/v1.0/issueTo
 
 @singleton
 class Keystore:
-    # Кэширует старые халявные ключи и новые aim на 11 часов
+    # Кэширует старые халявные ключи на 11 часов
     YANDEX_LIFETIME = 11 * 3600
     # ключи azure живут 10 минут
     AZURE_LIFETIME = 595
@@ -30,19 +30,11 @@ class Keystore:
                 self._cache[key] = (_azure_token_from_oauth(*key), time.time() + self.AZURE_LIFETIME)
             return self._cache[key][0], region
 
-    def yandex(self, key, api: int = 1):
-        key = key or ''
-        if api != 2:
-            return self._yandex_storage(key, 1)
-        key = key.split(':', 1)
-        if len(key) != 2:
-            raise RuntimeError('Wrong key for Yandex APIv2, must be \'<folderId>:<OAuth>\'')
-        return key[0], self._yandex_storage(key[1], 2)
-
-    def _yandex_storage(self, key, api):
+    def yandex_v1_free(self) -> str:
+        key = 'yandex_v1_free'
         with self._lock:
             if key not in self._cache or self._cache[key][1] < time.time():
-                self._cache[key] = (_yandex_get_key(key, api), time.time() + self.YANDEX_LIFETIME)
+                self._cache[key] = (_yandex_get_api_key_v1(), time.time() + self.YANDEX_LIFETIME)
             return self._cache[key][0]
 
     def clear(self):
@@ -102,22 +94,6 @@ def xml_yandex(data):
         raise RuntimeError('xml: broken XML')
     text = text[start_variant:end_point]
     return text
-
-
-def _yandex_get_key(key, api):
-    if api != 2:
-        return _yandex_get_api_key_v1()
-    else:
-        return _yandex_aim_from_oauth(key)
-
-
-def _yandex_aim_from_oauth(oauth):
-    # https://cloud.yandex.ru/docs/iam/operations/iam-token/create
-    # Получаем токен по токену, токен живет 12 часов.
-    url = 'https://iam.api.cloud.yandex.net/iam/v1/tokens'
-    params = {'yandexPassportOauthToken': oauth}
-    key = 'iamToken'
-    return requests_post(url, key, json=params, proxies=proxies('key_yandex'))
 
 
 def _azure_token_from_oauth(key, region):

@@ -84,12 +84,10 @@ class ConfigHandler(dict):
         key_ = self.gt(prov, api_key)
         if prov == 'azure':
             return Keystore().azure(key_, self.gt('azure', 'region'))
-        api = self.yandex_api(prov)
-        if api == 2 or (prov == 'yandex' and not key_):
+        if prov == 'yandex' and not key_ and self.yandex_api(prov) == 1:
             # Будем брать ключ у транслита для старой версии
-            # и (folderId, aim) для новой через oauth
             try:
-                key_ = Keystore().yandex(key_, api)
+                key_ = Keystore().yandex_v1_free()
             except RuntimeError as e:
                 raise RuntimeError(LNG['err_ya_key'].format(e))
         return key_
@@ -125,10 +123,7 @@ class ConfigHandler(dict):
             return LANG_CODE['IETF']
 
     def yandex_api(self, prov):
-        if prov == 'yandex':
-            return self.gt(prov, 'api', 1)
-        else:
-            return 1
+        return self.gt(prov, 'api', 1) if prov == 'yandex' else 1
 
     def model_info_by_id(self, model: int):
         model -= 1

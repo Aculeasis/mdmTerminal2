@@ -123,16 +123,14 @@ class YandexCloud(BaseSTT):
     URL = 'https://stt.api.cloud.yandex.net/speech/v1/stt:recognize'
 
     def __init__(self, audio_data, key, lang='ru-RU', **_):
-        check_yandex_v2_key(key)
         ext = 'opus'
         rate = 16000
         width = 2
-        headers = {'Authorization': 'Bearer {}'.format(key[1])}
+        headers = {'Authorization': 'Api-Key {}'.format(key)}
         kwargs = {
             'topic': 'general',
             'lang': lang,
-            'profanityFilter': 'false',
-            'folderId': key[0]
+            'profanityFilter': 'false'
         }
         super().__init__(self.URL, audio_data, ext, headers, rate, width, 'stt_yandex', **kwargs)
 
@@ -154,17 +152,15 @@ class YandexCloud(BaseSTT):
 
 class YandexCloudGRPC(BaseSTT):
     def __init__(self, audio_data, key, lang='ru-RU', **_):
-        check_yandex_v2_key(key)
         ext = 'pcm'
         rate = 16000
         width = 2
-        self._folder_id = key[0]
-        self._iam_token = key[1]
+        self._api_key = key
         self._lang = lang
         super().__init__(None, audio_data, ext, convert_width=width, convert_rate=rate)
 
     def _send(self, _):
-        self._text = yandex_stt_grpc(self._folder_id, self._iam_token, self._lang, self._chunks())
+        self._text = yandex_stt_grpc(self._api_key, self._lang, self._chunks())
 
     def _reply_check(self):
         pass
@@ -268,11 +264,6 @@ class Microsoft:
         if not self._text:
             raise UnknownValueError('No variants')
         return self._text
-
-
-def check_yandex_v2_key(key):
-    if not isinstance(key, (tuple, list)) or len(key) < 2:
-        raise RuntimeError('Wrong Yandex APIv2 key')
 
 
 def yandex(yandex_api, grpc, **kwargs):

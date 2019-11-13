@@ -92,12 +92,10 @@ class YandexCloud(BaseTTS):
     MAX_CHARS = 5000
 
     def __init__(self, text, buff_size, speaker, key, emotion, lang, speed, *_, **__):
-        if not isinstance(key, (tuple, list)) or len(key) < 2:
-            raise RuntimeError('Wrong Yandex APIv2 key')
         speed = yandex_speed_normalization(speed)
-        self._headers = {'Authorization': 'Bearer {}'.format(key[1])}
+        self._headers = {'Authorization': 'Api-Key {}'.format(key)}
         super().__init__(self.URL, 'tts_yandex', buff_size=buff_size, text=text, voice=speaker,
-                         format='oggopus', folderId=key[0], lang=lang, emotion=emotion, speed=speed)
+                         format='oggopus', lang=lang, emotion=emotion, speed=speed)
 
     def _request(self, proxy_key):
         try:

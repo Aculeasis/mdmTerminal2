@@ -11,5 +11,5 @@ def _wrapper():
     return stt.stt
 
 
-def yandex_stt_grpc(folder_id: str, iam_token: str, language_code: str, chunks) -> str:
-    return _wrapper()(folder_id, iam_token, language_code, chunks)
+def yandex_stt_grpc(api_key: str, language_code: str, chunks) -> str:
+    return _wrapper()(api_key, language_code, chunks)
