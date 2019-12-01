@@ -48,6 +48,10 @@ class BaseSTT:
                 chunk = fp.read(self.BUFF_SIZE)
                 yield chunk
 
+    @staticmethod
+    def _requests_kwargs() -> dict:
+        return {}
+
     def _send(self, proxy_key):
         try:
             self._rq = requests.post(
@@ -57,7 +61,8 @@ class BaseSTT:
                 headers=self._headers,
                 stream=True,
                 timeout=60,
-                proxies=proxies(proxy_key)
+                proxies=proxies(proxy_key),
+                **self._requests_kwargs()
             )
         except REQUEST_ERRORS as e:
             raise RuntimeErrorTrace(e)
@@ -113,6 +118,11 @@ class Yandex(BaseSTT):
             'disableAntimat': 'true'
         }
         super().__init__(self.URL, audio_data, ext, headers, rate, width, 'stt_yandex', **kwargs)
+
+    @staticmethod
+    def _requests_kwargs():
+        # ssl.CertificateError: hostname 'asr.yandex.net' doesn't match 'tts.voicetech.yandex.net'
+        return {'verify': False}
 
     def _parse_response(self):
         self._text = xml_yandex(self._rq.text)

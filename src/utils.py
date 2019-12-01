@@ -9,6 +9,7 @@ import platform
 import queue
 import signal
 import socket
+import ssl
 import subprocess
 import threading
 import time
@@ -21,7 +22,9 @@ import requests
 import socks  # install socks-proxy dependencies - pip install requests[socks]
 import urllib3
 
-REQUEST_ERRORS = (requests.exceptions.RequestException, urllib3.exceptions.NewConnectionError, socks.ProxyError)
+REQUEST_ERRORS = (
+    requests.exceptions.RequestException, urllib3.exceptions.NewConnectionError, socks.ProxyError, ssl.CertificateError
+)
 
 
 class RuntimeErrorTrace(RuntimeError):
