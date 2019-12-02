@@ -272,34 +272,19 @@ def base64_to_bytes(data):
 
 def mask_off(obj):
     base_mask = '*' * 6
-    iterable_type = (list, tuple, set, dict)
+    result = '**HIDDEN OBJECT**'
     if not obj:
-        return obj
-    iterable = isinstance(obj, iterable_type)
-    if not iterable:
-        obj = (obj,)
-    masked = []
-    for key in obj:
-        if not key or isinstance(key, bool):
-            masked.append(key)
-        elif isinstance(key, iterable_type):
-            masked.append(mask_off(key))
-        elif isinstance(key, (int, float)):
-            key_ = str(key)
-            if len(key_) < 3:
-                masked.append(key)
-            else:
-                masked.append(base_mask)
-        elif isinstance(key, str):
-            key_len = len(key)
-            if key_len < 14:
-                key = base_mask
-            else:
-                key = '{}**LENGTH<{}>**{}'.format(key[:2], key_len, key[-2:])
-            masked.append(key)
-        else:
-            masked.append('**HIDDEN OBJECT**')
-    return masked if iterable or not masked else masked[0]
+        result = obj
+    elif isinstance(obj, (list, tuple, set, dict)):
+        result = [mask_off(key) for key in obj]
+    elif isinstance(obj, bool):
+        result = obj
+    elif isinstance(obj, (int, float)):
+        result = obj if len(str(obj)) < 3 else base_mask
+    elif isinstance(obj, str):
+        obj_len = len(obj)
+        result = base_mask if obj_len < 14 else '{}**LENGTH<{}>**{}'.format(obj[:2], obj_len, obj[-2:])
+    return result
 
 
 def mask_cfg(cfg: dict) -> dict:

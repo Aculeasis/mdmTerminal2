@@ -28,7 +28,6 @@ class MajordomoNotifier(threading.Thread):
         self.work = False
         self._queue = MyQueue(maxsize=50)
         self._lock = threading.Lock()
-        self._boot_time = None
         self._skip = SkipNotifications()
         self._dynamic_self_events = set(self.SELF_EVENTS)
         self._events = ()
@@ -136,7 +135,7 @@ class MajordomoNotifier(threading.Thread):
                     continue
                 # Отправляем пинг на сервер
                 data = self.own.get_volume_status
-                data['uptime'] = self._uptime
+                data['uptime'] = uptime()
             else:
                 if not isinstance(data, dict) or ignore():
                     continue
@@ -149,20 +148,13 @@ class MajordomoNotifier(threading.Thread):
         return self._send('cmd', params, user)
 
     @property
-    def _uptime(self) -> int:
-        if self._boot_time is None:
-            self._boot_time = _get_boot_time()
-        # Считаем uptime от времени загрузки, так быстрее чем каждый раз дергать его из фс.
-        return int(time.time() - self._boot_time)
-
-    @property
     def _allow_notify(self) -> bool:
         return self._cfg['object_name'] and self._cfg['object_method'] and self.own.outgoing_available
 
     def _callback(self, name, data=None, *_, **__):
         if not self._allow_notify:
             return
-        kwargs = {'uptime': self._uptime}
+        kwargs = {'uptime': uptime()}
         if name in self._dynamic_self_events:
             kwargs[name] = data
         elif name == 'music_status':
@@ -256,6 +248,12 @@ class SkipNotifications:
         return self._errors and time.time() < self._skip_to
 
 
+def uptime() -> int:
+    # Считаем uptime от времени загрузки, так быстрее чем каждый раз дергать его из фс.
+    return int(time.time() - _get_boot_time())
+
+
+@lru_cache(maxsize=1)
 def _get_boot_time() -> int:
     try:
         with open('/proc/stat') as fp:
