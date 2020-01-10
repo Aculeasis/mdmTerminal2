@@ -33,8 +33,10 @@ def str_to_int(val: str) -> int or None:
 
 class BaseControl(threading.Thread):
     START_DELAY = 6
-    MAX_ERRORS = 5
+    MAX_ERRORS = 6
     CHECK_INTERVAL = 0.9
+    # Расчетное время переподключения. Реальное будет плавать.
+    BASE_RECONN_TIME = 20
 
     def __init__(self, name: str, cfg: dict, log, owner: Owner):
         super().__init__(name='{}Control'.format(name.upper()))
@@ -46,6 +48,7 @@ class BaseControl(threading.Thread):
 
         self.is_conn = False
         self._errors_metric = 0
+        self._errors_rate = max(int(self.BASE_RECONN_TIME/self.CHECK_INTERVAL), 1)
         self._queue = queue.Queue()
 
         self._check_time = self.CHECK_INTERVAL
@@ -298,10 +301,9 @@ class BaseControl(threading.Thread):
                 self._callbacks_event()
             elif self._cfg['control'] and self._errors_metric >= 0:
                 self._errors_metric += 1
-                if not self._errors_metric % 10:
-                    if self._connect():
-                        self._errors_metric = 0
-                if self._errors_metric >= (self.MAX_ERRORS * 10) - 10:
+                if not self._errors_metric % self._errors_rate and self._connect():
+                    self._errors_metric = 0
+                if self._errors_metric // self._errors_rate + 1 >= self.MAX_ERRORS:
                     self.log('Detected many errors [{}] - stop reconnecting.'.format(self.MAX_ERRORS), logger.CRIT)
                     self._errors_metric = -1
         self._unsubscribe()
