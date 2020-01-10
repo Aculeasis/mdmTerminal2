@@ -356,6 +356,10 @@ class API:
 
         return self._rpc_caller(entry, path, walked, args, kwargs)
 
+    @api_commands('maintenance.reload', 'maintenance.stop')
+    def _api_maintenance(self, cmd: str, *_):
+        self.own.die_in(3, reload=cmd.endswith('.reload'))
+
     @staticmethod
     def _rpc_data_extractor(data: str) -> tuple:
         try:
