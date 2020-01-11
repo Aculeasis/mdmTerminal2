@@ -67,6 +67,7 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'quieter': 0,
         'wait_resume': 5,
         'lms_player': '',
+        'ignore_events': '',
     },
     'log': {
         'file_lvl' : 'debug',
@@ -156,9 +157,9 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'blacklist_on_failure': False,
     },
     'system': {
-        'ini_version': 43,
+        'ini_version': 44,
         'ws_token': 'token_is_unset',
         'PLUGINS_API': 3,
-        'VERSION': (0, 13, 8),
+        'VERSION': (0, 13, 9),
     }
 }

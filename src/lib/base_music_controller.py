@@ -5,6 +5,7 @@ import time
 import logger
 from languages import MUSIC_CONTROL as LNG
 from owner import Owner
+from utils import str_to_list
 
 __all__ = ['str_to_int', 'BaseControl', 'auto_reconnect']
 
@@ -16,6 +17,10 @@ PAUSE_STATES = {
     'start_stt_event': 0b001,
     'stop_stt_event': 0b001,
 }
+EVENTS = (
+    ('start_record', 'start_talking', 'start_stt_event', 'voice_activated'),  # pause
+    ('stop_record', 'stop_talking', 'stop_stt_event')  # unpause
+)
 
 
 def auto_reconnect(func):
@@ -65,13 +70,19 @@ class BaseControl(threading.Thread):
         self._saved_state = None
 
         self._pause_state = 0b000
-        self._events = (
-            (('start_record', 'start_talking', 'start_stt_event', 'voice_activated'), self._cb_pause),
-            (('stop_record', 'stop_talking', 'stop_stt_event'), self._cb_unpause)
-        )
+        self._events = self._make_events()
+
+    def _make_events(self) -> tuple:
+        ignore = set(str_to_list(self._cfg['ignore_events']))
+
+        def make(data: tuple) -> tuple:
+            return tuple(x for x in data if x not in ignore)
+
+        return (make(EVENTS[0]), self._cb_pause), (make(EVENTS[1]), self._cb_unpause)
 
     def _subscribe(self):
         if self._cfg['pause'] and self._cfg['control']:
+            self._events = self._make_events()
             for events, callback in self._events:
                 self.own.subscribe(events, callback)
 
@@ -114,6 +125,13 @@ class BaseControl(threading.Thread):
         if not self.work:
             self.work = True
             super().start()
+
+    def _reload(self):
+        self._errors_metric = 0
+        self._unsubscribe()
+        self._force_resume(True)
+        self._connect()
+        self._subscribe()
 
     def reload(self):
         if self.work:
@@ -290,11 +308,7 @@ class BaseControl(threading.Thread):
                 elif cmd[0] == 'play':
                     self._play(cmd[1])
                 elif cmd[0] == 'reload':
-                    self._errors_metric = 0
-                    self._unsubscribe()
-                    self._force_resume(True)
-                    self._connect()
-                    self._subscribe()
+                    self._reload()
                     continue
             if self.is_conn:
                 self._resume_check()
