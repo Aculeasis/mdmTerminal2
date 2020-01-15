@@ -246,12 +246,7 @@ class Azure(BaseSTT):
         self._text = text
 
 
-class PocketSphinxREST(BaseSTT):
-    # https://github.com/Aculeasis/pocketsphinx-rest
-    def __init__(self, audio_data: AudioData, url='', **_):
-        url = url_builder_cached(url or '127.0.0.1', def_port=8085, def_path='/stt')
-        super().__init__(url, audio_data, 'wav', {'Content-Type': 'audio/wav'}, 16000, 2, 'stt_pocketsphinx-rest')
-
+class BaseMySTT(BaseSTT):
     def _parse_response(self):
         try:
             result = json.loads(''.join(self._rq.text.split('\n')))
@@ -261,6 +256,20 @@ class PocketSphinxREST(BaseSTT):
         if 'code' not in result or 'text' not in result or result['code']:
             raise RuntimeError('Response error: {}: {}'.format(result.get('code', 'None'), result.get('text', 'None')))
         self._text = result['text']
+
+
+class PocketSphinxREST(BaseMySTT):
+    # https://github.com/Aculeasis/pocketsphinx-rest
+    def __init__(self, audio_data: AudioData, url='', **_):
+        url = url_builder_cached(url or '127.0.0.1', def_port=8085, def_path='/stt')
+        super().__init__(url, audio_data, 'wav', {'Content-Type': 'audio/wav'}, 16000, 2, 'stt_pocketsphinx-rest')
+
+
+class VoskREST(BaseMySTT):
+    # https://github.com/Aculeasis/vosk-rest
+    def __init__(self, audio_data: AudioData, url='', **_):
+        url = url_builder_cached(url or '127.0.0.1', def_port=8086, def_path='/stt')
+        super().__init__(url, audio_data, 'wav', {'Content-Type': 'audio/wav'}, 16000, 2, 'stt_vosk-rest')
 
 
 class Microsoft:
@@ -287,8 +296,8 @@ def yandex(yandex_api, grpc, **kwargs):
 
 
 PROVIDERS = {
-    'google': Google, 'yandex': yandex, 'pocketsphinx-rest': PocketSphinxREST, 'wit.ai': WitAI, 'microsoft': Microsoft,
-    'azure': Azure
+    'google': Google, 'yandex': yandex, 'pocketsphinx-rest': PocketSphinxREST, 'vosk-rest': VoskREST, 'wit.ai': WitAI,
+    'microsoft': Microsoft, 'azure': Azure
 }
 
 

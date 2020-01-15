@@ -15,6 +15,7 @@ PROXIES = {
     'stt_google': ('google_stt', 'google'),
     'stt_yandex': ('yandex_stt', 'yandex'),
     'stt_pocketsphinx-rest': ('pocketsphinx-rest',),
+    'stt_vosk-rest': ('vosk-rest',),
     'stt_wit.ai': ('wit.ai',),
     'stt_microsoft': ('microsoft',),
     'stt_azure': ('azure_stt', 'azure'),

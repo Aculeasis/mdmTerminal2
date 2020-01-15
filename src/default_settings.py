@@ -107,6 +107,9 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
     'pocketsphinx-rest': {
         'server': 'http://127.0.0.1:8085',
     },
+    'vosk-rest': {
+        'server': 'http://127.0.0.1:8086',
+    },
     'azure': {
         'speaker': 'EkaterinaRUS',
         'region': 'westus',
@@ -157,9 +160,9 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'blacklist_on_failure': False,
     },
     'system': {
-        'ini_version': 44,
+        'ini_version': 45,
         'ws_token': 'token_is_unset',
         'PLUGINS_API': 3,
-        'VERSION': (0, 13, 9),
+        'VERSION': (0, 14, 0),
     }
 }
