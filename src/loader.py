@@ -276,6 +276,9 @@ class Loader(Owner):
     def sys_say_chance(self) -> bool:
         return self._stt.sys_say.chance
 
+    def music_state(self) -> str:
+        return self._music.state()
+
     def music_play(self, uri):
         self._music.play(uri)
 

@@ -137,16 +137,17 @@ class API:
         cmd_map = {
             'volume': self.own.get_volume,
             'nvolume': self.own.get_volume,
-            'mvolume': lambda : self.own.music_real_volume
+            'mvolume': lambda : self.own.music_real_volume,
+            'mstate': self.own.music_state,
         }
 
-        def get_volume(key) -> int:
+        def get_value(key):
             if key not in cmd_map:
                 raise InternalException(msg='Unknown command: {}'.format(repr(key)))
-            vol = cmd_map[key]()
-            return vol if vol is not None else -1
+            value = cmd_map[key]()
+            return value if value is not None else -1
 
-        return {key: get_volume(key) for key in data}
+        return {key: get_value(key) for key in data}
 
     @api_commands('home', 'url', 'rts', 'run')
     def _api_no_implement(self, cmd: str, _):

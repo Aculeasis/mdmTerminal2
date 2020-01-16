@@ -248,6 +248,9 @@ class Owner:
     def sys_say_chance(self) -> bool:
         raise NotImplementedError
 
+    def music_state(self) -> str:
+        raise NotImplementedError
+
     def music_play(self, uri):
         raise NotImplementedError
 

@@ -148,6 +148,11 @@ class BaseControl(threading.Thread):
         if self.allow():
             return self._ctl_get_track_name()
 
+    def state(self) -> str:
+        if not self.is_conn:
+            return 'disconnected'
+        return self._ctl_get_state() or 'error'
+
     def play(self, uri):
         if not self.allow():
             return

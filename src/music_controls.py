@@ -51,6 +51,10 @@ class DummyControl:
     def allow():
         return False
 
+    @staticmethod
+    def state() -> str:
+        return 'disabled'
+
     volume = property(lambda self: -1, play)
     real_volume = volume
 
