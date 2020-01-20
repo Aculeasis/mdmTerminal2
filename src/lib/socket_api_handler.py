@@ -268,10 +268,10 @@ class API:
     @api_commands('ping')
     def _api_ping(_, data: str):
         """
-        Пустая команды для поддержания и проверки соединения,
-        вернет данные
+        Пустая команда для поддержания и проверки соединения,
+        вернет данные, если данные пустые вернет строку с текущим time.time().
         """
-        return data
+        return data if data else str(time.time())
 
     @api_commands('pong')
     def _api_pong(self, _, data: str):
@@ -282,7 +282,7 @@ class API:
             except (ValueError, TypeError):
                 pass
             else:
-                self.log('ping {}'.format(pretty_time(data)), logger.INFO)
+                self.log('Ping {}'.format(pretty_time(data)), logger.INFO)
 
     @api_commands('info')
     def _api_info(self, _, cmd: str) -> dict:
