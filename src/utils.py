@@ -27,6 +27,23 @@ REQUEST_ERRORS = (
 )
 
 
+class HashableDict(dict):
+    def __hash__(self):
+        return hash(self._cfg_as_tuple(self))
+
+    def _cfg_as_tuple(self, data: dict) -> tuple:
+        result = []
+        for key, val in data.items():
+            if not isinstance(key, str):
+                continue
+            elif isinstance(val, dict):
+                result.append((key, self._cfg_as_tuple(val)))
+            elif isinstance(val, (bool, str, int, float, bytes)) or val is None:
+                result.append((key, val))
+        result.sort()
+        return tuple(result)
+
+
 class RuntimeErrorTrace(RuntimeError):
     def __init__(self, *args):
         super().__init__('{},  Traceback: \n{}'.format(args, traceback.format_exc()))

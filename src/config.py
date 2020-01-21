@@ -41,7 +41,7 @@ class DummyOwner:
             own.say(*say)
 
 
-class ConfigHandler(dict):
+class ConfigHandler(utils.HashableDict):
     def __init__(self, cfg: dict, path: dict, log, owner: Owner):
         super().__init__()
         self._start_time = time.time()
@@ -493,21 +493,6 @@ class ConfigHandler(dict):
             msg = LNG['say_ip'].format(self.gts('ip'))
             self.log(msg, logger.WARN)
             self.own.say(msg)
-
-    def _cfg_as_tuple(self, data: dict) -> tuple:
-        result = []
-        for key, val in data.items():
-            if not isinstance(key, str):
-                continue
-            elif isinstance(val, dict):
-                result.append((key, self._cfg_as_tuple(val)))
-            elif isinstance(val, (bool, str, int, float, bytes)) or val is None:
-                result.append((key, val))
-        result.sort()
-        return tuple(result)
-
-    def __hash__(self):
-        return hash(self._cfg_as_tuple(self))
 
 
 class ConfigParserOnOff(configparser.ConfigParser):
