@@ -135,10 +135,10 @@ class TestShell(cmd__.Cmd):
         self._duplex_off()
 
     def _send_json(self, cmd: str, data='', is_logger=False):
-        self._send(json.dumps({'method': cmd, 'params': [data], 'id': cmd}), is_logger)
+        self._send(json.dumps({'method': cmd, 'params': [data], 'id': cmd}, ensure_ascii=False), is_logger)
 
     def _send_true_json(self, cmd: str, data: dict):
-        self._send(json.dumps({'method': cmd, 'params': data, 'id': cmd}), )
+        self._send(json.dumps({'method': cmd, 'params': data, 'id': cmd}, ensure_ascii=False))
 
     def _send(self, cmd: str, is_logger=False):
         if self._client:
@@ -162,6 +162,13 @@ class TestShell(cmd__.Cmd):
         else:
             print('Start duplex')
             self._client = Client((self._ip, self._port), self._token, self.chunk_size, True, api=self._api)
+
+    def _send_says(self, cmd: str, data: str):
+        test = data.rsplit('~', 1)
+        if len(test) == 2 and len(test[1]) > 3:
+            self._send_true_json(cmd, {'text': test[0], 'provider': test[1]})
+        else:
+            self._send(cmd + ':' + data)
 
     def do_connect(self, arg):
         """Проверяет подключение к терминалу и позволяет задать его адрес. Аргументы: IP:PORT"""
@@ -196,18 +203,18 @@ class TestShell(cmd__.Cmd):
         self._send('voice:')
 
     def do_tts(self, arg):
-        """Отправляет фразу терминалу. Аргументы: фраза"""
+        """Отправляет фразу терминалу. Аргументы: фраза или фраза~провайдер"""
         if not arg:
             print('Добавьте фразу')
         else:
-            self._send('tts:' + arg)
+            self._send_says('tts', arg)
 
     def do_ask(self, arg):
-        """Отправляет ask терминалу. Аргументы: фраза"""
+        """Отправляет ask терминалу. Аргументы: фраза или фраза~провайдер"""
         if not arg:
             print('Добавьте фразу')
         else:
-            self._send('ask:' + arg)
+            self._send_says('ask', arg)
 
     def do_api(self, _):
         """Отключить/включить показ уведомлений, для duplex mode"""
@@ -450,7 +457,7 @@ def parse_json(data: str, api):
         if data['method'] == 'cmd':
             tts = data.get('params', {}).get('qry', '')
             if tts:
-                return json.dumps({'method': 'tts', 'params': [tts]})
+                return json.dumps({'method': 'tts', 'params': {'text': tts}}, ensure_ascii=False)
         return
     cmd = data.get('id')
     data = data.get('result')

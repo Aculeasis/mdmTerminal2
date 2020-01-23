@@ -9,7 +9,7 @@ import logger
 from lib.map_settings.map_settings import make_map_settings
 from lib.socket_wrapper import Connect
 from owner import Owner
-from utils import file_to_base64, pretty_time
+from utils import file_to_base64, pretty_time, TTSTextBox
 
 # old -> new
 OLD_CMD = {
@@ -110,6 +110,7 @@ class API:
         self.cfg = cfg
         self.log = log
         self.own = owner
+        self.is_jsonrpc = False
 
     def _collector(self):
         def filling(target: set, sets, name_):
@@ -157,10 +158,16 @@ class API:
         """NotImplemented"""
         raise InternalException(msg='Not implemented yet - {}'.format(cmd))
 
-    @api_commands('hi', 'voice', 'tts', 'ask', 'volume', 'nvolume', 'mvolume', 'nvolume_say', 'mvolume_say', 'listener',
+    @api_commands('hi', 'voice', 'volume', 'nvolume', 'mvolume', 'nvolume_say', 'mvolume_say', 'listener',
                   'volume_q', 'music_volume_q')
     def _api_terminal_direct(self, name: str, cmd: str):
         self.own.terminal_call(OLD_CMD[name] if name in OLD_CMD else name, cmd)
+
+    @api_commands('tts', 'ask', true_json=True)
+    def _api_says(self, cmd, data):
+        data = data if self.is_jsonrpc else {'text': data[0]}
+        dict_key_checker(data, keys=('text',))
+        self.own.terminal_call(cmd, TTSTextBox(data['text'], data.get('provider')))
 
     @api_commands('play')
     def _api_play(self, _, cmd: str):
@@ -458,7 +465,6 @@ class API:
 class APIHandler(API):
     def __init__(self, cfg, log, owner: Owner):
         super().__init__(cfg, log, owner)
-        self.is_jsonrpc = False
 
     def extract(self, line: str) -> tuple:
         if line.startswith('{'):

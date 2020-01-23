@@ -27,6 +27,14 @@ REQUEST_ERRORS = (
 )
 
 
+class TTSTextBox(str):
+    def __new__(cls, text, provider=None):
+        # noinspection PyArgumentList
+        obj = str.__new__(cls, text)
+        obj.provider = str(provider) if provider else ''
+        return obj
+
+
 class HashableDict(dict):
     def __hash__(self):
         return hash(self._cfg_as_tuple(self))
