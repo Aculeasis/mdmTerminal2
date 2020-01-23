@@ -16,3 +16,4 @@ src/plugins/*
 src/porcupine/
 src/mdmterminal.log
 src/lib/_snowboydetect.so
+src/test

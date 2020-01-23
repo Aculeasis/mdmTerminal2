@@ -6,9 +6,116 @@ import hashlib
 import json
 import socket
 import time
+from threading import Thread, Lock
 
 ERRORS = (BrokenPipeError, ConnectionResetError, ConnectionRefusedError, OSError)
 CRLF = b'\r\n'
+
+
+class Client:
+    def __init__(self, address: tuple, token, chunk_size=1024, threading=False, is_logger=False, api=True):
+        self.chunk_size = chunk_size
+        self.work, self.connect = False, False
+        self.address = address
+        self.is_logger = is_logger
+        self.api = api
+        self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.client.settimeout(10 if not (is_logger or threading) else None)
+        self.token = token
+        self.thread = Thread(target=self._run) if threading else None
+        self._lock = Lock()
+        try:
+            self.client.connect(address)
+        except ERRORS as err:
+            print('Ошибка подключения к {}:{}. {}: {}'.format(*address, err.errno, err.strerror))
+        else:
+            self.connect = True
+            print('Подключено к {}:{}'.format(*address))
+        if self.connect and self.thread:
+            self.work = True
+            self.thread.start()
+        if self.connect:
+            self._auth()
+
+    def _run(self):
+        try:
+            self._read_loop()
+        finally:
+            print('Отключено от {}:{}'.format(*self.address))
+            self.work = False
+            self.connect = False
+            self.client.close()
+
+    def _auth(self):
+        if self.token:
+            cmd = json.dumps({
+                'method': 'authorization',
+                'params': [hashlib.sha512(self.token.encode()).hexdigest()],
+                'id': 'authorization',
+            }).encode()
+            self._send(cmd)
+
+    def send(self, cmd):
+        self._send('\r\n'.join(cmd.replace('\\n', '\n').split('\n')).encode() + (CRLF if not self.thread else b''))
+        if self.connect and not self.thread:
+            self._run()
+
+    def _send(self, data: bytes):
+        if not self.connect:
+            return
+        try:
+            with self._lock:
+                self.client.send(data + CRLF)
+        except ERRORS as e:
+            print('Write error {}:{}:{}'.format(*self.address, e))
+            self.connect = False
+
+    def _read_loop(self):
+        data = b''
+        stage = 1
+        while self.connect:
+            try:
+                chunk = self.client.recv(self.chunk_size)
+            except ERRORS:
+                break
+            if not chunk:
+                break
+            data += chunk
+            while CRLF in data:
+                line, data = data.split(CRLF, 1)
+                if not line:
+                    return
+                line = line.decode()
+                if self.is_logger:
+                    print(line)
+                    continue
+                if self.thread and self.token and stage:
+                    stage = handshake(line, stage)
+                    if stage < 0:
+                        return
+                    continue
+                if line.startswith('{') and line.endswith('}'):
+                    # json? json!
+                    result = parse_json(line, self.api)
+                    if result:
+                        self._send(result.encode())
+                    continue
+                if line.startswith('pong:'):
+                    try:
+                        diff = time.time() - float(line.split(':', 1)[1])
+                    except (ValueError, TypeError):
+                        pass
+                    else:
+                        line = 'ping {} ms'.format(int(diff * 1000))
+                print('Ответ: {}'.format(line))
+
+    def stop(self):
+        if self.thread and self.work:
+            self.work = False
+            self.connect = False
+            self.client.shutdown(socket.SHUT_RD)
+            self.client.close()
+            self.thread.join(10)
 
 
 class TestShell(cmd__.Cmd):
@@ -21,159 +128,40 @@ class TestShell(cmd__.Cmd):
         self._port = 7999
         self._token = ''
         self.chunk_size = 1024
+        self._client = None
+        self._api = True
 
-    def _send_json(self, cmd: str, data='', is_logger=False, is_duplex=False, auth=None):
-        self._send(json.dumps({'method': cmd, 'params': [data], 'id': cmd}), is_logger, is_duplex, auth)
+    def __del__(self):
+        self._duplex_off()
 
-    def _send(self, cmd: str, is_logger=False, is_duplex=False, auth=None):
-        client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        client.settimeout(10 if not (is_logger or is_duplex) else None)
-        cmd = '\r\n'.join(cmd.replace('\\n', '\n').split('\n')).encode() + (CRLF*2 if not is_duplex else CRLF)
-        print('Отправляю {}:{} {}...'.format(self._ip, self._port, repr(cmd)))
-        if self._token:
-            cmd = b'authorization:' + hashlib.sha512(self._token.encode()).hexdigest().encode() + CRLF + cmd
-        try:
-            client.connect((self._ip, self._port))
-            client.send(cmd)
-        except ERRORS as err:
-            print('Ошибка подключения к {}:{}. {}: {}'.format(self._ip, self._port, err.errno, err.strerror))
-        else:
-            print('...Успех.')
-            data = b''
-            stage = 0
-            while True:
-                try:
-                    chunk = client.recv(self.chunk_size)
-                except ERRORS:
-                    break
-                if not chunk:
-                    break
-                data += chunk
-                while CRLF in data:
-                    line, data = data.split(CRLF, 1)
-                    if not line:
-                        return
-                    line = line.decode()
-                    if is_logger:
-                        print(line)
-                        continue
-                    if is_duplex and auth:
-                        stage = self.handshake(line, stage)
-                        if not stage:
-                            auth = None
-                        if stage < 0:
-                            return
-                        continue
-                    if line.startswith('{') and line.endswith('}'):
-                        # json? json!
-                        result = self._parse_json(line)
-                        if result:
-                            client.send(result.encode() + CRLF)
-                        continue
-                    if line.startswith('pong:'):
-                        try:
-                            diff = time.time() - float(line.split(':', 1)[1])
-                        except (ValueError, TypeError):
-                            pass
-                        else:
-                            line = 'ping {} ms'.format(int(diff * 1000))
-                    print('Ответ: {}'.format(line))
-        finally:
-            self.chunk_size = 1024
-            client.close()
+    def _send_json(self, cmd: str, data='', is_logger=False):
+        self._send(json.dumps({'method': cmd, 'params': [data], 'id': cmd}), is_logger)
 
-    @staticmethod
-    def handshake(line: str, stage: int):
-        try:
-            data = json.loads(line)
-            if not isinstance(data, dict):
-                raise TypeError('Data must be dict type')
-        except (json.decoder.JSONDecodeError, TypeError, ValueError) as e:
-            print('Ошибка декодирования: {}'.format(e))
-            return -1
-        if 'result' in data and data.get('id') == 'upgrade duplex':
-            return 0
-        return stage
+    def _send_true_json(self, cmd: str, data: dict):
+        self._send(json.dumps({'method': cmd, 'params': data, 'id': cmd}), )
 
-    @staticmethod
-    def _parse_dict(cmd, data):
-        if cmd == 'recv_model':
-            for key in ('filename', 'data'):
-                if key not in data:
-                    return print('Не хватает ключа: {}'.format(key))
-            try:
-                file_size = len(base64_to_bytes(data['data']))
-            except RuntimeError as e:
-                return print('Ошибка декодирования data: {}'.format(e))
-
-            optional = ', '.join(['{}={}'.format(k, repr(data[k])) for k in ('username', 'phrase') if k in data])
-            result = 'Получен файл {}; данные: {}; размер {} байт'.format(data['filename'], optional, file_size)
-        elif cmd == 'list_models':
-            if len([k for k in ('models', 'allow') if isinstance(data.get(k, ''), list)]) < 2:
-                return print('Недопустимое body: {}'.format(repr(data)))
-            result = 'Все модели: {}; разрешенные: {}'.format(
-                ', '.join(data['models']), ', '.join(data['allow'])
-            )
-        elif cmd == 'info':
-            for key in ('cmd', 'msg'):
-                if key not in data:
-                    return print('Не хватает ключа в body: {}'.format(key))
-            if isinstance(data['cmd'], (list, dict)):
-                data['cmd'] = ', '.join(x for x in data['cmd'])
-            if isinstance(data['msg'], str) and '\n' in data['msg']:
-                data['msg'] = '\n' + data['msg']
-            print('\nINFO: {}'.format(data['cmd']))
-            print('MSG: {}\n'.format(data['msg']))
-            return
-        else:
-            return cmd, data
-        return result
-
-    @staticmethod
-    def _parse_str(cmd, data):
-        if cmd == 'ping':
-            try:
-                diff = time.time() - float(data)
-            except (ValueError, TypeError):
-                pass
+    def _send(self, cmd: str, is_logger=False):
+        if self._client:
+            if not self._client.connect or is_logger:
+                self._duplex_off()
             else:
-                print('ping {} ms'.format(int(diff * 1000)))
-                return
-        return cmd, data
-
-    def _parse_json(self, data: str):
-        try:
-            data = json.loads(data)
-            if not isinstance(data, dict):
-                raise TypeError('Data must be dict type')
-        except (json.decoder.JSONDecodeError, TypeError) as e:
-            return print('Ошибка декодирования: {}'.format(e))
-
-        if 'error' in data:
-            result = (data.get('id', 'null'), data['error'].get('code'), data['error'].get('message'))
-            print('Терминал сообщил об ошибке {} [{}]: {}'.format(*result))
-            return
-        if 'method' in data:
-            print('{}: {}, id: {}'.format(data['method'], data.get('params'), data.get('id')))
-            if data['method'] == 'cmd':
-                tts = data.get('params', {}).get('qry', '')
-                if tts:
-                    return 'tts:{}'.format(tts)
-            return
-        cmd = data.get('id')
-        data = data.get('result')
-        if isinstance(data, dict):
-            result = self._parse_dict(cmd, data)
-        elif isinstance(data, str):
-            result = self._parse_str(cmd, data)
+                self._client.send(cmd)
         else:
-            result = (cmd, data)
-        if result is None:
-            pass
-        elif isinstance(result, str):
-            print('Ответ на {}: {}'.format(repr(cmd), result))
+            client = Client((self._ip, self._port), self._token, self.chunk_size, is_logger=is_logger, api=self._api)
+            client.send(cmd)
+
+    def _duplex_off(self):
+        if self._client:
+            self._client.stop()
+            self._client = None
+            print('Stop duplex')
+
+    def _duplex(self):
+        if self._client:
+            self._duplex_off()
         else:
-            print('Неизвестная команда: {}'.format(repr(result)))
+            print('Start duplex')
+            self._client = Client((self._ip, self._port), self._token, self.chunk_size, True, api=self._api)
 
     def do_connect(self, arg):
         """Проверяет подключение к терминалу и позволяет задать его адрес. Аргументы: IP:PORT"""
@@ -194,6 +182,7 @@ class TestShell(cmd__.Cmd):
             except ValueError:
                 return print('Ошибка парсинга - порт не число: {}'.format(cmd[1]))
             self._ip = cmd[0]
+        self._duplex_off()
         self._send('pause:')
 
     @staticmethod
@@ -219,6 +208,13 @@ class TestShell(cmd__.Cmd):
             print('Добавьте фразу')
         else:
             self._send('ask:' + arg)
+
+    def do_api(self, _):
+        """Отключить/включить показ уведомлений, для duplex mode"""
+        self._api = not self._api
+        if self._client:
+            self._client.api = self._api
+        print('Уведомления {}.'.format('включены' if self._api else 'отключены'))
 
     def do_pause(self, _):
         """Отправляет pause:."""
@@ -286,8 +282,10 @@ class TestShell(cmd__.Cmd):
         self._send('remote_log', is_logger=True)
 
     def do_duplex(self, _):
-        """Один сокет для всего."""
-        self._send_json('upgrade duplex', is_duplex=True, auth=True)
+        """Один сокет для всего. Включает и выключает"""
+        self._duplex()
+        if self._client:
+            self._send_json('upgrade duplex')
 
     def do_raw(self, arg):
         """Отправляет терминалу любые данные. Аргументы: что угодно"""
@@ -299,6 +297,47 @@ class TestShell(cmd__.Cmd):
     def do_token(self, token: str):
         """Задать токен для авторизации. Аргументы: токен"""
         self._token = token
+
+    def do_test_record(self, arg):
+        """[filename] [phrase_time_limit]"""
+        arg = arg.rsplit(' ', 1)
+        if not arg[0]:
+            print('Use [filename] [phrase_time_limit](optional)')
+            return
+        data = {'file': arg[0]}
+        if len(arg) == 2:
+            try:
+                data['limit'] = float(arg[1])
+            except ValueError as e:
+                print('limit must be numeric: {}'.format(e))
+                return
+        self._send_true_json('test.record', data=data)
+
+    def do_test_play(self, arg):
+        """[file1,file2..fileN]"""
+        self._send_true_json('test.play', data={'files': str_to_list(arg)})
+
+    def do_test_delete(self, arg):
+        """[file1,file2..fileN]"""
+        self._send_true_json('test.delete', data={'files': str_to_list(arg)})
+
+    def do_test_test(self, arg):
+        """[provider1,provider2..providerN] [file1,file2..fileN]"""
+        cmd = get_params(arg, '[provider1,provider2..providerN] [file1,file2..fileN]', to_type=None)
+        if not cmd:
+            return
+        self._send_true_json('test.test', data={'providers': str_to_list(cmd[0]), 'files': str_to_list(cmd[1])})
+
+    def do_test_list(self, _):
+        self._send_true_json('test.list', data={})
+
+    def do_info(self, arg):
+        """Информация о команде"""
+        self._send_json('info', data=arg)
+
+
+def str_to_list(line) -> list:
+    return [el.strip() for el in line.split(',')]
 
 
 def num_check(cmd):
@@ -332,6 +371,97 @@ def base64_to_bytes(data):
         return base64.b64decode(data)
     except (ValueError, TypeError) as e:
         raise RuntimeError(e)
+
+
+def handshake(line: str, stage: int):
+    try:
+        data = json.loads(line)
+        if not isinstance(data, dict):
+            raise TypeError('Data must be dict type')
+    except (json.decoder.JSONDecodeError, TypeError, ValueError) as e:
+        print('Ошибка декодирования: {}'.format(e))
+        return -1
+    if 'result' in data and data.get('id') == 'upgrade duplex':
+        return 0
+    return stage
+
+
+def parse_dict(cmd, data):
+    if cmd == 'recv_model':
+        for key in ('filename', 'data'):
+            if key not in data:
+                return print('Не хватает ключа: {}'.format(key))
+        try:
+            file_size = len(base64_to_bytes(data['data']))
+        except RuntimeError as e:
+            return print('Ошибка декодирования data: {}'.format(e))
+
+        optional = ', '.join(['{}={}'.format(k, repr(data[k])) for k in ('username', 'phrase') if k in data])
+        result = 'Получен файл {}; данные: {}; размер {} байт'.format(data['filename'], optional, file_size)
+    elif cmd == 'list_models':
+        if len([k for k in ('models', 'allow') if isinstance(data.get(k, ''), list)]) < 2:
+            return print('Недопустимое body: {}'.format(repr(data)))
+        result = 'Все модели: {}; разрешенные: {}'.format(
+            ', '.join(data['models']), ', '.join(data['allow'])
+        )
+    elif cmd == 'info':
+        for key in ('cmd', 'msg'):
+            if key not in data:
+                return print('Не хватает ключа в body: {}'.format(key))
+        if isinstance(data['cmd'], (list, dict)):
+            data['cmd'] = ', '.join(x for x in data['cmd'])
+        if isinstance(data['msg'], str) and '\n' in data['msg']:
+            data['msg'] = '\n' + data['msg']
+        print('\nINFO: {}'.format(data['cmd']))
+        print('MSG: {}\n'.format(data['msg']))
+        return
+    else:
+        return cmd, data
+    return result
+
+
+def parse_str(cmd, data):
+    if cmd == 'ping':
+        try:
+            diff = time.time() - float(data)
+        except (ValueError, TypeError):
+            pass
+        else:
+            print('ping {} ms'.format(int(diff * 1000)))
+            return
+    return cmd, data
+
+
+def parse_json(data: str, api):
+    try:
+        data = json.loads(data)
+        if not isinstance(data, dict):
+            raise TypeError('Data must be dict type')
+    except (json.decoder.JSONDecodeError, TypeError) as e:
+        return print('Ошибка декодирования: {}'.format(e))
+
+    if 'error' in data:
+        result = (data.get('id', 'null'), data['error'].get('code'), data['error'].get('message'))
+        print('Терминал сообщил об ошибке {} [{}]: {}'.format(*result))
+        return
+    if 'method' in data:
+        if data['method'] not in ('cmd', 'api') or api:
+            print('{}: {}, id: {}'.format(data['method'], data.get('params'), data.get('id')))
+        if data['method'] == 'cmd':
+            tts = data.get('params', {}).get('qry', '')
+            if tts:
+                return json.dumps({'method': 'tts', 'params': [tts]})
+        return
+    cmd = data.get('id')
+    data = data.get('result')
+    if isinstance(data, dict):
+        result = parse_dict(cmd, data)
+    elif isinstance(data, str):
+        result = parse_str(cmd, data)
+    else:
+        result = data if data is not None else 'null'
+    if result is not None:
+        print('Ответ на {}: {}'.format(repr(cmd), result))
 
 
 if __name__ == '__main__':

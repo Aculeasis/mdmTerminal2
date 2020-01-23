@@ -192,12 +192,12 @@ class ConfigHandler(utils.HashableDict):
         return True
 
     def is_model_name(self, filename: str) -> bool:
-        if not (filename and isinstance(filename, str) and not filename.startswith(('.', '~'))):
-            return False
-        # check wrong chars
-        wrong_chars = '*/:?"|+<>\n\r\t\n\0\\'
-        valid = not set(wrong_chars).intersection(filename)
-        return valid and os.path.splitext(filename)[-1].lower() in self.path['model_supports']
+        return utils.is_valid_base_filename(filename) and \
+               os.path.splitext(filename)[-1].lower() in self.path['model_supports']
+
+    def is_testfile_name(self, filename: str) -> bool:
+        return utils.is_valid_base_filename(filename) and \
+               os.path.splitext(filename)[-1].lower() == self.path['test_ext']
 
     def path_to_sample(self, model_id: str, sample_num) -> str:
         return os.path.join(self.path['samples'], model_id, '{}.wav'.format(sample_num))
@@ -292,6 +292,11 @@ class ConfigHandler(utils.HashableDict):
 
     def get_all_models(self) -> list:
         return [file for file in os.listdir(self.path['models']) if self.is_model_name(file)]
+
+    def get_all_testfile(self) -> list:
+        if not os.path.isdir(self.path['test']):
+            return []
+        return [file for file in os.listdir(self.path['test']) if self.is_testfile_name(file)]
 
     def save_dict(self, name: str, data: dict, pretty=False, format_='json') -> bool:
         file_path = os.path.join(self.path['data'], name + DATA_FORMATS.get(format_, '.json'))

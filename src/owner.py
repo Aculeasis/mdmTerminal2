@@ -126,6 +126,18 @@ class Owner:
         """
         raise NotImplementedError
 
+    def tts_providers(self) -> list:
+        raise NotImplementedError
+
+    def stt_providers(self) -> list:
+        raise NotImplementedError
+
+    def is_tts_provider(self, name: str) -> bool:
+        raise NotImplementedError
+
+    def is_stt_provider(self, name: str) -> bool:
+        raise NotImplementedError
+
     @property
     def duplex_mode_on(self) -> bool:
         """
@@ -223,7 +235,7 @@ class Owner:
     def listen(self, hello: str = '', deaf: bool = True, voice: bool = False) -> tuple:
         raise NotImplementedError
 
-    def voice_record(self, hello: str, save_to: str, convert_rate=None, convert_width=None):
+    def voice_record(self, hello: str or None, save_to: str, convert_rate=None, convert_width=None, limit=8):
         raise NotImplementedError
 
     def voice_recognition(self, audio, quiet: bool = False, fusion=None) -> str:
@@ -242,6 +254,9 @@ class Owner:
         raise NotImplementedError
 
     def phrase_from_files(self, files: list) -> tuple:
+        raise NotImplementedError
+
+    def multiple_recognition(self, file_or_adata, providers: list) -> dict:
         raise NotImplementedError
 
     @property

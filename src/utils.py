@@ -137,6 +137,14 @@ class Messenger(threading.Thread):
             self.callback(result)
 
 
+def is_valid_base_filename(filename: str) -> bool:
+    if not (filename and isinstance(filename, str) and not filename.startswith(('.', '~'))):
+        return False
+    # check wrong chars
+    wrong_chars = '*/:?"|+<>\n\r\t\n\0\\'
+    return not set(wrong_chars).intersection(filename)
+
+
 def get_ip_address():
     s = socket.socket(type=socket.SOCK_DGRAM)
     s.connect(('8.8.8.8', 80))

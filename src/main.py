@@ -34,6 +34,10 @@ def get_path(home) -> dict:
         'data': os.path.join(home, 'data'),
         # ~/plugins/
         'plugins': os.path.join(home, 'plugins'),
+        # ~/test/
+        'test': os.path.join(home, 'test'),
+        # Раширение тестовых файлов
+        'test_ext': '.wav',
     }
     path['models'] = os.path.join(path['resources'], 'models')
     path['samples'] = os.path.join(path['resources'], 'samples')

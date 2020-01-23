@@ -348,24 +348,26 @@ class SpeechToText:
         else:
             return audio, record_time, energy_threshold, rms
 
-    def voice_record(self, hello: str, save_to: str, convert_rate=None, convert_width=None):
+    def voice_record(self, hello: str or None, save_to: str, convert_rate=None, convert_width=None, limit=8):
         if self.max_mic_index == -2:
             self.log(LNG['no_mics'], logger.ERROR)
             return LNG['no_mics']
         self._lock.acquire()
         self._start_stt_event()
         try:
-            return self._voice_record(hello, save_to, convert_rate, convert_width)
+            return self._voice_record(hello, save_to, convert_rate, convert_width, limit)
         finally:
             self.own.clear_lvl()
             self._stop_stt_event()
             self._lock.release()
 
-    def _voice_record(self, hello: str, save_to: str, convert_rate=None, convert_width=None):
+    def _voice_record(self, hello: str or None, save_to: str, convert_rate, convert_width, limit):
         lvl = 5  # Включаем монопольный режим
 
-        file_path = self.own.tts(hello)()
-        self.own.say(file_path, lvl, True, is_file=True, blocking=120)
+        if hello is not None:
+            self.own.say(self.own.tts(hello)(), lvl, True, is_file=True, blocking=120)
+        else:
+            self.own.set_lvl(lvl)
         r = sr.Recognizer()
         mic = sr.Microphone(device_index=self.get_mic_index())
         vad = self.own.get_vad_detector(mic)
@@ -373,7 +375,7 @@ class SpeechToText:
         with mic as source:
             record_time = time.time()
             try:
-                adata = r.listen1(source=source, vad=vad, timeout=5, phrase_time_limit=8)
+                adata = r.listen1(source=source, vad=vad, timeout=5, phrase_time_limit=limit)
             except sr.WaitTimeoutError as e:
                 return str(e)
             if time.time() - record_time < 0.5:
@@ -396,13 +398,13 @@ class SpeechToText:
         finally:
             self.own.speech_recognized(False)
 
-    def _voice_recognition(self, audio, quiet: bool = False, fusion=None) -> str:
+    def _voice_recognition(self, audio, quiet: bool = False, fusion=None, provider=None) -> str:
         def say(text: str):
             if not quiet:
                 self.own.say(text)
         quiet = quiet or not self.cfg.gts('say_stt_error')
-        prov = self.cfg.gts('providerstt', 'unset')
-        if not STT.support(prov):
+        prov = provider or self.cfg.gts('providerstt', 'unset')
+        if not self.own.is_stt_provider(prov):
             self.log(LNG['err_unknown_prov'].format(prov), logger.CRIT)
             say(LNG['err_unknown_prov'].format(''))
             return ''
@@ -449,6 +451,13 @@ class SpeechToText:
         self.log(LNG['consensus'].format(', '.join([str(x) for x in result]), phrase), logger.DEBUG)
         return phrase, match_count
 
+    def multiple_recognition(self, file_or_adata, providers: list) -> dict:
+        if not providers:
+            return dict()
+        adata = adata_from_file(file_or_adata)
+        workers = {provider: RecognitionWorker(self._voice_recognition, adata, provider) for provider in providers}
+        return {key: {'result': val.get, 'time': utils.pretty_time(val.work_time)} for key, val in workers.items()}
+
     def _print_mic_info(self):
         if self.max_mic_index < 0:
             return
@@ -472,7 +481,8 @@ class SpeechToText:
             if self._test_rate():
                 return
             for rate in rates:
-                msg = 'Microphone does not support sample rate {}, fallback to {}'.format(sr.Microphone.DEFAULT_RATE, rate)
+                msg = 'Microphone does not support sample rate {}, fallback to {}'.format(
+                    sr.Microphone.DEFAULT_RATE, rate)
                 self.log(msg, logger.WARN)
                 sr.Microphone.DEFAULT_RATE = rate
                 if self._test_rate():
@@ -497,22 +507,28 @@ class SpeechToText:
 
 
 class RecognitionWorker(threading.Thread):
-    def __init__(self, voice_recognition, file_path):
+    def __init__(self, voice_recognition, file_or_adata, provider=None):
         super().__init__()
         self._voice_recognition = voice_recognition
-        self._file_path = file_path
+        self._file_or_adata = file_or_adata
+        self._provider = provider
         self._result = ''
+        self._wtime = 0
         self.start()
 
     def run(self):
-        with wave.open(self._file_path, 'rb') as fp:
-            adata = sr.AudioData(fp.readframes(fp.getnframes()), fp.getframerate(), fp.getsampwidth())
-        self._result = self._voice_recognition(adata, True)
+        self._wtime = time.time()
+        self._result = self._voice_recognition(adata_from_file(self._file_or_adata), True, provider=self._provider)
+        self._wtime = time.time() - self._wtime
 
     @property
     def get(self):
         super().join()
         return self._result
+
+    @property
+    def work_time(self):
+        return self._wtime
 
 
 class Phrases:
@@ -546,3 +562,11 @@ class Phrases:
 
     def _choice(self, name: str) -> str:
         return random.SystemRandom().choice(self._phrases[name])
+
+
+def adata_from_file(file_or_adata: str or sr.AudioData) -> sr.AudioData:
+    if isinstance(file_or_adata, sr.AudioData):
+        return file_or_adata
+    else:
+        with wave.open(file_or_adata, 'rb') as fp:
+            return sr.AudioData(fp.readframes(fp.getnframes()), fp.getframerate(), fp.getsampwidth())

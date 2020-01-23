@@ -33,6 +33,7 @@ class MDTerminal(threading.Thread):
         # Что делает терминал, для диагностики зависаний треда
         # 0 - ничего, 1 - слушает микрофон, 2 - тестирут микрофон, 3 - обрабатывает результат, 4 - внешний вызов
         self.stage = 0
+        self._sw = SampleWorker(cfg, log.add('SW'), owner, self._reload)
         self.DATA_CALL = {
             'reload': self._reload,
             'volume': self._set_volume_quiet,  # volume == nvolume
@@ -44,13 +45,17 @@ class MDTerminal(threading.Thread):
             'callme': self._call_me,
         }
         self.ARGS_CALL = {
-            'rec': self._rec_rec,
-            'play': self._rec_play,
-            'del': self._rec_del,
-            'send_model': self._send_model,
+            'rec': self._sw.rec_rec,
+            'play': self._sw.rec_play,
+            'del': self._sw.rec_del,
+            'send_model': self._sw.send_model,
+            'test.record': self._sw.test_record,
+            'test.play': self._sw.test_play,
+            'test.delete': self._sw.test_delete,
+            'test.test': self._sw.test_test,
         }
         if self.cfg.detector != 'porcupine':
-            self.ARGS_CALL['compile'] = self._rec_compile
+            self.ARGS_CALL['compile'] = self._sw.rec_compile
 
     def join(self, timeout=30):
         self._wait.set()
@@ -178,151 +183,6 @@ class MDTerminal(threading.Thread):
             else:
                 self.log(LNG['err_call'].format(cmd, repr(data)[:300], lvl), logger.ERROR)
 
-    def _rec_rec(self, model, sample):
-        # Записываем образец sample для модели model
-        if sample not in LNG['rec_nums']:
-            self.log('{}: {}'.format(LNG['err_rec_param'], sample), logger.ERROR)
-            self.own.say(LNG['err_rec_param'])
-            return
-        pmdl_name = ''.join(['model', model, self.cfg.path['model_ext']])
-        if not self.cfg.is_model_name(pmdl_name):
-            self.log('Wrong model filename: {}'.format(repr(pmdl_name)), logger.ERROR)
-            return
-
-        hello = LNG['rec_hello'].format(LNG['rec_nums'][sample])
-        save_to = self.cfg.path_to_sample(model, sample)
-        self.log(hello, logger.INFO)
-        err = self.own.voice_record(hello=hello, save_to=save_to, convert_rate=16000, convert_width=2)
-        if err is None:
-            bye = LNG['rec_bye'].format(LNG['rec_nums'][sample])
-            self.own.say(bye)
-            self.log(bye, logger.INFO)
-        else:
-            err = LNG['err_rec_save'].format(LNG['rec_nums'][sample], err)
-            self.log(err, logger.ERROR)
-            self.own.say(err)
-
-    def _rec_play(self, model, sample):
-        file = self.cfg.path_to_sample(model, sample)
-        if os.path.isfile(file):
-            self.own.say(file, is_file=True)
-        else:
-            self.own.say(LNG['err_play_say'].format('{}.wav'.format(sample)))
-            self.log(LNG['err_play_log'].format(file), logger.WARN)
-
-    def _rec_compile(self, model, username):
-        samples = []
-        for num in ('1', '2', '3'):
-            sample_path = self.cfg.path_to_sample(model, num)
-            if not os.path.isfile(sample_path):
-                self.log(LNG['compile_no_file'].format(sample_path), logger.ERROR)
-                self.own.say(LNG['compile_no_file'].format(os.path.basename(sample_path)))
-            else:
-                samples.append(sample_path)
-        if len(samples) == 3:
-            username = username if len(username) > 1 else None
-            self._compile_model(model, samples, username)
-
-    def _rec_del(self, model, _):
-        is_del = False
-        pmdl_name = ''.join(['model', model, self.cfg.path['model_ext']])
-        pmdl_path = os.path.join(self.cfg.path['models'], pmdl_name)
-        if not self.cfg.is_model_name(pmdl_name):
-            self.log('Wrong model filename: {}'.format(repr(pmdl_name)), logger.ERROR)
-            return
-
-        # remove model file
-        if os.path.isfile(pmdl_path):
-            try:
-                os.remove(pmdl_path)
-            except OSError as e:
-                msg = LNG['err_del'].format(model)
-                self.log('{} [{}]: {}'.format(msg, pmdl_path, e), logger.ERROR)
-                self.own.say(msg)
-            else:
-                is_del = True
-                msg = LNG['del_ok'].format(model)
-                self.log('{}: {}'.format(msg, pmdl_path), logger.INFO)
-                self.own.say(msg)
-        else:
-            msg = LNG['del_not_found'].format(model)
-            self.log('{}: {}'.format(msg, pmdl_path), logger.WARN)
-            self.own.say(msg)
-
-        # remove model record in config
-        to_save = self.cfg['models'].pop(pmdl_name, None) is not None
-        to_save |= self.cfg['persons'].pop(pmdl_name, None) is not None
-
-        if to_save:
-            self.cfg.config_save()
-        if is_del:
-            self.cfg.models_load()
-            self._reload()
-
-    def _compile_model(self, model, samples, username):
-        phrase, match_count = self.own.phrase_from_files(samples)
-        pmdl_name = ''.join(['model', model, self.cfg.path['model_ext']])
-        pmdl_path = os.path.join(self.cfg.path['models'], pmdl_name)
-        if not self.cfg.is_model_name(pmdl_name):
-            self.log('Wrong model filename: {}'.format(repr(pmdl_name)), logger.ERROR)
-            return
-
-        # Начальные параметры для API сноубоя
-        params = {key: self.cfg.gt('snowboy', key) for key in ('token', 'name', 'age_group', 'gender', 'microphone')}
-        params['language'] = LANG_CODE['ISO']
-
-        if match_count != len(samples):
-            msg = LNG['no_consensus'].format(pmdl_name, match_count, len(samples))
-            if self.cfg.gt('snowboy', 'clear_models') or self.cfg.gts('chrome_mode'):
-                # Не создаем модель если не все фразы идентичны
-                self.log(msg, logger.ERROR)
-                self.own.say(LNG['err_no_consensus'].format(model))
-                return
-            else:
-                self.log(msg, logger.WARN)
-        else:
-            params['name'] = phrase.lower()
-
-        self.log(LNG['compiling'].format(pmdl_path), logger.INFO)
-        work_time = time.time()
-        try:
-            snowboy = training_service.Training(*samples, params=params)
-        except RuntimeError as e:
-            self.log(LNG['err_compile_log'].format(pmdl_path, e), logger.ERROR)
-            self.own.say(LNG['err_compile_say'].format(model))
-            return
-        work_time = utils.pretty_time(time.time() - work_time)
-        snowboy.save(pmdl_path)
-
-        msg = ', "{}",'.format(phrase) if phrase else ''
-        self.log(LNG['compile_ok_log'].format(msg, work_time, pmdl_path), logger.INFO)
-        self.own.say(LNG['compile_ok_say'].format(msg, model, work_time))
-
-        self._save_model_data(pmdl_name, username, phrase)
-
-        # Удаляем временные файлы
-        try:
-            self.cfg.remove_samples(model)
-        except RuntimeError as e:
-            self.log('remove samples \'{}\': {}'.format(model, e), logger.ERROR)
-
-    def _send_model(self, filename, body, username, phrase):
-        # Получили модель от сервера (send - это для сервера)
-        pmdl_path = os.path.join(self.cfg.path['models'], filename)
-        self.log('Model {} received from server: phrase={}, username={}, size={} bytes.'.format(
-            repr(filename), repr(phrase), repr(username), len(body)), logger.INFO)
-        with open(pmdl_path, 'wb') as fp:
-            fp.write(body)
-        self._save_model_data(filename, username, phrase)
-
-    def _save_model_data(self, pmdl_name, username, phrase):
-        model_data = {'models': {pmdl_name: phrase}}
-        if username:
-            model_data['persons'] = {pmdl_name: username}
-        self.cfg.update_from_dict(model_data)
-        self.cfg.models_load()
-        self._reload()
-
     def _set_volume_quiet(self, value):
         self._set_volume(value, True)
 
@@ -410,3 +270,274 @@ class MDTerminal(threading.Thread):
         if reply:
             self.own.say(reply)
         self.stage = _stage
+
+
+class SampleWorker:
+    def __init__(self, cfg, log, owner: Owner,  reload_cb):
+        self.log, self.cfg, self.own = log, cfg, owner
+        # Перезагружает терминал, строго в треде самого терминала
+        self._reload_cb = reload_cb
+
+    def rec_rec(self, model, sample):
+        # Записываем образец sample для модели model
+        if sample not in LNG['rec_nums']:
+            self.log('{}: {}'.format(LNG['err_rec_param'], sample), logger.ERROR)
+            self.own.say(LNG['err_rec_param'])
+            return
+        pmdl_name = ''.join(['model', model, self.cfg.path['model_ext']])
+        if not self.cfg.is_model_name(pmdl_name):
+            self.log('Wrong model filename: {}'.format(repr(pmdl_name)), logger.ERROR)
+            return
+
+        hello = LNG['rec_hello'].format(LNG['rec_nums'][sample])
+        save_to = self.cfg.path_to_sample(model, sample)
+        self.log(hello, logger.INFO)
+        err = self.own.voice_record(hello=hello, save_to=save_to, convert_rate=16000, convert_width=2)
+        if err is None:
+            bye = LNG['rec_bye'].format(LNG['rec_nums'][sample])
+            self.own.say(bye)
+            self.log(bye, logger.INFO)
+        else:
+            err = LNG['err_rec_save'].format(LNG['rec_nums'][sample], err)
+            self.log(err, logger.ERROR)
+            self.own.say(err)
+
+    def rec_play(self, model, sample):
+        file = self.cfg.path_to_sample(model, sample)
+        if os.path.isfile(file):
+            self.own.say(file, is_file=True)
+        else:
+            self.own.say(LNG['err_play_say'].format('{}.wav'.format(sample)))
+            self.log(LNG['err_play_log'].format(file), logger.WARN)
+
+    def rec_compile(self, model, username):
+        samples = []
+        for num in ('1', '2', '3'):
+            sample_path = self.cfg.path_to_sample(model, num)
+            if not os.path.isfile(sample_path):
+                self.log(LNG['compile_no_file'].format(sample_path), logger.ERROR)
+                self.own.say(LNG['compile_no_file'].format(os.path.basename(sample_path)))
+            else:
+                samples.append(sample_path)
+        if len(samples) == 3:
+            username = username if len(username) > 1 else None
+            self._compile_model(model, samples, username)
+
+    def rec_del(self, model, _):
+        is_del = False
+        pmdl_name = ''.join(['model', model, self.cfg.path['model_ext']])
+        pmdl_path = os.path.join(self.cfg.path['models'], pmdl_name)
+        if not self.cfg.is_model_name(pmdl_name):
+            self.log('Wrong model filename: {}'.format(repr(pmdl_name)), logger.ERROR)
+            return
+
+        # remove model file
+        if os.path.isfile(pmdl_path):
+            try:
+                os.remove(pmdl_path)
+            except OSError as e:
+                msg = LNG['err_del'].format(model)
+                self.log('{} [{}]: {}'.format(msg, pmdl_path, e), logger.ERROR)
+                self.own.say(msg)
+            else:
+                is_del = True
+                msg = LNG['del_ok'].format(model)
+                self.log('{}: {}'.format(msg, pmdl_path), logger.INFO)
+                self.own.say(msg)
+        else:
+            msg = LNG['del_not_found'].format(model)
+            self.log('{}: {}'.format(msg, pmdl_path), logger.WARN)
+            self.own.say(msg)
+
+        # remove model record in config
+        to_save = self.cfg['models'].pop(pmdl_name, None) is not None
+        to_save |= self.cfg['persons'].pop(pmdl_name, None) is not None
+
+        if to_save:
+            self.cfg.config_save()
+        if is_del:
+            self.cfg.models_load()
+            self._reload_cb()
+
+    def send_model(self, filename, body, username, phrase):
+        # Получили модель от сервера (send - это для сервера)
+        pmdl_path = os.path.join(self.cfg.path['models'], filename)
+        self.log('Model {} received from server: phrase={}, username={}, size={} bytes.'.format(
+            repr(filename), repr(phrase), repr(username), len(body)), logger.INFO)
+        with open(pmdl_path, 'wb') as fp:
+            fp.write(body)
+        self._save_model_data(filename, username, phrase)
+
+    def test_record(self, file: str, limit: int, *_, **__):
+        if not utils.is_valid_base_filename(file):
+            self.log('Pass record, wrong file name: {}'.format(repr(file)), logger.WARN)
+            return
+        if not os.path.isdir(self.cfg.path['test']):
+            try:
+                os.makedirs(self.cfg.path['test'])
+            except OSError as e:
+                self.log('os.makedirs error {}: {}'.format(self.cfg.path['test'], e), logger.ERROR)
+                return
+        file = file.lower()
+        if not file.endswith(self.cfg.path['test_ext']):
+            file = file + self.cfg.path['test_ext']
+        save_to = os.path.join(self.cfg.path['test'], file)
+
+        self.log('Start recording {} sec audio after signal...'.format(limit), logger.INFO)
+        err = self.own.voice_record(hello=None, save_to=save_to, convert_rate=16000, convert_width=2, limit=limit)
+        if err is None:
+            self.log('Recording complete and save to {}'.format(file), logger.INFO)
+        else:
+            self.log('An error occurred while recording: {}'.format(err), logger.WARN)
+        self.own.play(self.cfg.path['dong'])
+
+    def test_play(self, files: list, *_, **__):
+        for file in self._test_fill_file_paths(files):
+            self.own.say(os.path.join(self.cfg.path['test'], file), is_file=True, alarm=True)
+
+    def test_delete(self, files: list, *_, **__):
+        files = self._test_fill_file_paths(files)
+        if not files:
+            return
+        deleted = []
+        for files in files:
+            file_path = os.path.join(self.cfg.path['test'], files)
+            try:
+                os.remove(file_path)
+            except OSError as e:
+                self.log('Error deleting {}: {}'.format(file_path, e), logger.ERROR)
+            else:
+                deleted.append(files)
+        count = len(deleted)
+        deleted = ', '.join([name for name in deleted])
+        self.log('Remove {} files from {}: {}'.format(count, self.cfg.path['test'], deleted), logger.INFO)
+
+    def test_test(self, providers: list, files: list, *_, **__):
+        files = self._test_fill_file_paths(files)
+        if not files:
+            return
+        providers = self._test_stt_providers(providers)
+        if not providers:
+            self.log('No known providers', logger.WARN)
+            return
+        p_offset = max(len(provider) for provider in providers)
+        template = '{:#} [{:>~}]: {}'.replace('#', str(p_offset), 1)
+        for name in files:
+            result = self.own.multiple_recognition(os.path.join(self.cfg.path['test'], name), providers)
+            t_offset = max(len(k['time']) for k in result.values())
+            head = template.replace('~', str(t_offset), 1)
+            self.log('== Multiple recognition for {} =='.format(repr(name)), logger.INFO)
+            for provider, data in result.items():
+                # w_time = '[{}]'.format(data['time'])
+                # phrase = data['result']
+                self.log(head.format(provider, data['time'], repr(data['result'])), logger.INFO)
+            self.log('=' * (p_offset + 1), logger.INFO)
+
+    def _test_dir_exist(self) -> bool:
+        if not os.path.isdir(self.cfg.path['test']):
+            self.log('Test path not exist: \'{}\''.format(self.cfg.path['test']), logger.WARN)
+            return False
+        return True
+
+    def _test_stt_providers(self, providers: list) -> list:
+        if '*' in providers:
+            return self.own.stt_providers()
+        allow, not_found = [], []
+        unique = set()
+        for provider in providers:
+            if provider in unique:
+                continue
+            unique.add(provider)
+            if self.own.is_stt_provider(provider):
+                allow.append(provider)
+            else:
+                not_found.append(provider)
+        if not_found:
+            not_found = ', '.join([repr(name) for name in not_found])
+            self.log('Unknown STT providers: {}'.format(not_found))
+        return allow
+
+    def _test_fill_file_paths(self, files: list) -> list:
+        if not self._test_dir_exist():
+            return []
+        if '*' in files:
+            # all wav
+            return self.cfg.get_all_testfile()
+        allow, wrong_name, not_found = [], [], []
+        unique = set()
+        for file in files:
+            if not utils.is_valid_base_filename(file):
+                wrong_name.append(file)
+                continue
+            file = file.lower()
+            if not file.endswith(self.cfg.path['test_ext']):
+                file = file + self.cfg.path['test_ext']
+            if file in unique:
+                continue
+            unique.add(file)
+            if not os.path.isfile(os.path.join(self.cfg.path['test'], file)):
+                not_found.append(file)
+            else:
+                allow.append(file)
+        if wrong_name:
+            wrong_name = ', '.join([repr(name) for name in wrong_name])
+            self.log('Wrong file names: {}'.format(wrong_name))
+        if not_found:
+            not_found = ', '.join([name for name in not_found])
+            self.log('Files not found: {}'.format(not_found), logger.DEBUG if allow else logger.WARN)
+        return allow
+
+    def _compile_model(self, model, samples, username):
+        phrase, match_count = self.own.phrase_from_files(samples)
+        pmdl_name = ''.join(['model', model, self.cfg.path['model_ext']])
+        pmdl_path = os.path.join(self.cfg.path['models'], pmdl_name)
+        if not self.cfg.is_model_name(pmdl_name):
+            self.log('Wrong model filename: {}'.format(repr(pmdl_name)), logger.ERROR)
+            return
+
+        # Начальные параметры для API сноубоя
+        params = {key: self.cfg.gt('snowboy', key) for key in ('token', 'name', 'age_group', 'gender', 'microphone')}
+        params['language'] = LANG_CODE['ISO']
+
+        if match_count != len(samples):
+            msg = LNG['no_consensus'].format(pmdl_name, match_count, len(samples))
+            if self.cfg.gt('snowboy', 'clear_models') or self.cfg.gts('chrome_mode'):
+                # Не создаем модель если не все фразы идентичны
+                self.log(msg, logger.ERROR)
+                self.own.say(LNG['err_no_consensus'].format(model))
+                return
+            else:
+                self.log(msg, logger.WARN)
+        else:
+            params['name'] = phrase.lower()
+
+        self.log(LNG['compiling'].format(pmdl_path), logger.INFO)
+        work_time = time.time()
+        try:
+            snowboy = training_service.Training(*samples, params=params)
+        except RuntimeError as e:
+            self.log(LNG['err_compile_log'].format(pmdl_path, e), logger.ERROR)
+            self.own.say(LNG['err_compile_say'].format(model))
+            return
+        work_time = utils.pretty_time(time.time() - work_time)
+        snowboy.save(pmdl_path)
+
+        msg = ', "{}",'.format(phrase) if phrase else ''
+        self.log(LNG['compile_ok_log'].format(msg, work_time, pmdl_path), logger.INFO)
+        self.own.say(LNG['compile_ok_say'].format(msg, model, work_time))
+
+        self._save_model_data(pmdl_name, username, phrase)
+
+        # Удаляем временные файлы
+        try:
+            self.cfg.remove_samples(model)
+        except RuntimeError as e:
+            self.log('remove samples \'{}\': {}'.format(model, e), logger.ERROR)
+
+    def _save_model_data(self, pmdl_name, username, phrase):
+        model_data = {'models': {pmdl_name: phrase}}
+        if username:
+            model_data['persons'] = {pmdl_name: username}
+        self.cfg.update_from_dict(model_data)
+        self.cfg.models_load()
+        self._reload_cb()

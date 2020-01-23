@@ -24,9 +24,9 @@ def api_commands(*commands, true_json=None, true_legacy=None):
     Враппер для связывания команд с методом.
     :param commands: Список команд.
     :param true_json: Список команд, при обработке которых в data, будет исходный params а не строка,
-    для старых команд будет ['<str>'].
+    для старых команд будет ['<str>']. True - эквивалентно commands.
     :param true_legacy: Если обработчик вернет dict, передаст только его в строке ('key:val', 'key:val;key2:val2')
-    или строку из 'cmd:result' без преобразования в json если result простой тип.
+    или строку из 'cmd:result' без преобразования в json если result простой тип. True - эквивалентно commands.
     :return: Исходный метод.
     """
     def filling(f, attr, data):
@@ -38,8 +38,8 @@ def api_commands(*commands, true_json=None, true_legacy=None):
 
     def wrapper(f):
         filling(f, 'api_commands', commands)
-        filling(f, 'true_json', true_json)
-        filling(f, 'true_legacy', true_legacy)
+        filling(f, 'true_json', commands if isinstance(true_json, bool) and true_json else true_json)
+        filling(f, 'true_legacy', commands if isinstance(true_legacy, bool) and true_legacy else true_legacy)
         return f
     return wrapper
 
@@ -57,15 +57,18 @@ def upgrade_duplex(own: Owner, soc: Connect, msg=''):
 def json_parser(data: str, keys: tuple = ()) -> dict:
     try:
         data = json.loads(data)
-        if not isinstance(data, dict):
-            raise TypeError('Data must be dict type')
     except (json.decoder.JSONDecodeError, TypeError) as e:
         raise InternalException(msg=e)
+    dict_key_checker(data, keys)
+    return data
 
+
+def dict_key_checker(data: dict, keys: tuple):
+    if not isinstance(data, dict):
+        raise InternalException(4, 'Data must be dict type')
     for key in keys:
         if key not in data:
             raise InternalException(5, 'Missing key: {}'.format(key))
-    return data
 
 
 class Null:
@@ -263,6 +266,47 @@ class API:
         - allow: список моделей из [models] allow, может быть пустым, обязательно если code 0.
         """
         return {'models': self.cfg.get_all_models(), 'allow': self.cfg.get_allow_models()}
+
+    @api_commands('test.record', true_json=True)
+    def _api_test_recoder(self, _, data):
+        # file: str, limit: [int, float]
+        dict_key_checker(data, ('file',))
+        file, limit = data['file'], data.get('limit', 8)
+        if not isinstance(limit, (int, float)):
+            raise InternalException(msg='limit must be int or float, not {}'.format(type(limit)))
+        if not 3 <= limit <= 3600:
+            raise InternalException(code=2, msg='3 <= limit <= 3600, get {}'.format(limit))
+        if not isinstance(file, str):
+            raise InternalException(code=3, msg='file must be str, not {}'.format(type(file)))
+        if not file:
+            raise InternalException(code=4, msg='file empty')
+        self.own.terminal_call('test.record', (file, limit))
+
+    @api_commands('test.play', true_json=True)
+    def _api_test_play(self, _, data):
+        # files: list[str]
+        dict_key_checker(data, ('files',))
+        files = data['files'] if isinstance(data['files'], list) else [data['files']]
+        self.own.terminal_call('test.play', (files,))
+
+    @api_commands('test.delete', true_json=True)
+    def _api_test_delete(self, _, data):
+        # files: list[str]
+        dict_key_checker(data, ('files',))
+        files = data['files'] if isinstance(data['files'], list) else [data['files']]
+        self.own.terminal_call('test.delete', (files,))
+
+    @api_commands('test.test', true_json=True)
+    def _api_test_test(self, _, data):
+        # providers: list[str], files: list[str]
+        dict_key_checker(data, ('providers', 'files'))
+        providers = data['providers'] if isinstance(data['providers'], list) else [data['providers']]
+        files = data['files'] if isinstance(data['files'], list) else [data['files']]
+        self.own.terminal_call('test.test', (providers, files))
+
+    @api_commands('test.list', true_json=True)
+    def _api_test_list(self, *_):
+        return self.cfg.get_all_testfile()
 
     @staticmethod
     @api_commands('ping')

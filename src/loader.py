@@ -187,6 +187,20 @@ class Loader(Owner):
                 return False
             return True
 
+    def tts_providers(self) -> list:
+        with self._stts_lock:
+            return list(TTS.PROVIDERS.keys())
+
+    def stt_providers(self) -> list:
+        with self._stts_lock:
+            return list(STT.PROVIDERS.keys())
+
+    def is_tts_provider(self, name: str) -> bool:
+        return name in TTS.PROVIDERS
+
+    def is_stt_provider(self, name: str) -> bool:
+        return name in STT.PROVIDERS
+
     @property
     def duplex_mode_on(self) -> bool:
         return self._duplex_mode.duplex
@@ -251,8 +265,8 @@ class Loader(Owner):
     def listen(self, hello: str = '', deaf: bool = True, voice: bool = False) -> tuple:
         return self._stt.listen(hello, deaf, voice)
 
-    def voice_record(self, hello: str, save_to: str, convert_rate=None, convert_width=None):
-        return self._stt.voice_record(hello, save_to, convert_rate, convert_width)
+    def voice_record(self, hello: str or None, save_to: str, convert_rate=None, convert_width=None, limit=8):
+        return self._stt.voice_record(hello, save_to, convert_rate, convert_width, limit)
 
     def voice_recognition(self, audio, quiet: bool = False, fusion=None) -> str:
         return self._stt.voice_recognition(audio, quiet, fusion)
@@ -271,6 +285,9 @@ class Loader(Owner):
 
     def phrase_from_files(self, files: list) -> tuple:
         return self._stt.phrase_from_files(files)
+
+    def multiple_recognition(self, file_or_adata, providers: list) -> dict:
+        return self._stt.multiple_recognition(file_or_adata, providers)
 
     @property
     def sys_say_chance(self) -> bool:
