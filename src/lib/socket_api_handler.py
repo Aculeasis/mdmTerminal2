@@ -19,7 +19,7 @@ OLD_CMD = {
 }
 
 
-def api_commands(*commands, true_json=None, true_legacy=None):
+def api_commands(*commands, true_json=None, true_legacy=None, pure_json=None):
     """
     Враппер для связывания команд с методом.
     :param commands: Список команд.
@@ -27,8 +27,12 @@ def api_commands(*commands, true_json=None, true_legacy=None):
     для старых команд будет ['<str>']. True - эквивалентно commands.
     :param true_legacy: Если обработчик вернет dict, передаст только его в строке ('key:val', 'key:val;key2:val2')
     или строку из 'cmd:result' без преобразования в json если result простой тип. True - эквивалентно commands.
+    :param pure_json: Список команд, которые доступны только в JSON-RPC. True - эквивалентно commands.
     :return: Исходный метод.
     """
+    def _commands(_flags):
+        return commands if isinstance(_flags, bool) and _flags else _flags
+
     def filling(f, attr, data):
         if data:
             for command in data:
@@ -38,8 +42,9 @@ def api_commands(*commands, true_json=None, true_legacy=None):
 
     def wrapper(f):
         filling(f, 'api_commands', commands)
-        filling(f, 'true_json', commands if isinstance(true_json, bool) and true_json else true_json)
-        filling(f, 'true_legacy', commands if isinstance(true_legacy, bool) and true_legacy else true_legacy)
+        filling(f, 'true_json', _commands(true_json))
+        filling(f, 'true_legacy', _commands(true_legacy))
+        filling(f, 'pure_json', _commands(pure_json))
         return f
     return wrapper
 
@@ -105,7 +110,7 @@ class InternalException(Exception):
 class API:
     def __init__(self, cfg, log, owner: Owner):
         self.API, self.API_CODE = {}, {}
-        self.TRUE_JSON, self.TRUE_LEGACY = set(), set()
+        self.TRUE_JSON, self.TRUE_LEGACY, self.PURE_JSON = set(), set(), set()
         self._collector()
         self.cfg = cfg
         self.log = log
@@ -134,6 +139,11 @@ class API:
                 self.API[command] = obj
             filling(self.TRUE_JSON, getattr(obj, 'true_json', None), 'true_json')
             filling(self.TRUE_LEGACY, getattr(obj, 'true_legacy', None), 'true_legacy')
+            filling(self.PURE_JSON, getattr(obj, 'pure_json', None), 'pure_json')
+            # С pure_json данные всегда в json
+            self.TRUE_JSON |= self.PURE_JSON
+            # pure_json поддерживает только чистый json
+            self.TRUE_LEGACY -= self.PURE_JSON
         self.API_CODE = {name: index for index, name in enumerate(self.API.keys(), 1)}
 
     @api_commands('get', true_json=('get',), true_legacy=('get',))
@@ -165,7 +175,7 @@ class API:
 
     @api_commands('tts', 'ask', true_json=True)
     def _api_says(self, cmd, data):
-        data = data if self.is_jsonrpc else {'text': data[0]}
+        data = data if isinstance(data, dict) else {'text': data[0]}
         dict_key_checker(data, keys=('text',))
         self.own.terminal_call(cmd, TTSTextBox(data['text'], data.get('provider')))
 
@@ -274,7 +284,7 @@ class API:
         """
         return {'models': self.cfg.get_all_models(), 'allow': self.cfg.get_allow_models()}
 
-    @api_commands('test.record', true_json=True)
+    @api_commands('test.record', pure_json=True)
     def _api_test_recoder(self, _, data):
         # file: str, limit: [int, float]
         dict_key_checker(data, ('file',))
@@ -289,21 +299,21 @@ class API:
             raise InternalException(code=4, msg='file empty')
         self.own.terminal_call('test.record', (file, limit))
 
-    @api_commands('test.play', true_json=True)
+    @api_commands('test.play', pure_json=True)
     def _api_test_play(self, _, data):
         # files: list[str]
         dict_key_checker(data, ('files',))
         files = data['files'] if isinstance(data['files'], list) else [data['files']]
         self.own.terminal_call('test.play', (files,))
 
-    @api_commands('test.delete', true_json=True)
+    @api_commands('test.delete', pure_json=True)
     def _api_test_delete(self, _, data):
         # files: list[str]
         dict_key_checker(data, ('files',))
         files = data['files'] if isinstance(data['files'], list) else [data['files']]
         self.own.terminal_call('test.delete', (files,))
 
-    @api_commands('test.test', true_json=True)
+    @api_commands('test.test', pure_json=True)
     def _api_test_test(self, _, data):
         # providers: list[str], files: list[str]
         dict_key_checker(data, ('providers', 'files'))
@@ -311,7 +321,7 @@ class API:
         files = data['files'] if isinstance(data['files'], list) else [data['files']]
         self.own.terminal_call('test.test', (providers, files))
 
-    @api_commands('test.list', true_json=True)
+    @api_commands('test.list', pure_json=True)
     def _api_test_list(self, *_):
         return self.cfg.get_all_testfile()
 
@@ -351,6 +361,11 @@ class API:
                 clear_doc = self.API[cmd].__doc__.split('\n\n')[0].rstrip().strip('\n')
             else:
                 clear_doc = 'Undocumented'
+            flags = [k for k, s in (
+                ('TRUE_JSON', self.TRUE_JSON), ('TRUE_LEGACY', self.TRUE_LEGACY), ('PURE_JSON', self.PURE_JSON)
+            ) if cmd in s]
+            if flags:
+                clear_doc = '{}\nFLAGS: {}'.format(clear_doc, flags)
             result['msg'] = clear_doc
         return result
 
@@ -466,23 +481,26 @@ class APIHandler(API):
     def __init__(self, cfg, log, owner: Owner):
         super().__init__(cfg, log, owner)
 
-    def extract(self, line: str) -> tuple:
-        if line.startswith('{'):
+    def extract(self, line: str or dict) -> tuple:
+        return self._extract_json(line) if self.is_jsonrpc else self._extract_str(line)
+
+    def prepare(self, line: str) -> str or dict or list:
+        if line.startswith('{') or line.startswith('['):
             self.is_jsonrpc = True
-            return self._extract_json(line)
+            try:
+                line = json.loads(line)
+                if not isinstance(line, (dict, list)):
+                    raise InternalException(code=-32700, msg='must be a dict or list type', id_=Null())
+            except (json.decoder.JSONDecodeError, TypeError) as e:
+                raise InternalException(code=-32700, msg=str(e), id_=Null())
         else:
             self.is_jsonrpc = False
-            return self._extract_str(line)
+        return line
 
-    def _extract_json(self, line: str) -> tuple:
+    def _extract_json(self, line: dict) -> tuple:
         null = Null()
-        try:
-            line = json.loads(line)
-            if not isinstance(line, dict):
-                raise TypeError('must be a dict type')
-        except (json.decoder.JSONDecodeError, TypeError) as e:
-            raise InternalException(code=-32700, msg=str(e), id_=null)
-
+        if not isinstance(line, dict):
+            raise InternalException(code=-32600, msg='must be a dict type', id_=null)
         # Хак для ошибок парсинга, null != None
         id_ = line['id'] if line.get('id') is not None else null
 
@@ -509,7 +527,7 @@ class APIHandler(API):
         if not isinstance(method, str):
             raise InternalException(code=-32600, msg='method must be a str', id_=id_)
         params = line.get('params')
-        if method in self.TRUE_JSON:
+        if method in self.TRUE_JSON and isinstance(params, (dict, list)):
             pass
         elif params:
             # FIXME: legacy
@@ -601,70 +619,94 @@ class SocketAPIHandler(threading.Thread, APIHandler):
     def run(self):
         raise NotImplemented
 
-    def _call_api(self, cmd: str, data, id_):
+    def _call_api(self, cmd: str, data, id_) -> dict or None:
         self.id = id_
         try:
             result = self.API[cmd](cmd, data)
         except RuntimeError as e:
             self.log('Error {}: {}'.format(cmd, e), logger.ERROR)
+            return None
         except InternalException as e:
             e.id = id_
-            self._handle_exception(e, cmd)
+            return self._handle_exception(e, cmd)
         except Exception as e:
-            self._handle_exception(InternalException(code=-32603, msg=str(e), id_=id_), cmd, logger.CRIT)
-        else:
-            if id_ is not None:
-                self._send_reply({'result': result, 'id': id_})
+            return self._handle_exception(InternalException(code=-32603, msg=str(e), id_=id_), cmd, logger.CRIT)
+        return {'result': result, 'id': id_} if id_ is not None else None
 
-    def _handle_exception(self, e: InternalException, cmd='method', code=0, log_lvl=logger.WARN):
-        e.method = cmd
-        e.cmd_code(code or self.API_CODE.get(cmd, 1000))
-        self.log('API.{}'.format(e), log_lvl)
-        if e.id is not None:
-            self._send_reply(e.data)
+    def _processing(self, data: dict or str) -> dict or None:
+        def none():
+            return {'result': None, 'id': id_} if id_ is not None else None
 
-    def parse(self, data: str):
-        def write_none():
-            if id_ is not None:
-                self._send_reply({'result': None, 'id': id_})
-
-        if not data:
-            self._handle_exception(InternalException(code=-32600, msg='no data'))
-            return
-        else:
-            self.log('Received data: {}'.format(repr(data)[:1500]))
         try:
             cmd, data, id_ = self.extract(data)
         except InternalException as e:
-            self._handle_exception(e, e.method)
-            return
+            return self._handle_exception(e, e.method)
         except RuntimeError:
-            return
+            return None
 
         if not self._conn.auth and cmd not in self.NON_AUTH:
-            self._handle_exception(
+            return self._handle_exception(
                 InternalException(code=0, msg='forbidden: authorization is necessary', id_=id_),
                 cmd,
                 self.API_CODE.get('authorization', 1000)
             )
-        elif self.own.has_subscribers(cmd, self.NET):
+        if cmd in self.PURE_JSON:
+            if not self.is_jsonrpc:
+                return self._handle_exception(
+                    InternalException(code=-32700, msg='Allow only in JSON-RPC', id_=id_), cmd
+                )
+            elif data is not None and not isinstance(data, (dict, list)):
+                return self._handle_exception(
+                    InternalException(code=-32600, msg='params must be a dict or list', id_=id_), cmd
+                )
+
+        if self.own.has_subscribers(cmd, self.NET):
             self.log('Command {} intercepted'.format(repr(cmd)))
             self.own.sub_call(self.NET, cmd, data)
-            write_none()
-        elif self.own.has_subscribers(cmd, self.NET_BLOCK):
+            return none()
+        if self.own.has_subscribers(cmd, self.NET_BLOCK):
             self.log('Command {} intercepted in blocking mode'.format(repr(cmd)))
             self._lock.clear()
             self.own.sub_call(self.NET_BLOCK, cmd, data, self._lock, self._conn)
             # Приостанавливаем выполнение, ждем пока обработчик нас разблокирует
             # 1 минуты хватит?
             self._lock.wait(60)
-            write_none()
-        elif cmd in self.API:
-            self._call_api(cmd, data, id_)
+            return none()
+        if cmd in self.API:
+            return self._call_api(cmd, data, id_)
+
+        cmd = repr(cmd)[1:-1]
+        msg = 'Unknown command: \'{}\''.format(cmd[:100])
+        return self._handle_exception(InternalException(code=-32601, msg=msg, id_=id_), cmd)
+
+    def _parse(self, data: str):
+        if not data:
+            return self._handle_exception(InternalException(code=-32600, msg='no data'))
         else:
-            cmd = repr(cmd)[1:-1]
-            msg = 'Unknown command: \'{}\''.format(cmd[:100])
-            self._handle_exception(InternalException(code=-32601, msg=msg, id_=id_), cmd)
+            self.log('Received data: {}'.format(repr(data)[:1500]))
+
+        try:
+            data = self.prepare(data)
+        except InternalException as e:
+            return self._handle_exception(e, e.method)
+        except RuntimeError:
+            return None
+
+        if not self.is_jsonrpc or not isinstance(data, list):
+            return self._processing(data)
+        # JSON-RPC Batch
+        return [x for x in [self._processing(cmd) for cmd in data] if x is not None] or None
+
+    def parse(self, data: str):
+        result = self._parse(data)
+        if result is not None:
+            self._send_reply(result)
+
+    def _handle_exception(self, e: InternalException, cmd='method', code=0, log_lvl=logger.WARN) -> dict or None:
+        e.method = cmd
+        e.cmd_code(code or self.API_CODE.get(cmd, 1000))
+        self.log('API.{}'.format(e), log_lvl)
+        return e.data if e.id is not None else None
 
     def _send_reply(self, data: dict):
         if self.is_jsonrpc:

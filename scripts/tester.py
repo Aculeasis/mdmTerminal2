@@ -209,6 +209,14 @@ class TestShell(cmd__.Cmd):
         else:
             self._send_says('tts', arg)
 
+    def do_ttss(self, arg):
+        """Отправляет фразы терминалу. Аргументы: фразы"""
+        if not arg:
+            print('Добавьте фразы')
+        else:
+            result = [{'method': 'tts', 'params': {'text': text}} for text in arg.split(' ')]
+            self._send(json.dumps(result, ensure_ascii=False))
+
     def do_ask(self, arg):
         """Отправляет ask терминалу. Аргументы: фраза или фраза~провайдер"""
         if not arg:
