@@ -40,7 +40,7 @@ class _TTSWorker(threading.Thread):
         self.cfg = cfg
         self.log = log
         self._msg = str(msg)
-        self._provider = msg.provider if isinstance(msg, utils.TTSTextBox) else None
+        self._provider = msg.provider if isinstance(msg, utils.TextBox) else None
         self._provider = self._provider or self.cfg.gts('providertts')
         self._realtime = realtime
         self._event = threading.Event()
@@ -399,7 +399,7 @@ class SpeechToText:
         finally:
             self.own.speech_recognized(False)
 
-    def _voice_recognition(self, audio, quiet: bool = False, fusion=None, provider=None) -> str:
+    def _voice_recognition(self, audio, quiet: bool = False, fusion=None, provider=None) -> utils.TextBox:
         def say(text: str):
             if not quiet:
                 self.own.say(text)
@@ -408,7 +408,7 @@ class SpeechToText:
         if not self.own.is_stt_provider(prov):
             self.log(LNG['err_unknown_prov'].format(prov), logger.CRIT)
             say(LNG['err_unknown_prov'].format(''))
-            return ''
+            return utils.TextBox('', prov)
         self.log(LNG['recognized_from'].format(prov), logger.DEBUG)
         wtime = time.time()
         try:
@@ -426,11 +426,12 @@ class SpeechToText:
         except (STT.RequestError, RuntimeError) as e:
             say(LNG['err_stt_say'])
             self.log(LNG['err_stt_log'].format(e), logger.ERROR)
-            return ''
+            return utils.TextBox('', prov)
         if fusion:
             wtime = fusion()
-        self.log(LNG['recognized_for'].format(utils.pretty_time(time.time() - wtime)), logger.DEBUG)
-        return command or ''
+        w_time = time.time() - wtime
+        self.log(LNG['recognized_for'].format(utils.pretty_time(w_time)), logger.DEBUG)
+        return utils.TextBox(command or '', prov, w_time)
 
     def phrase_from_files(self, files: list):
         if not files:
@@ -452,12 +453,12 @@ class SpeechToText:
         self.log(LNG['consensus'].format(', '.join([str(x) for x in result]), phrase), logger.DEBUG)
         return phrase, match_count
 
-    def multiple_recognition(self, file_or_adata, providers: list) -> dict:
+    def multiple_recognition(self, file_or_adata, providers: list) -> list:
         if not providers:
-            return dict()
+            return []
         adata = adata_from_file(file_or_adata)
-        workers = {provider: RecognitionWorker(self._voice_recognition, adata, provider) for provider in providers}
-        return {key: {'result': val.get, 'time': utils.pretty_time(val.work_time)} for key, val in workers.items()}
+        workers = [RecognitionWorker(self._voice_recognition, adata, provider) for provider in providers]
+        return [worker.get for worker in workers]
 
     def _print_mic_info(self):
         if self.max_mic_index < 0:
@@ -513,23 +514,16 @@ class RecognitionWorker(threading.Thread):
         self._voice_recognition = voice_recognition
         self._file_or_adata = file_or_adata
         self._provider = provider
-        self._result = ''
-        self._wtime = 0
+        self._result = utils.TextBox('', provider)
         self.start()
 
     def run(self):
-        self._wtime = time.time()
         self._result = self._voice_recognition(adata_from_file(self._file_or_adata), True, provider=self._provider)
-        self._wtime = time.time() - self._wtime
 
     @property
     def get(self):
         super().join()
         return self._result
-
-    @property
-    def work_time(self):
-        return self._wtime
 
 
 class Phrases:

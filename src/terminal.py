@@ -424,12 +424,12 @@ class SampleWorker:
         template = '{:#} [{:>~}]: {}'.replace('#', str(p_offset), 1)
         for name in files:
             result = self.own.multiple_recognition(os.path.join(self.cfg.path['test'], name), providers)
+            result.sort(key=lambda x: x.time)
+            result = {k.provider: {'time': utils.pretty_time(k.time), 'result': str(k)} for k in result}
             t_offset = max(len(k['time']) for k in result.values())
             head = template.replace('~', str(t_offset), 1)
             self.log('== Multiple recognition for {} =='.format(repr(name)), logger.INFO)
             for provider, data in result.items():
-                # w_time = '[{}]'.format(data['time'])
-                # phrase = data['result']
                 self.log(head.format(provider, data['time'], repr(data['result'])), logger.INFO)
             self.log('=' * (p_offset + 1), logger.INFO)
 

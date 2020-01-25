@@ -286,7 +286,7 @@ class Loader(Owner):
     def phrase_from_files(self, files: list) -> tuple:
         return self._stt.phrase_from_files(files)
 
-    def multiple_recognition(self, file_or_adata, providers: list) -> dict:
+    def multiple_recognition(self, file_or_adata, providers: list) -> list:
         return self._stt.multiple_recognition(file_or_adata, providers)
 
     @property

@@ -256,7 +256,7 @@ class Owner:
     def phrase_from_files(self, files: list) -> tuple:
         raise NotImplementedError
 
-    def multiple_recognition(self, file_or_adata, providers: list) -> dict:
+    def multiple_recognition(self, file_or_adata, providers: list) -> list:
         raise NotImplementedError
 
     @property

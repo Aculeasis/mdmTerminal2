@@ -27,11 +27,12 @@ REQUEST_ERRORS = (
 )
 
 
-class TTSTextBox(str):
-    def __new__(cls, text, provider=None):
+class TextBox(str):
+    def __new__(cls, text, provider=None, time_=0):
         # noinspection PyArgumentList
         obj = str.__new__(cls, text)
         obj.provider = str(provider) if provider else ''
+        obj.time = time_
         return obj
 
 

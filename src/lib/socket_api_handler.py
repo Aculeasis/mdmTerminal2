@@ -9,7 +9,7 @@ import logger
 from lib.map_settings.map_settings import make_map_settings
 from lib.socket_wrapper import Connect
 from owner import Owner
-from utils import file_to_base64, pretty_time, TTSTextBox
+from utils import file_to_base64, pretty_time, TextBox
 
 # old -> new
 OLD_CMD = {
@@ -74,6 +74,11 @@ def dict_key_checker(data: dict, keys: tuple):
     for key in keys:
         if key not in data:
             raise InternalException(5, 'Missing key: {}'.format(key))
+
+
+def dict_list_to_list_in_tuple(data: dict, keys: tuple) -> tuple:
+    dict_key_checker(data, keys=keys)
+    return tuple(data[key] if isinstance(data[key], list) else [data[key]] for key in keys)
 
 
 class Null:
@@ -177,7 +182,7 @@ class API:
     def _api_says(self, cmd, data):
         data = data if isinstance(data, dict) else {'text': data[0]}
         dict_key_checker(data, keys=('text',))
-        self.own.terminal_call(cmd, TTSTextBox(data['text'], data.get('provider')))
+        self.own.terminal_call(cmd, TextBox(data['text'], data.get('provider')))
 
     @api_commands('play')
     def _api_play(self, _, cmd: str):
@@ -194,7 +199,7 @@ class API:
     @api_commands('rec')
     def _api_rec(self, _, cmd: str):
         param = cmd.split('_')  # должно быть вида rec_1_1, play_2_1, compile_5_1
-        if len(param) != 3 or sum([1 if len(x) else 0 for x in param]) != 3:
+        if len([1 for x in param if len(x)]) != 3:
             raise InternalException(msg='Error parsing parameters for \'rec\': {}'.format(repr(param)[:1500]))
         # a = param[0]  # rec, play или compile
         # b = param[1]  # 1-6
@@ -299,27 +304,15 @@ class API:
             raise InternalException(code=4, msg='file empty')
         self.own.terminal_call('test.record', (file, limit))
 
-    @api_commands('test.play', pure_json=True)
-    def _api_test_play(self, _, data):
+    @api_commands('test.play', 'test.delete', pure_json=True)
+    def _api_test_play_delete(self, cmd, data):
         # files: list[str]
-        dict_key_checker(data, ('files',))
-        files = data['files'] if isinstance(data['files'], list) else [data['files']]
-        self.own.terminal_call('test.play', (files,))
-
-    @api_commands('test.delete', pure_json=True)
-    def _api_test_delete(self, _, data):
-        # files: list[str]
-        dict_key_checker(data, ('files',))
-        files = data['files'] if isinstance(data['files'], list) else [data['files']]
-        self.own.terminal_call('test.delete', (files,))
+        self.own.terminal_call(cmd, dict_list_to_list_in_tuple(data, ('files',)))
 
     @api_commands('test.test', pure_json=True)
     def _api_test_test(self, _, data):
         # providers: list[str], files: list[str]
-        dict_key_checker(data, ('providers', 'files'))
-        providers = data['providers'] if isinstance(data['providers'], list) else [data['providers']]
-        files = data['files'] if isinstance(data['files'], list) else [data['files']]
-        self.own.terminal_call('test.test', (providers, files))
+        self.own.terminal_call('test.test', dict_list_to_list_in_tuple(data, ('providers', 'files')))
 
     @api_commands('test.list', pure_json=True)
     def _api_test_list(self, *_):
