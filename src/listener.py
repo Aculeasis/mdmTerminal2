@@ -158,14 +158,11 @@ class Listener:
         energy_lvl = energy_lvl if energy_lvl is not None else self.cfg.gt('listener', 'energy_lvl')
         energy_lvl = energy_lvl if energy_lvl > 10 else 0
         energy_dynamic = energy_dynamic if energy_dynamic is not None else self.cfg.gt('listener', 'energy_dynamic')
-        vad = vad(
-            source=source_or_mic, energy_lvl=energy_lvl, energy_dynamic=energy_dynamic,
-            lvl=vad_lvl, width=source_or_mic.SAMPLE_WIDTH, rate=source_or_mic.SAMPLE_RATE,
-            resource_path=self.cfg.path['home'], hot_word_files=self.cfg.path['models_list'],
-            sensitivity=self.cfg.gts('sensitivity'), audio_gain=self.cfg.gts('audio_gain'), another=None,
-            apply_frontend=self.cfg.gt('noise_suppression', 'snowboy_apply_frontend'),
-            rms=self.cfg.gt('smarthome', 'send_rms')
+        cfg = self._detector_cfg(
+            source=source_or_mic, energy_lvl=energy_lvl, energy_dynamic=energy_dynamic, lvl=vad_lvl,
+            width=source_or_mic.SAMPLE_WIDTH, rate=source_or_mic.SAMPLE_RATE, another=None,
         )
+        vad = vad(**cfg)
         if isinstance(vad, sr.EnergyDetectorVAD):
             if not energy_lvl:
                 manual_exit = source_or_mic.stream is None
@@ -181,13 +178,17 @@ class Listener:
         return vad, None
 
     def _get_hw_detector(self, width, rate, another_detector=None):
-        return get_hot_word_detector(
-            resource_path=self.cfg.path['home'], hot_word_files=self.cfg.path['models_list'],
-            width=width, rate=rate,
-            sensitivity=self.cfg.gts('sensitivity'), audio_gain=self.cfg.gts('audio_gain'), another=another_detector,
-            apply_frontend=self.cfg.gt('noise_suppression', 'snowboy_apply_frontend'),
-            detector=self.cfg.detector,
-        )
+        cfg = self._detector_cfg(width=width, rate=rate, another=another_detector)
+        return get_hot_word_detector(self.cfg.detector, **cfg)
+
+    def _detector_cfg(self, **kwargs) -> dict:
+        kwargs.update({
+            'resource_path': self.cfg.path['home'], 'hot_word_files': self.cfg.path['models_list'],
+            'sensitivity': self.cfg.gts('sensitivity'), 'audio_gain': self.cfg.gts('audio_gain'),
+            'apply_frontend': self.cfg.gt('noise_suppression', 'snowboy_apply_frontend'),
+            'rms': self.cfg.gt('smarthome', 'send_rms'),
+        })
+        return kwargs
 
     def _select_vad(self, vad_mode=None):
         def is_loaded():

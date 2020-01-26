@@ -56,8 +56,8 @@ def _loader_porcupine():
     return Porcupine
 
 
-def get_hot_word_detector(**kwargs):
-    if kwargs.get('detector') == 'porcupine':
+def get_hot_word_detector(detector, **kwargs):
+    if detector == 'porcupine':
         return PorcupineHWD(**kwargs)
     return SnowboyHWD(**kwargs)
 
