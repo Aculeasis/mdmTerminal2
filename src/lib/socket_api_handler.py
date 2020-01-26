@@ -76,9 +76,19 @@ def dict_key_checker(data: dict, keys: tuple):
             raise InternalException(5, 'Missing key: {}'.format(key))
 
 
-def dict_list_to_list_in_tuple(data: dict, keys: tuple) -> tuple:
+def dict_list_to_list_in_tuple(data: dict, keys: tuple, types=(str,)) -> tuple:
     dict_key_checker(data, keys=keys)
-    return tuple(data[key] if isinstance(data[key], list) else [data[key]] for key in keys)
+    result = []
+    for key in keys:
+        value = data[key] if isinstance(data[key], list) else [data[key]]
+        if not value:
+            raise InternalException(6, '{} empty'.format(repr(key)))
+        for idx, test in enumerate(value):
+            if not isinstance(test, types):
+                msg = '{0} must be list[{1}] or {1}, wrong type of #{2} - {3}'.format(repr(key), types, idx, type(test))
+                raise InternalException(7, msg)
+        result.append(value)
+    return tuple(result)
 
 
 class Null:

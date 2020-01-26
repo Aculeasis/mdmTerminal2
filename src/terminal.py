@@ -33,7 +33,7 @@ class MDTerminal(threading.Thread):
         # Что делает терминал, для диагностики зависаний треда
         # 0 - ничего, 1 - слушает микрофон, 2 - тестирут микрофон, 3 - обрабатывает результат, 4 - внешний вызов
         self.stage = 0
-        self._sw = SampleWorker(cfg, log.add('SW'), owner, self._reload)
+        self._sw = _SampleWorker(cfg, log.add('SW'), owner, self._reload)
         self.DATA_CALL = {
             'reload': self._reload,
             'volume': self._set_volume_quiet,  # volume == nvolume
@@ -272,7 +272,7 @@ class MDTerminal(threading.Thread):
         self.stage = _stage
 
 
-class SampleWorker:
+class _SampleWorker:
     def __init__(self, cfg, log, owner: Owner,  reload_cb):
         self.log, self.cfg, self.own = log, cfg, owner
         # Перезагружает терминал, строго в треде самого терминала
@@ -378,9 +378,7 @@ class SampleWorker:
             except OSError as e:
                 self.log('os.makedirs error {}: {}'.format(self.cfg.path['test'], e), logger.ERROR)
                 return
-        file = file.lower()
-        if not file.endswith(self.cfg.path['test_ext']):
-            file = file + self.cfg.path['test_ext']
+        file = self._test_filename_normalization(file)
         save_to = os.path.join(self.cfg.path['test'], file)
 
         self.log('Start recording {} sec audio after signal...'.format(limit), logger.INFO)
@@ -418,7 +416,6 @@ class SampleWorker:
             return
         providers = self._test_stt_providers(providers)
         if not providers:
-            self.log('No known providers', logger.WARN)
             return
         p_offset = max(len(provider) for provider in providers)
         template = '{:#} [{:>~}]: {}'.replace('#', str(p_offset), 1)
@@ -432,12 +429,6 @@ class SampleWorker:
             for provider, data in result.items():
                 self.log(head.format(provider, data['time'], repr(data['result'])), logger.INFO)
             self.log('=' * (p_offset + 1), logger.INFO)
-
-    def _test_dir_exist(self) -> bool:
-        if not os.path.isdir(self.cfg.path['test']):
-            self.log('Test path not exist: \'{}\''.format(self.cfg.path['test']), logger.WARN)
-            return False
-        return True
 
     def _test_stt_providers(self, providers: list) -> list:
         if '*' in providers:
@@ -454,11 +445,12 @@ class SampleWorker:
                 not_found.append(provider)
         if not_found:
             not_found = ', '.join([repr(name) for name in not_found])
-            self.log('Unknown STT providers: {}'.format(not_found))
+            self.log('Unknown STT providers: {}'.format(not_found), logger.DEBUG if allow else logger.WARN)
         return allow
 
     def _test_fill_file_paths(self, files: list) -> list:
-        if not self._test_dir_exist():
+        if not os.path.isdir(self.cfg.path['test']):
+            self.log('Test path not exist: \'{}\''.format(self.cfg.path['test']), logger.WARN)
             return []
         if '*' in files:
             # all wav
@@ -469,9 +461,7 @@ class SampleWorker:
             if not utils.is_valid_base_filename(file):
                 wrong_name.append(file)
                 continue
-            file = file.lower()
-            if not file.endswith(self.cfg.path['test_ext']):
-                file = file + self.cfg.path['test_ext']
+            file = self._test_filename_normalization(file)
             if file in unique:
                 continue
             unique.add(file)
@@ -486,6 +476,10 @@ class SampleWorker:
             not_found = ', '.join([name for name in not_found])
             self.log('Files not found: {}'.format(not_found), logger.DEBUG if allow else logger.WARN)
         return allow
+
+    def _test_filename_normalization(self, file: str) -> str:
+        file = file.lower()
+        return file if os.path.splitext(file)[1] == self.cfg.path['test_ext'] else file + self.cfg.path['test_ext']
 
     def _compile_model(self, model, samples, username):
         phrase, match_count = self.own.phrase_from_files(samples)

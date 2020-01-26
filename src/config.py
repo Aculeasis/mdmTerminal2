@@ -193,11 +193,11 @@ class ConfigHandler(utils.HashableDict):
 
     def is_model_name(self, filename: str) -> bool:
         return utils.is_valid_base_filename(filename) and \
-               os.path.splitext(filename)[-1].lower() in self.path['model_supports']
+               os.path.splitext(filename)[1].lower() in self.path['model_supports']
 
     def is_testfile_name(self, filename: str) -> bool:
         return utils.is_valid_base_filename(filename) and \
-               os.path.splitext(filename)[-1].lower() == self.path['test_ext']
+               os.path.splitext(filename)[1].lower() == self.path['test_ext']
 
     def path_to_sample(self, model_id: str, sample_num) -> str:
         return os.path.join(self.path['samples'], model_id, '{}.wav'.format(sample_num))
