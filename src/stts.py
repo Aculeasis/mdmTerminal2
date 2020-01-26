@@ -155,7 +155,7 @@ class _TTSWorker(threading.Thread):
                 slow=self.cfg.gt(self._provider, 'slow'),
                 yandex_api=self.cfg.yandex_api(self._provider)
             )
-        except(RuntimeError, TTS.gTTSError, ValueError) as e:
+        except(RuntimeError, TTS.gTTSError, ValueError, AssertionError) as e:
             self._synthesis_error(key, e)
             self._file_path = self.cfg.path['tts_error']
             return
@@ -411,11 +411,13 @@ class SpeechToText:
             return utils.TextBox('', prov)
         self.log(LNG['recognized_from'].format(prov), logger.DEBUG)
         wtime = time.time()
+        key = None
         try:
+            key = self.cfg.key(prov, 'apikeystt')
             command = STT.GetSTT(
                 prov,
                 audio_data=audio,
-                key=self.cfg.key(prov, 'apikeystt'),
+                key=key,
                 lang=self.cfg.stt_lang(prov),
                 url=self.cfg.gt(prov, 'server'),
                 yandex_api=self.cfg.yandex_api(prov),
@@ -423,9 +425,9 @@ class SpeechToText:
             ).text()
         except STT.UnknownValueError:
             command = ''
-        except (STT.RequestError, RuntimeError) as e:
+        except (STT.RequestError, RuntimeError, AssertionError) as e:
             say(LNG['err_stt_say'])
-            self.log(LNG['err_stt_log'].format(e), logger.ERROR)
+            self.log(LNG['err_stt_log'].format(prov, utils.mask_off(key), e), logger.ERROR)
             return utils.TextBox('', prov)
         if fusion:
             wtime = fusion()
