@@ -3,7 +3,7 @@
 import socket
 
 import logger as logger_
-from languages import SERVER as LNG
+from languages import F
 from lib.socket_api_handler import SocketAPIHandler, InternalException, upgrade_duplex, api_commands
 from owner import Owner
 
@@ -36,8 +36,8 @@ class MDTServer(SocketAPIHandler):
         try:
             self._socket.bind(self._local)
         except OSError as e:
-            say = LNG['err_start_say'].format(LNG['err_already_use'] if e.errno == 98 else '')
-            self.log(LNG['err_start'].format(*self._local, e), logger_.CRIT)
+            say = F('Ошибка запуска сервера{}.', F(' - адрес уже используется') if e.errno == 98 else '')
+            self.log(F('Ошибка запуска сервера на {}:{}: {}', *self._local, e), logger_.CRIT)
             self.own.say(say)
             return False
         self._socket.listen(1)

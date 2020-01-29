@@ -7,7 +7,7 @@ import threading
 import time
 
 import logger
-from languages import PLAYER as LNG
+from languages import F
 from lib import play_utils
 from owner import Owner
 
@@ -171,10 +171,10 @@ class Player:
             self._popen.kill()
         ext = ext or os.path.splitext(path)[1]
         if not stream and not os.path.isfile(path):
-            return self.log(LNG['file_not_found'].format(path), logger.ERROR)
+            return self.log(F('Файл {} не найден.', path), logger.ERROR)
         if ext not in play_utils.CMD:
-            return self.log(LNG['unknown_type'].format(ext), logger.CRIT)
-        self.log(LNG['play' if stream is None else 'stream'].format(path, logger.DEBUG))
+            return self.log(F('Неизвестный тип файла: {}', ext), logger.CRIT)
+        self.log(F('Играю {} ...', path) if stream is None else F('Стримлю {} ...', path))
         try:
             self._popen = play_utils.get_popen(ext, path, stream, callback, self.cfg.gts('software_player'))
         except FileNotFoundError as e:

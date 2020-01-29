@@ -9,7 +9,7 @@ import time
 import languages
 import logger
 import utils
-from languages import CONFIG as LNG, LANG_CODE
+from languages import F, LANG_CODE
 from lib import volume
 from lib.audio_utils import APMSettings
 from lib.ip_storage import make_interface_storage
@@ -56,6 +56,7 @@ class ConfigHandler(utils.HashableDict):
         self.__owner = owner
         self.own = DummyOwner()  # Пока player нет храним фразы тут.
         self.log = log
+        languages.set_lang.set_logger(self.log.add('Localization'))
         self._config_init()
 
     @property
@@ -89,7 +90,7 @@ class ConfigHandler(utils.HashableDict):
             try:
                 key_ = Keystore().yandex_v1_free()
             except RuntimeError as e:
-                raise RuntimeError(LNG['err_ya_key'].format(e))
+                raise RuntimeError(F('Ошибка получения ключа для Yandex: {}', e))
         return key_
 
     def _aws_credentials(self):
@@ -100,7 +101,7 @@ class ConfigHandler(utils.HashableDict):
 
     @staticmethod
     def language_name() -> str:
-        return languages.set_lang.language_name
+        return languages.set_lang.lang
 
     @staticmethod
     def tts_lang(provider: str) -> str:
@@ -303,19 +304,19 @@ class ConfigHandler(utils.HashableDict):
         try:
             utils.dict_to_file(file_path, data, pretty)
         except RuntimeError as e:
-            self.log(LNG['err_save'].format(file_path, str(e)), logger.ERROR)
+            self.log(F('Ошибка сохранения {}: {}', file_path, str(e)), logger.ERROR)
             return False
         return True
 
     def load_dict(self, name: str, format_='json') -> dict or None:
         file_path = os.path.join(self.path['data'], name + DATA_FORMATS.get(format_, '.json'))
         if not os.path.isfile(file_path):
-            self.log(LNG['miss_file'].format(file_path))
+            self.log(F('Файл не найден: {}', file_path))
             return None
         try:
             return utils.dict_from_file(file_path)
         except RuntimeError as e:
-            self.log(LNG['err_load'].format(file_path, str(e)), logger.ERROR)
+            self.log(F('Ошибка загрузки {}: {}', file_path, str(e)), logger.ERROR)
             return None
 
     def start(self):
@@ -344,13 +345,13 @@ class ConfigHandler(utils.HashableDict):
 
         with open(self.path['settings'], 'w', encoding='utf8') as configfile:
             config.write(configfile)
-        self.log(LNG['save_for'].format(utils.pretty_time(time.time() - wtime)), logger.INFO)
-        self.own.say_info(LNG['save'])
+        self.log(F('Конфигурация сохранена за {}', utils.pretty_time(time.time() - wtime)), logger.INFO)
+        self.own.say_info(F('Конфигурация сохранена!'))
 
     def models_load(self):
         self.path['models_list'] = []
         if not os.path.isdir(self.path['models']):
-            msg = LNG['miss_models'].format(self.path['models'])
+            msg = F('Директория с моделями не найдена {}', self.path['models'])
             self.log(msg, logger.INFO)
             self.own.say_info(msg)
             return
@@ -364,30 +365,31 @@ class ConfigHandler(utils.HashableDict):
                     self.path['models_list'].append(full_path)
                     count += 1
 
-        msg = LNG['models_count_call'].format(count)
+        msg = F('Загружено {} моделей', count)
         self.log(msg, logger.INFO)
         self.own.say_info(msg)
 
     def config_load(self):
         wtime = time.time()
         if not os.path.isfile(self.path['settings']):
-            self.log(LNG['miss_settings'].format(self.path['settings']), logger.INFO)
+            msg = 'Файл настроек не найден по пути {}. Для первого запуска это нормально'
+            self.log(F(msg, self.path['settings']), logger.INFO)
             return True
         updater = ConfigUpdater(self, self.log)
         count = updater.from_ini(self.path['settings'])
         wtime = time.time() - wtime
         self.lang_init()
-        self.log(LNG['load_for'].format(count, utils.pretty_time(wtime)), logger.INFO)
-        self.own.say_info(LNG['load'])
+        self.log(F('Загружено {} опций за {}', count, utils.pretty_time(wtime)), logger.INFO)
+        self.own.say_info(F('Конфигурация загружена!'))
         return updater.save_ini
 
     def lang_init(self):
         lang = self.gts('lang')
-        deep_check = self.gts('lang_check')
-        err = languages.set_lang(lang, None if not deep_check else self.log)
+        err = languages.set_lang(lang, self.gts('lang_check'))
         if err:
-            self.log(LNG['err_lng'].format(lang, err), logger.ERROR)
-        self.log(LNG['lng_load_for'].format(lang, utils.pretty_time(languages.set_lang.load_time)), logger.INFO)
+            self.log(F('Ошибка инициализации языка {}: {}', repr(lang), err), logger.ERROR)
+        msg = F('Локализация {} загружена за {}', lang, utils.pretty_time(languages.set_lang.load_time))
+        self.log(msg, logger.INFO)
 
     def update_from_external(self, data: str or dict) -> dict or None:
         cu = ConfigUpdater(self, self.log)
@@ -404,10 +406,10 @@ class ConfigHandler(utils.HashableDict):
             return None
 
     def print_cfg_change(self):
-        self.log(LNG['cfg_up'])
+        self.log(F('Конфигурация изменилась'))
 
     def print_cfg_no_change(self):
-        self.log(LNG['cfg_no_change'])
+        self.log(F('Конфигурация не изменилась'))
 
     def update_from_dict(self, data: dict) -> bool:
         return self._cfg_update(ConfigUpdater(self, self.log).from_dict(data))
@@ -423,7 +425,7 @@ class ConfigHandler(utils.HashableDict):
         max_size = self['cache'].get('tts_size', 50) * 1024 * 1024
         cache_path = self.gt('cache', 'path')
         if not os.path.isdir(cache_path):
-            msg = LNG['miss_tts_cache'].format(cache_path)
+            msg = F('Директория c tts кэшем не найдена {}', cache_path)
             self.log(msg)
             self.own.say_info(msg)
             return
@@ -446,13 +448,10 @@ class ConfigHandler(utils.HashableDict):
             for file in wrong_files:
                 os.remove(file)
             wrong_files = [os.path.split(file)[1] for file in wrong_files]
-            self.log(LNG['delete_wrong_files'].format(', '.join(wrong_files)), logger.WARN)
+            self.log(F('Удалены поврежденные файлы: {}', ', '.join(wrong_files)), logger.WARN)
 
         normal_size = not files or current_size < max_size or max_size < 0
-        say = LNG['tts_cache_size'].format(
-            utils.pretty_size(current_size),
-            LNG['tts_cache_act_list'][0] if normal_size else LNG['tts_cache_act_list'][1]
-        )
+        say = F('Размер tts кэша {}: {}', utils.pretty_size(current_size), F('Ок.') if normal_size else F('Удаляем...'))
         self.log(say, logger.INFO)
 
         if normal_size:
@@ -471,19 +470,19 @@ class ConfigHandler(utils.HashableDict):
             os.remove(file[0])
             deleted_files += 1
             deleted.append(os.path.split(file[0])[1])
-        self.log(LNG['delete_files'].format(', '.join(deleted)))
-        msg = LNG['deleted_files'].format(deleted_files, utils.pretty_size(current_size))
+        self.log(F('Удалено: {}', ', '.join(deleted)))
+        msg = F('Удалено {} файлов. Новый размер TTS кэша {}', deleted_files, utils.pretty_size(current_size))
         self.log(msg, logger.INFO)
         self.own.say_info(msg)
 
     def _make_dir(self, path: str):
         if not os.path.isdir(path):
-            self.log(LNG['create_dir'].format(path), logger.INFO)
+            self.log(F('Директория {} не найдена. Создаю...', path), logger.INFO)
             os.makedirs(path)
 
     def _lost_file(self, path: str):
         if not os.path.isfile(path):
-            msg = LNG['miss_file_fixme'].format(path)
+            msg = '{} {}'.format(F('Файл {} не найден.', path), F('Это надо исправить!'))
             self.log(msg, logger.CRIT)
             self.own.say(msg)
 
@@ -495,7 +494,7 @@ class ConfigHandler(utils.HashableDict):
 
     def _say_ip(self):
         if not (self['smarthome']['outgoing_socket'] or self['smarthome']['ip']):
-            msg = LNG['say_ip'].format(self.gts('ip'))
+            msg = F('Терминал еще не настроен, мой IP адрес: {}', self.gts('ip'))
             self.log(msg, logger.WARN)
             self.own.say(msg)
 

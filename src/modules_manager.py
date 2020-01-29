@@ -6,7 +6,7 @@ import threading
 from collections import OrderedDict
 
 import logger
-from languages import MODULES_MANAGER as LNG
+from languages import F
 from owner import Owner
 
 EQ = 1  # phrase equivalent
@@ -21,12 +21,12 @@ ALL_MODES = (NM, DM, ANY)
 
 
 def get_mode_say(mode_):
-    pretty = {NM: LNG['say_nm'], DM: LNG['say_dm'], ANY: LNG['say_any']}
+    pretty = {NM: F('Обычный'), DM: F('Отладка'), ANY: F('Любой')}
     return pretty.get(mode_)
 
 
 def get_enable_say(enable):
-    pretty = {True: LNG['say_enable'], False: LNG['say_disable']}
+    pretty = {True: F('восстановлен'), False: F('удален')}
     return pretty.get(enable)
 
 
@@ -188,11 +188,11 @@ class ModuleManager:
             else:
                 inactive.append(module['name'])
         if disable:
-            self._log(LNG['disable_m'].format(', '.join(disable)))
+            self._log(F('Отключенные модули: {}', ', '.join(disable)))
         if inactive:
-            self._log(LNG['inactive_m'].format(', '.join(inactive)))
+            self._log(F('Неактивные модули: {}', ', '.join(inactive)))
         if active:
-            self._log(LNG['active_m'].format(', '.join(active)), logger.INFO)
+            self._log(F('Активные модули: {}', ', '.join(active)), logger.INFO)
 
     def _conflicts_checker(self):
         # Ищет возможные конфликты в модулях. Разные режимы сравниваются отдельно
@@ -206,7 +206,7 @@ class ModuleManager:
             for target, data in val.items():
                 msg.append('{}: [{}]'.format(target, ', '.join([self.all[x]['name'] for x in data])))
             if msg:
-                self._log(LNG['conflict_found'].format(get_mode_say(key), ', '.join(msg)), logger.WARN)
+                self._log(F('Обнаружены конфликты в режиме {}: {}', get_mode_say(key), ', '.join(msg)), logger.WARN)
 
     def _conflicts_finder(self) -> dict:
         conflicts = {}
@@ -360,7 +360,7 @@ class ModuleManager:
                 return self._return_wrapper(f, reply)
 
             if not phrase:
-                self._log(LNG['not_say'], logger.DEBUG)
+                self._log(F('Вы ничего не сказали?'), logger.DEBUG)
                 return self._return_wrapper(None, None)
 
             return self._phrases_testing(phrase, phrase_check)
@@ -441,7 +441,7 @@ class ModuleManager:
             self._module_name = f.__name__
         except AttributeError:
             self._module_name = str(f)
-        self._log(LNG['catch'].format(f), logger.DEBUG)
+        self._log(F('Захвачено {}', f), logger.DEBUG)
         return f(self, *args)
 
     def _call_this(self, obj, *args):

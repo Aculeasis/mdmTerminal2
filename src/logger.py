@@ -9,7 +9,7 @@ import zlib
 from logging.handlers import RotatingFileHandler
 from functools import lru_cache
 
-from languages import LOGGER as LNG
+from languages import F
 from owner import Owner
 from utils import write_permission_check
 
@@ -144,7 +144,8 @@ class Logger(threading.Thread):
 
     def permission_check(self):
         if not write_permission_check(self.cfg.get('file')):
-            self.log(LNG['err_permission'].format(self.cfg.get('file')), CRIT)
+            msg = 'Логгирование в {} невозможно - отсутствуют права на запись. Исправьте это'
+            self.log(F(msg, self.cfg.get('file')), CRIT)
             return False
         return True
 

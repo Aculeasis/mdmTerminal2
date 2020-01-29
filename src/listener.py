@@ -4,7 +4,7 @@ import threading
 import time
 
 import logger
-from languages import TERMINAL as LNG
+from languages import F
 from lib import sr_wrapper as sr
 from lib.audio_utils import ModuleLoader
 from lib.audio_utils import SnowboyHWD, WebRTCVAD, APMVAD, get_hot_word_detector
@@ -90,8 +90,8 @@ class Listener:
         no_hello = self.cfg.gts('no_hello')
         hello = ''
         if phrase and self.own.sys_say_chance and not no_hello:
-            hello = LNG['model_listened'].format(phrase)
-        self.log(LNG['activate_by'].format(model_name, msg), logger.INFO)
+            hello = F('{} слушает', phrase)
+        self.log(F('Голосовая активация по {}{}', model_name, msg), logger.INFO)
         cb(hello, *self.own.listen(hello, voice=no_hello), model_name)
 
     def _detected_sr(self, msg: str, model_name: str, model_msg: str or None, vad, cb=None):
@@ -102,7 +102,7 @@ class Listener:
             self.log(msg, logger.DEBUG)
             return
         self.log(recognition_msg(msg, energy, rms), logger.INFO)
-        self.log(LNG['activate_by'].format(model_name, model_msg), logger.INFO)
+        self.log(F('Голосовая активация по {}{}', model_name, model_msg), logger.INFO)
         cb(False, msg, rms, model_name)
 
     def listen(self, r=None, mic=None, vad=None):

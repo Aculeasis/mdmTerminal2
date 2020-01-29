@@ -14,7 +14,7 @@ except ImportError as _e:
             raise ImportError(cls.e)
 
 import logger as logger_
-from languages import MUSIC_CONTROL as LNG
+from languages import F
 from lib.base_music_controller import str_to_int, BaseControl, auto_reconnect
 from owner import Owner
 from utils import get_ip_address, url_builder_cached
@@ -85,7 +85,7 @@ class MPDControl(BaseControl):
         try:
             self._mpd.connect(self._cfg['ip'], self._cfg['port'], 15)
         except (self.__lib.MPDError, IOError) as e:
-            msg = LNG['err_conn'].format(self._name.upper())
+            msg = F('Ошибка подключения к {}-серверу', self._name.upper())
             self.log('{}: {}'.format(msg, e), logger_.ERROR)
             self.is_conn = False
             return False

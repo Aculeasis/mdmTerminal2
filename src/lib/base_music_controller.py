@@ -3,7 +3,7 @@ import threading
 import time
 
 import logger
-from languages import MUSIC_CONTROL as LNG
+from languages import F
 from owner import Owner
 from utils import str_to_list
 
@@ -141,7 +141,7 @@ class BaseControl(threading.Thread):
         if self._cfg['control']:
             time.sleep(self.START_DELAY)
             if not self._connect():
-                self.own.say(LNG['err_conn'].format(self._name.upper()), 0)
+                self.own.say(F('Ошибка подключения к {}-серверу', self._name.upper()), 0)
         self.log('start', logger.INFO)
 
     def get_track_name(self) -> str or None:

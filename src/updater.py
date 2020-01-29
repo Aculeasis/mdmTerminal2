@@ -6,7 +6,7 @@ import threading
 import time
 
 import logger
-from languages import UPDATER as LNG
+from languages import F
 from owner import Owner
 from utils import Popen
 
@@ -51,7 +51,7 @@ class Updater(threading.Thread):
     def _manual_rollback(self):
         up = self._new_worker()
         msg = self._fallback(up, self._last['hash'], 'rollback')
-        if msg == LNG['rollback_yes'] and self._may_restart():
+        if msg == F('Выполнен откат.') and self._may_restart():
             self.own.die_in(7)
         self.own.terminal_call('tts', msg)
 
@@ -108,8 +108,8 @@ class Updater(threading.Thread):
             up.pull()
         except RuntimeError as e:
             self._notify_update('pull_failed')
-            self.log('{}: {}'.format(LNG['err_update'], e), logger.CRIT)
-            return '{}.'.format(LNG['err_update'])
+            self.log('{}: {}'.format(F('Во время обновления возникла ошибка'), e), logger.CRIT)
+            return '{}.'.format(F('Во время обновления возникла ошибка'))
 
         try:
             up.check_pull()
@@ -119,11 +119,11 @@ class Updater(threading.Thread):
 
         if not up.updated():
             self._notify_update('update_nope')
-            self.log(LNG['no_update'], logger.INFO)
-            return LNG['no_update']
+            self.log(F('Вы используете последнюю версию терминала.'), logger.INFO)
+            return F('Вы используете последнюю версию терминала.')
         new_files = up.new_files()
         if new_files:
-            self.log(LNG['files_upgrade'].format(new_files), logger.DEBUG)
+            self.log(F('Файлы обновлены: {}', new_files), logger.DEBUG)
 
         try:
             self._up_dependency('apt', up.update_apt)
@@ -137,13 +137,13 @@ class Updater(threading.Thread):
             return self._auto_fallback(up, e)
 
         self._notify_update('update_yes')
-        self.log(LNG['update_ok'], logger.INFO)
+        self.log(F('Терминал успешно обновлен.'), logger.INFO)
         self._old_hash = up.get_old_hash()
         if self._may_restart() and new_files:
             self.own.die_in(7)
-            msg = LNG['update_ok']
+            msg = F('Терминал успешно обновлен.')
         else:
-            msg = '{} {}'.format(LNG['update_ok'], LNG['restart_required'])
+            msg = '{} {}'.format(F('Терминал успешно обновлен.'), F('Требуется перезапуск.'))
         return msg
 
     def _may_restart(self):
@@ -155,33 +155,35 @@ class Updater(threading.Thread):
         return False
 
     def _auto_fallback(self, up, error):
-        self.log('{}: {}'.format(LNG['err_upgrade'], error), logger.ERROR)
+        msg = F('Во время обработки обновления или установки зависимостей возникла ошибка')
+        self.log('{}: {}'.format(msg, error), logger.ERROR)
         if self._cfg.gt('update', 'fallback'):
-            return '{}. {}'.format(LNG['err_upgrade'], self._fallback(up))
-        return '{}.'.format(LNG['err_upgrade'])
+            return '{}. {}'.format(msg, self._fallback(up))
+        return '{}.'.format(msg)
 
     def _fallback(self, up, hash_=None, mode='fallback'):
-        self.log(LNG['run_rollback'], logger.DEBUG)
+        self.log(F('Выполняется откат обновления.'), logger.DEBUG)
         try:
             if hash_:
                 up.set_old_hash(hash_)
             up.fallback()
         except RuntimeError as e:
             self._notify_update('{}_failed'.format(mode))
-            self.log(LNG['err_rollback'].format(e), logger.CRIT)
-            return LNG['rollback_no']
+            self.log(F('Во время отката обновления возникла ошибка: {}', e), logger.CRIT)
+            return F('Откат невозможен.')
         else:
             self._notify_update('{}_ok'.format(mode))
-            self.log(LNG['ok_rollback'], logger.INFO)
-            return LNG['rollback_yes']
+            self.log(F('Откат обновления выполнен успешно.'), logger.INFO)
+            return F('Выполнен откат.')
 
     def _up_dependency(self, name: str, updater):
         to_update = self._cfg.gt('update', name)
         packages = updater(to_update)
         if packages:
+            msg = F('Зависимости {} {}обновлены: {}').format(name, '' if to_update else F('не '), packages)
             event = '{}_{}'.format(name, 'yes' if to_update else 'no')
             self._notify_update(event)
-            self.log(LNG[event].format(packages), logger.DEBUG if to_update else logger.WARN)
+            self.log(msg, logger.DEBUG if to_update else logger.WARN)
 
     def _new_worker(self):
         return Worker(os.path.split(self._cfg.path['home'])[0], sys.executable)

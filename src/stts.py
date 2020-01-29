@@ -15,7 +15,7 @@ import lib.TTS as TTS
 import lib.sr_wrapper as sr
 import logger
 import utils
-from languages import STTS as LNG
+from languages import F
 from lib.audio_utils import StreamRecognition
 from owner import Owner
 
@@ -62,10 +62,10 @@ class _TTSWorker(threading.Thread):
 
     def run(self):
         if not TTS.support(self._provider) :
-            self.log(LNG['unknown_prov'].format(self._provider), logger.CRIT)
+            self.log(F('Неизвестный провайдер: {}', self._provider), logger.CRIT)
             self._file_path = self.cfg.path['tts_error']
             return self._unlock()
-        msg = LNG['for_time'].format(*self._generating(), self._file_path)
+        msg = F('{} за {}{}: {}', *self._generating(), self._file_path)
         self.log(msg, logger.DEBUG if self._realtime else logger.INFO)
 
     def _generating(self):
@@ -83,7 +83,7 @@ class _TTSWorker(threading.Thread):
         if use_cache and self._found_in_cache(find_part, ext):
             self._unlock()
             work_time = time.time() - self._start_time
-            action = LNG['action_cache'].format(msg_gen)
+            action = F('{}найдено в кэше', msg_gen)
             time_diff = ''
         else:
             if not use_cache and self._provider in ('rhvoice-rest', 'rhvoice'):
@@ -94,7 +94,7 @@ class _TTSWorker(threading.Thread):
             self._tts_gen(self._file_path if use_cache else None, ext, self._msg)
             self._unlock()
             work_time = time.time() - self._start_time
-            action = LNG['action_gen'].format(msg_gen, self._provider)
+            action = F('{}сгенерированно {}', msg_gen, self._provider)
             reply = utils.pretty_time(self._work_time)
             diff = utils.pretty_time(work_time - self._work_time)
             time_diff = ' [reply:{}, diff:{}]'.format(reply, diff)
@@ -174,7 +174,7 @@ class _TTSWorker(threading.Thread):
             fp.close()
 
     def _synthesis_error(self, key, e):
-        self.log(LNG['err_synthesis'].format(self._provider, utils.mask_off(key), e), logger.CRIT)
+        self.log(F('Ошибка синтеза речи от {}, ключ \'{}\'. ({})', self._provider, utils.mask_off(key), e), logger.CRIT)
 
 
 class SpeechToText:
@@ -228,8 +228,8 @@ class SpeechToText:
                 self._stop_stt_event()
                 self._lock.release()
         else:
-            self.log(LNG['no_mics'], logger.ERROR)
-            msg = LNG['no_mics']
+            msg = F('Микрофоны не найдены')
+            self.log(msg, logger.ERROR)
         return msg, rms
 
     def _listen_and_take(self, hello, deaf, voice) -> tuple:
@@ -252,10 +252,10 @@ class SpeechToText:
         device_index = self.cfg.gts('mic_index', -1)
         if device_index > self.max_mic_index:
             if self.max_mic_index >= 0:
-                mics = LNG['mics_to'].format(self.max_mic_index + 1, self.max_mic_index)
+                mics = F('Доступны {}, от 0 до {}.', self.max_mic_index + 1, self.max_mic_index)
             else:
-                mics = LNG['no_mics']
-            self.log(LNG['wrong_mic_index'].format(device_index, mics), logger.WARN)
+                mics = F('Микрофоны не найдены')
+            self.log(F('Не верный индекс микрофона {}. {}', device_index, mics), logger.WARN)
             return None
         return None if device_index < 0 else device_index
 
@@ -278,7 +278,7 @@ class SpeechToText:
         else:
             audio, record_time, energy, rms = self._non_block_listen(hello, lvl, file_path)
 
-        self.log(LNG['record_for'].format(utils.pretty_time(record_time)), logger.INFO)
+        self.log(F('Голос записан за {}', utils.pretty_time(record_time)), logger.INFO)
         # Выключаем монопольный режим
         self.own.clear_lvl()
 
@@ -351,8 +351,8 @@ class SpeechToText:
 
     def voice_record(self, hello: str or None, save_to: str, convert_rate=None, convert_width=None, limit=8):
         if self.max_mic_index == -2:
-            self.log(LNG['no_mics'], logger.ERROR)
-            return LNG['no_mics']
+            self.log(F('Микрофоны не найдены'), logger.ERROR)
+            return F('Микрофоны не найдены')
         self._lock.acquire()
         self._start_stt_event()
         try:
@@ -380,7 +380,7 @@ class SpeechToText:
             except sr.WaitTimeoutError as e:
                 return str(e)
             if time.time() - record_time < 0.5:
-                return LNG['err_voice_record']
+                return F('Во время записи произошел сбой, это нужно исправить')
         try:
             os.makedirs(os.path.dirname(save_to), exist_ok=True)
             with open(save_to, "wb") as f:
@@ -406,10 +406,10 @@ class SpeechToText:
         quiet = quiet or not self.cfg.gts('say_stt_error')
         prov = provider or self.cfg.gts('providerstt', 'unset')
         if not self.own.is_stt_provider(prov):
-            self.log(LNG['err_unknown_prov'].format(prov), logger.CRIT)
-            say(LNG['err_unknown_prov'].format(''))
+            self.log(F('Ошибка распознавания - неизвестный провайдер {}', prov), logger.CRIT)
+            say(F('Ошибка распознавания - неизвестный провайдер {}', ''))
             return utils.TextBox('', prov)
-        self.log(LNG['recognized_from'].format(prov), logger.DEBUG)
+        self.log(F('Для распознавания используем {}', prov), logger.DEBUG)
         wtime = time.time()
         key = None
         try:
@@ -426,13 +426,14 @@ class SpeechToText:
         except STT.UnknownValueError:
             command = ''
         except (STT.RequestError, RuntimeError, AssertionError) as e:
-            say(LNG['err_stt_say'])
-            self.log(LNG['err_stt_log'].format(prov, utils.mask_off(key), e), logger.ERROR)
+            say(F('Произошла ошибка распознавания'))
+            msg = 'Ошибка распознавания речи от {}, ключ \'{}\'. ({})'
+            self.log(F(msg, prov, utils.mask_off(key), e), logger.ERROR)
             return utils.TextBox('', prov)
         if fusion:
             wtime = fusion()
         w_time = time.time() - wtime
-        self.log(LNG['recognized_for'].format(utils.pretty_time(w_time)), logger.DEBUG)
+        self.log(F('Распознано за {}', utils.pretty_time(w_time)), logger.DEBUG)
         return utils.TextBox(command or '', prov, w_time)
 
     def phrase_from_files(self, files: list):
@@ -452,7 +453,7 @@ class SpeechToText:
             if match_count >= consensus:
                 phrase = say
                 break
-        self.log(LNG['consensus'].format(', '.join([str(x) for x in result]), phrase), logger.DEBUG)
+        self.log(F('Распознано: {}. Консенсус: {}', ', '.join([str(x) for x in result]), phrase), logger.DEBUG)
         return phrase, match_count
 
     def multiple_recognition(self, file_or_adata, providers: list) -> list:
@@ -538,7 +539,12 @@ class Phrases:
             log('Error phrases loading, restore default phrases: {}'.format(e), logger.ERROR)
             self._phrases = None
         if not self._phrases:
-            self._phrases = {'hello': LNG['p_hello'], 'deaf': LNG['p_deaf'], 'ask': LNG['p_ask'], 'chance': 25}
+            self._phrases = {
+                'hello': [F('Привет'), F('Слушаю'), F('На связи'), F('Привет-Привет')],
+                'deaf':  [F('Я ничего не услышала'), F('Вы ничего не сказали'), F('Ничего не слышно'), F('Не поняла')],
+                'ask': [F('Ничего не слышно, повторите ваш запрос')],
+                'chance': 25
+            }
             cfg.save_dict(name, self._phrases, True)
 
     @property

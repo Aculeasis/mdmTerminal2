@@ -8,7 +8,7 @@ import stts
 from config import ConfigHandler
 from discovery_server import DiscoveryServer
 from duplex_mode import DuplexMode
-from languages import LOADER as LNG
+from languages import F
 from lib import STT, TTS
 from lib import volume as volume_
 from lib.available_version import available_version_msg
@@ -64,7 +64,7 @@ class Loader(Owner):
     def start_all_systems(self):
         self._music.start()
         self._play.start()
-        self._play.say_info(LNG['hello'], 0, wait=0.5)
+        self._play.say_info(F('Приветствую. Голосовой терминал настраивается, три... два... один...'), 0, wait=0.5)
         self._stt.start()
         self._cfg.start()
         self._notifier.start()
@@ -92,7 +92,7 @@ class Loader(Owner):
 
         self._play.quiet()
         self._play.kill_popen()
-        self._play.say_info(LNG['bye'])
+        self._play.say_info(F('Голосовой терминал завершает свою работу.'))
 
         self._stt.stop()
         self._play.stop()

@@ -4,27 +4,16 @@ import sys
 import time
 import threading
 from copy import deepcopy
-from .deep_check import DeepChecker
+from .deep_check import DeepChecker, ERROR
 
-# Используется для первичной инициализации, должен содержать все словари локализации
-# Значение отсутствющие в других языках будут взяты из него.
 DEFAULT_LANG = 'ru'
 
-# Словари локализации, заполняются динамически
+# Словарь локализации, ключи - str, значения - str, None или callable.
+_LNG = {}
+
+# Словари для локализации, заполняются динамически
 # Могут содержать все что угодно - строки, классы, списки и т.д.
 LANG_CODE = {}
-CONFIG = {}
-LOADER = {}
-LOGGER = {}
-MODULES = {}
-MODULES_MANAGER = {}
-MUSIC_CONTROL = {}
-PLAYER = {}
-SERVER = {}
-STTS = {}
-TERMINAL = {}
-UPDATER = {}
-
 YANDEX_EMOTION = {}
 # Спикеры валидные для данного языка и их произношение
 YANDEX_SPEAKER = {}
@@ -35,23 +24,19 @@ AWS_SPEAKER = {}
 class _LangSetter:
     # Список заполняемых словарей
     DICTS = (
-        'LANG_CODE', 'CONFIG', 'LOADER', 'LOGGER', 'MODULES', 'MODULES_MANAGER', 'MUSIC_CONTROL', 'PLAYER', 'SERVER',
-        'STTS', 'TERMINAL', 'UPDATER',
-        'YANDEX_EMOTION', 'YANDEX_SPEAKER', 'RHVOICE_SPEAKER', 'AWS_SPEAKER'
+        '_LNG',
+        'LANG_CODE', 'YANDEX_EMOTION', 'YANDEX_SPEAKER', 'RHVOICE_SPEAKER', 'AWS_SPEAKER'
     )
-    UNIQUE = ('RHVOICE_SPEAKER', 'AWS_SPEAKER')
+    UNIQUE = ('_LNG', 'RHVOICE_SPEAKER', 'AWS_SPEAKER')
     PATH = os.path.dirname(os.path.abspath(__file__))
 
     def __init__(self):
-        self._lang = None
+        self.lang = None
+        self.deep = False
         self._lock = threading.Lock()
         self._load_time = 0
-
+        self.log = lambda x, y: print(x, y)
         self._load_error(DEFAULT_LANG, self.__call__(DEFAULT_LANG))
-
-    @property
-    def language_name(self):
-        return self._lang
 
     @property
     def load_time(self):
@@ -60,11 +45,13 @@ class _LangSetter:
         finally:
             self._load_time = 0
 
-    def __call__(self, lang_name: str, print_=None):
+    def set_logger(self, logger):
+        self.log = logger
 
-        # Если print_ задан выполняем глубокую проверку
-
-        if lang_name == self._lang:
+    def __call__(self, lang_name: str, deep=False):
+        self.deep = deep
+        # Если deep задан выполняем глубокую проверку
+        if lang_name == self.lang:
             return
         if not lang_name or not isinstance(lang_name, str):
             return 'Bad name - \'{}\''.format(lang_name)
@@ -74,13 +61,13 @@ class _LangSetter:
             return 'File not found: {}'.format(path)
         with self._lock:
             self._load_time = time.time()
-            if self._lang is not None and self._lang != DEFAULT_LANG:
+            if self.lang is not None and self.lang != DEFAULT_LANG:
                 # Восстанавливаем все словари из языка по умолчанию
                 self._load_error(DEFAULT_LANG, self._load('languages.' + DEFAULT_LANG))
-            self._lang = lang_name
+            self.lang = lang_name
             module = 'languages.' + lang_name
             try:
-                return self._load(module, deep=None if not print_ else DeepChecker(print_, module))
+                return self._load(module, deep=None if not deep else DeepChecker(self.log, module))
             finally:
                 self._load_time = time.time() - self._load_time
 
@@ -124,3 +111,41 @@ class _LangSetter:
 
 
 set_lang = _LangSetter()
+
+
+def _f_err(msg, txt, val, args, kwargs, e: Exception = ''):
+    set_lang.log('{}, txt={}, val={}, args={}, kwargs={}: {}'.format(msg, repr(txt), repr(val), args, kwargs, e), ERROR)
+
+
+def F(txt: str, *args, **kwargs) -> str:
+    if txt in _LNG:
+        if _LNG[txt] is not None:
+            val = _LNG[txt]
+        else:
+            if set_lang.lang != DEFAULT_LANG and set_lang.deep:
+                _f_err('None key in custom language', txt, None, args, kwargs)
+            val = txt
+    else:
+        if set_lang.lang == DEFAULT_LANG:
+            _f_err('Key missing in default language', txt, '', args, kwargs)
+        val = txt
+    if isinstance(val, str):
+        if args or kwargs:
+            try:
+                return val.format(*args, **kwargs)
+            except (KeyError, IndexError) as e:
+                _f_err('format error', txt, val, args, kwargs, e)
+                try:
+                    return txt.format(*args, **kwargs)
+                except (KeyError, IndexError):
+                    pass
+        return txt
+    elif callable(val):
+        try:
+            return val(txt, *args, **kwargs)
+        except Exception as e:
+            _f_err('Call error', txt, val, args, kwargs, e)
+        return txt
+    else:
+        _f_err('Wrong type', txt, val, args, kwargs)
+    return '=== localization error ==='

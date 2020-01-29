@@ -11,8 +11,7 @@ import lib.snowboy_training as training_service
 import lib.sr_wrapper as sr
 import logger
 import utils
-from languages import LANG_CODE
-from languages import TERMINAL as LNG
+from languages import LANG_CODE, F
 from listener import NonBlockListener
 from owner import Owner
 
@@ -159,13 +158,13 @@ class MDTerminal(threading.Thread):
             try:
                 (cmd, data, lvl, late) = self._queue.get_nowait()
             except queue.Empty:
-                self.log(LNG['err_queue_empty'], logger.ERROR)
+                self.log(F('Пустая очередь? Impossible!'), logger.ERROR)
                 continue
             if late:
                 late = time.time() - late
-            msg = LNG['get_call'].format(cmd, repr(data)[:300], lvl, int(late))
+            msg = F('Получено {}:{}, lvl={} опоздание {} секунд.', cmd, repr(data)[:300], lvl, int(late))
             if late > self.MAX_LATE:
-                self.log(LNG['ignore_call'].format(msg), logger.WARN)
+                self.log(F('{} Игнорирую.', msg), logger.WARN)
                 continue
             else:
                 self.log(msg, logger.DEBUG)
@@ -181,7 +180,7 @@ class MDTerminal(threading.Thread):
             elif cmd in self.ARGS_CALL:
                 self.ARGS_CALL[cmd](*data)
             else:
-                self.log(LNG['err_call'].format(cmd, repr(data)[:300], lvl), logger.ERROR)
+                self.log(F('Не верный вызов, WTF? {}:{}, lvl={}', cmd, repr(data)[:300], lvl), logger.ERROR)
 
     def _set_volume_quiet(self, value):
         self._set_volume(value, True)
@@ -193,22 +192,22 @@ class MDTerminal(threading.Thread):
         if value is not None:
             volume = self.own.set_volume(value)
             if volume == -1:
-                self.log(LNG['vol_wrong_val'].format(value), logger.WARN)
+                self.log(F('Недопустимое значение: {}', value), logger.WARN)
                 if not quiet:
-                    self.own.say(LNG['vol_wrong_val'].format(value))
+                    self.own.say(F('Недопустимое значение: {}', value))
                 return
         else:
             volume = self.own.get_volume()
         if value is not None and volume > -1:
             self.own.volume_callback(volume)
         if volume == -2:
-            self.log(LNG['vol_not_cfg'], logger.WARN)
+            self.log(F('Не настроено'), logger.WARN)
             if not quiet:
-                self.own.say(LNG['vol_not_cfg'])
+                self.own.say(F('Не настроено'))
         else:
-            self.log(LNG['vol_ok'].format(volume))
+            self.log(F('Громкость {} процентов', volume))
             if not quiet:
-                self.own.say(LNG['vol_ok'].format(volume))
+                self.own.say(F('Громкость {} процентов', volume))
 
     def _set_music_volume(self, value, quiet=False):
         if value is not None:
@@ -217,16 +216,16 @@ class MDTerminal(threading.Thread):
                 if vol < 0 or vol > 100:
                     raise ValueError('volume must be 0..100')
             except (TypeError, ValueError) as e:
-                msg = LNG['vol_wrong_val'].format(value)
+                msg = F('Недопустимое значение: {}', value)
                 self.log('{}, {}'.format(msg, e), logger.WARN)
                 if not quiet:
                     self.own.say(msg)
                 return
             self.own.music_real_volume = vol
         value = self.own.music_real_volume
-        self.log(LNG['vol_music_ok'].format(value))
+        self.log(F('Громкость музыки {} процентов', value))
         if not quiet:
-            self.own.say(LNG['vol_music_ok'].format(value))
+            self.own.say(F('Громкость музыки {} процентов', value))
 
     def _change_listener(self, cmd: str):
         cmd = cmd.lower()
@@ -280,25 +279,26 @@ class _SampleWorker:
 
     def rec_rec(self, model, sample):
         # Записываем образец sample для модели model
-        if sample not in LNG['rec_nums']:
-            self.log('{}: {}'.format(LNG['err_rec_param'], sample), logger.ERROR)
-            self.own.say(LNG['err_rec_param'])
+        rec_nums = {'1': F('первого'), '2': F('второго'), '3': F('третьего')},
+        if sample not in rec_nums:
+            self.log('{}: {}'.format(F('Ошибка записи - недопустимый параметр'), sample), logger.ERROR)
+            self.own.say(F('Ошибка записи - недопустимый параметр'))
             return
         pmdl_name = ''.join(['model', model, self.cfg.path['model_ext']])
         if not self.cfg.is_model_name(pmdl_name):
             self.log('Wrong model filename: {}'.format(repr(pmdl_name)), logger.ERROR)
             return
 
-        hello = LNG['rec_hello'].format(LNG['rec_nums'][sample])
+        hello = F('Запись {} образца на 5 секунд начнется после звукового сигнала', rec_nums[sample])
         save_to = self.cfg.path_to_sample(model, sample)
         self.log(hello, logger.INFO)
         err = self.own.voice_record(hello=hello, save_to=save_to, convert_rate=16000, convert_width=2)
         if err is None:
-            bye = LNG['rec_bye'].format(LNG['rec_nums'][sample])
+            bye = F('Запись {} образца завершена. Вы можете прослушать свою запись.', rec_nums[sample])
             self.own.say(bye)
             self.log(bye, logger.INFO)
         else:
-            err = LNG['err_rec_save'].format(LNG['rec_nums'][sample], err)
+            err = F('Ошибка сохранения образца {}: {}', rec_nums[sample], err)
             self.log(err, logger.ERROR)
             self.own.say(err)
 
@@ -307,16 +307,16 @@ class _SampleWorker:
         if os.path.isfile(file):
             self.own.say(file, is_file=True)
         else:
-            self.own.say(LNG['err_play_say'].format('{}.wav'.format(sample)))
-            self.log(LNG['err_play_log'].format(file), logger.WARN)
+            self.own.say(F('Ошибка воспроизведения - файл {} не найден', '{}.wav'.format(sample)))
+            self.log(F('Файл {} не найден.', file), logger.WARN)
 
     def rec_compile(self, model, username):
         samples = []
         for num in ('1', '2', '3'):
             sample_path = self.cfg.path_to_sample(model, num)
             if not os.path.isfile(sample_path):
-                self.log(LNG['compile_no_file'].format(sample_path), logger.ERROR)
-                self.own.say(LNG['compile_no_file'].format(os.path.basename(sample_path)))
+                self.log(F('Ошибка компиляции - файл {} не найден.', sample_path), logger.ERROR)
+                self.own.say(F('Ошибка компиляции - файл {} не найден.', os.path.basename(sample_path)))
             else:
                 samples.append(sample_path)
         if len(samples) == 3:
@@ -336,16 +336,16 @@ class _SampleWorker:
             try:
                 os.remove(pmdl_path)
             except OSError as e:
-                msg = LNG['err_del'].format(model)
+                msg = F('Ошибка удаление модели номер {}', model)
                 self.log('{} [{}]: {}'.format(msg, pmdl_path, e), logger.ERROR)
                 self.own.say(msg)
             else:
                 is_del = True
-                msg = LNG['del_ok'].format(model)
+                msg = F('Модель номер {} удалена', model)
                 self.log('{}: {}'.format(msg, pmdl_path), logger.INFO)
                 self.own.say(msg)
         else:
-            msg = LNG['del_not_found'].format(model)
+            msg = F('Модель номер {} не найдена', model)
             self.log('{}: {}'.format(msg, pmdl_path), logger.WARN)
             self.own.say(msg)
 
@@ -494,31 +494,32 @@ class _SampleWorker:
         params['language'] = LANG_CODE['ISO']
 
         if match_count != len(samples):
-            msg = LNG['no_consensus'].format(pmdl_name, match_count, len(samples))
+            msg_ = 'Полный консенсус по модели {} не достигнут [{}/{}]. Советую пересоздать модель.'
+            msg = F(msg_, pmdl_name, match_count, len(samples))
             if self.cfg.gt('snowboy', 'clear_models') or self.cfg.gts('chrome_mode'):
                 # Не создаем модель если не все фразы идентичны
                 self.log(msg, logger.ERROR)
-                self.own.say(LNG['err_no_consensus'].format(model))
+                self.own.say(F('Полный консенсус по модели {} не достигнут. Компиляция отменена.', model))
                 return
             else:
                 self.log(msg, logger.WARN)
         else:
             params['name'] = phrase.lower()
 
-        self.log(LNG['compiling'].format(pmdl_path), logger.INFO)
+        self.log(F('Компилирую {}', pmdl_path), logger.INFO)
         work_time = time.time()
         try:
             snowboy = training_service.Training(*samples, params=params)
         except RuntimeError as e:
-            self.log(LNG['err_compile_log'].format(pmdl_path, e), logger.ERROR)
-            self.own.say(LNG['err_compile_say'].format(model))
+            self.log(F('Ошибка компиляции модели {}: {}', pmdl_path, e), logger.ERROR)
+            self.own.say(F('Ошибка компиляции модели номер {}', model))
             return
         work_time = utils.pretty_time(time.time() - work_time)
         snowboy.save(pmdl_path)
 
         msg = ', "{}",'.format(phrase) if phrase else ''
-        self.log(LNG['compile_ok_log'].format(msg, work_time, pmdl_path), logger.INFO)
-        self.own.say(LNG['compile_ok_say'].format(msg, model, work_time))
+        self.log(F('Модель{} скомпилирована успешно за {}: {}', msg, work_time, pmdl_path), logger.INFO)
+        self.own.say(F('Модель{} номер {} скомпилирована успешно за {}', msg, model, work_time))
 
         self._save_model_data(pmdl_name, username, phrase)
 
