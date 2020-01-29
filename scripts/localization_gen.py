@@ -91,7 +91,7 @@ ASSIGNS = {
 
 
 class LIFOFixDict(OrderedDict):
-    def __init__(self, *args, maxlen=30, **kwargs):
+    def __init__(self, *args, maxlen=20, **kwargs):
         self._max = maxlen
         super().__init__(*args, **kwargs)
 
@@ -141,8 +141,8 @@ class Parser:
 
     def _store_set(self, val: ast.Assign):
         def _store(key_, val_):
-            if isinstance(key_, ast.Name) and isinstance(key_.ctx, ast.Store) and val_ is not None:
-                self._store[key_.id] = val_
+            if isinstance(key_, ast.Name) and isinstance(key_.ctx, ast.Store) and isinstance(val_, ast.Str) and val_.s:
+                self._store[key_.id] = val_.s
 
         for key in val.targets:
             if isinstance(key, (ast.Tuple, ast.List)) and isinstance(val.value, (ast.Tuple, ast.List)) and \
@@ -150,15 +150,6 @@ class Parser:
                 list(map(_store, key.elts, val.value.elts))
                 return
             _store(key, val.value)
-
-    def _store_get(self, name: str) -> str or None:
-        val = self._store.pop(name, None)
-        if val is None:
-            return
-        if not isinstance(val, ast.Str):
-            self._pw('Wrong type by name. Name={}, type={}'.format(name, type(val)))
-            return
-        return val.s
 
     def _save(self, value: str, level):
         if value not in self.result:
@@ -178,8 +169,10 @@ class Parser:
         elif isinstance(node.args[0], ast.Name):
             if not isinstance(node.args[0].ctx, ast.Load):
                 self._pw('Arg type={} not Load, WTF'.format(type(node.args[0].ctx)))
+            elif node.args[0].id not in self._store:
+                self._pw('Wrong arg type or missing. Name={}, must be str'.format(node.args[0].id))
             else:
-                value = self._store_get(node.args[0].id)
+                value = self._store[node.args[0].id]
         else:
             value = node.args[0].s or None
             if not value:
@@ -301,7 +294,9 @@ class Writter:
         self._writter(data, dicts, False, dict_comments, comments)
 
     def write_gen(self, data: dict):
-        self._writter(data, HEADER_DICTS, True, {})
+        comments = {key: make_txt_comment(val) for key, val in data.items()}
+        data = {key: ASSIGNS.get(key, None) for key in data}
+        self._writter(data, HEADER_DICTS, True, {}, comments)
 
     def _writter(self, data: dict, dicts: dict, gen: bool, dict_comments: dict, comments=None):
         with open(self._file, encoding='utf8', mode='w') as self._fd:
@@ -309,9 +304,6 @@ class Writter:
             if gen:
                 self._wl([HEADER_1, '', ''])
             [self._w_dict(val, key, dict_comments.get(key, '')) or self._wl('') for key, val in dicts.items()]
-            if gen:
-                comments = {key: make_txt_comment(val) for key, val in data.items()}
-                data = {key: ASSIGNS.get(key, None) for key in data}
             self._w_dict(data, '_LNG', dict_comments.get('_LNG', ''), comments)
         print('Saved to {}'.format(self._file))
 
