@@ -139,7 +139,7 @@ def F(txt: str, *args, **kwargs) -> str:
                     return txt.format(*args, **kwargs)
                 except (KeyError, IndexError):
                     pass
-        return txt
+        return val
     elif callable(val):
         try:
             return val(txt, *args, **kwargs)
