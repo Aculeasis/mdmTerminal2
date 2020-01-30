@@ -280,17 +280,17 @@ class Writter:
             if new_comment and new_comment != old_comment:
                 old_comment = new_comment
                 self._wl('    # {}'.format(new_comment))
-            self._wl('    {}: {},'.format(repr(key), repr(val) if val is not None else val))
+            self._wl('    {}: {},'.format(repr(key), repr(val) if isinstance(val, str) else val))
         self._wl('}')
 
-    def write_new(self, data: dict, comments=None):
+    def write_new(self, data: dict, lng_comment: str, comments=None):
         dict_comments = {}
         dicts = get_old(self._file, HEADER_DICTS.keys())
         for old in [x for x in dicts.keys()]:
             if not dicts[old]:
                 dicts[old] = HEADER_DICTS[old]
                 dict_comments[old] = 'missing, received from ru.py'
-        dict_comments['_LNG'] = 'google translate - it\'s a good idea!'
+        dict_comments['_LNG'] = lng_comment
         self._writter(data, dicts, False, dict_comments, comments)
 
     def write_gen(self, data: dict):
@@ -339,45 +339,49 @@ def make_txt_comment(val: list) -> str:
     return ' '.join('{}#L{}'.format(k, ';#L'.join(v.keys())) for k, v in calls.items())
 
 
-def check_diff(result: dict, old: dict) -> bool:
+def get_diff(new: dict, old: dict) -> tuple:
     def _diff(x, y):
-        return [repr(k) for k in x if k not in y]
+        return [k for k in x if k not in y]
+    return _diff(new, old), _diff(old, new)
 
+
+def print_diff(add: list, del_: list, file=DST_FILE):
     def _print(data: list):
-        print('  ' + ('{}  '.format(LF) if len(data) < 25 else '; ').join(data))
-
-    add, del_ = _diff(result, old), _diff(old, result)
+        print('  ' + ('{}  '.format(LF) if len(data) < 25 else '; ').join([repr(k) for k in data]))
     if not (add or del_):
-        print('No change in {}'.format(DST_FILE))
-        return False
-    print('File {} change:'.format(DST_FILE))
-    if add:
-        print(' New phrases ({}):'.format(len(add)))
-        _print(add)
-    if del_:
-        print(' Deleted phrases ({}):'.format(len(del_)))
-        _print(del_)
-    return True
+        print('No change in {}'.format(file))
+    else:
+        print('File {} change:'.format(file))
+        if add:
+            print(' New phrases ({}):'.format(len(add)))
+            _print(add)
+        if del_:
+            print(' Deleted phrases ({}):'.format(len(del_)))
+            _print(del_)
 
 
 def get_old(file=DST_FILE, keys=('_LNG',)) -> dict:
-    try:
-        spec = importlib.util.spec_from_file_location("module.name", file)
-        foo = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(foo)
-        # noinspection PyProtectedMember
-        return getattr(foo, keys[0]) if len(keys) < 2 else {key: getattr(foo, key, {}) for key in keys}
-    except Exception as e:
-        print('Error loading {}: {}'.format(file, e))
-        return {} if len(keys) < 2 else {key: {} for key in keys}
+    if os.path.isfile(file):
+        try:
+            spec = importlib.util.spec_from_file_location("module.name", file)
+            foo = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(foo)
+            # noinspection PyProtectedMember
+            return getattr(foo, keys[0]) if len(keys) < 2 else {key: getattr(foo, key, {}) for key in keys}
+        except Exception as e:
+            print('Error loading {}: {}'.format(file, e))
+    return {} if len(keys) < 2 else {key: {} for key in keys}
 
 
 def cli():
     parser = argparse.ArgumentParser()
     parser.add_argument('--only-changes', action='store_true', help='Don\'t save file if _LANG unchanged')
+    parser.add_argument('-up', type=str, default='', metavar='[LNG]',
+                        help='Make/update language file')
     parser.add_argument('-gt', type=str, default='', metavar='[LNG]',
                         help='Use google translate to translate ru.py to another language')
     parser.add_argument('--no-gt', action='store_true', help='Don\'t translate, save direct')
+    parser.add_argument('--full', action='store_true', help='Full translate, otherwise only new phrases')
     parser.add_argument('-d', type=float, default=3, metavar='[sec]',
                         help='Requests delay. Google may banned your client IP address.')
     parser.add_argument('-p', type=str, default='', help='http proxy, for gt')
@@ -410,6 +414,11 @@ def google_translator(lang, delay, proxies, data: dict, chunk=30) -> dict:
         print('[{}%] ETA: {} sec, Elapse: {} sec.{}'.format(
             round(percent, 1), int(eta), int(time.time() - start_time), ' ' * 20), end='', flush=True
         )
+    print('Translate {} phrases from {} to {}'.format(
+        len(data), googletrans.LANGUAGES['ru'], googletrans.LANGUAGES[lang]
+    ))
+    print()
+
     chunks = [x for x in data.keys()]
     chunks = [chunks[i:i + chunk] for i in range(0, len(chunks), chunk)]
     full = len(chunks)
@@ -431,32 +440,37 @@ def google_translator(lang, delay, proxies, data: dict, chunk=30) -> dict:
     return data
 
 
-def main_trans(lang, delay, proxies, direct):
-    if lang not in googletrans.LANGUAGES:
-        print('Wrong lang code {}, use: {}'.format(
-            lang, ', '.join([key for key in googletrans.LANGUAGES if key != 'ru'])))
-        exit(1)
-    if lang == 'ru':
-        print('Translate ru to ru? What?')
-        exit(1)
-    data = get_old()
-    proxies = {'http': proxies} if proxies else None
+def _translate(direct, lang, delay, proxies, data) -> dict:
+    if not direct and data:
+        proxies = {'http': proxies} if proxies else None
+        data = google_translator(lang, delay, proxies, data)
+        border()
+        br = False
+        for key, val in data.items():
+            if not (isinstance(val, str) or val is None):
+                print('Wrong val type by GT, {}, in key={}, set None'.format(repr(type(val)), repr(key)))
+                data[key], br = None, True
+        br and border()
+    return data
+
+
+def main_trans(file_path, lang='', delay=3, proxies=None, direct=True, full=False):
+    data = {k: None for k in get_old()}
     if not data:
         print('Nope.')
         return
-    border()
-    if not direct:
-        print('Translate from {} to {}'.format(googletrans.LANGUAGES['ru'], googletrans.LANGUAGES[lang]))
-        print()
-        data = google_translator(lang, delay, proxies, data)
+    old = get_old(file=file_path) if not full else {}
+    if old:
         border()
-    for key, val in data.items():
-        if not (isinstance(val, str) or val is None):
-            print('Wrong val type, {}, in key={}, set None'.format(repr(type(val)), repr(key)))
-            data[key] = None
-    border()
-    file_path = os.path.join(LNG_DIR, 'gt_{}.py'.format(lang))
-    Writter(file_path).write_new(data, read_lng_comments(data))
+        add, del_ = get_diff(data, old)
+        new = _translate(direct, lang, delay, proxies, {k: None for k in add})
+        data = {key: new[key] if key in new else old[key] for key in data}
+        print_diff([new[k] or k for k in add], [old[k] or k for k in del_], file_path)
+        border()
+    else:
+        data = _translate(direct, lang, delay, proxies, data)
+    lng_comment = 'google translate - it\'s a good idea!' if lang else ''
+    Writter(file_path).write_new(data, lng_comment, read_lng_comments(data))
     print('Check {} before using'.format(file_path))
 
 
@@ -483,8 +497,9 @@ def main_gen(only_changes):
                 print('  # {}'.format(make_txt_comment(v)))
                 print('  {}'.format(repr(k)))
     border()
-    change = check_diff(parser.result, get_old())
-    if not only_changes or change:
+    add, del_ = get_diff(parser.result, get_old())
+    print_diff(add, del_)
+    if not only_changes or add or del_:
         border()
         Writter(DST_FILE).write_gen(parser.result)
     print()
@@ -493,10 +508,24 @@ def main_gen(only_changes):
 def main():
     version_warning()
     args = cli()
-    if args.gt:
-        main_trans(args.gt, args.d, args.p, bool(vars(args).get('no_gt')))
+    lang = args.up or args.gt
+    if not lang:
+        main_gen(args.only_changes)
+        return
+
+    if lang not in googletrans.LANGUAGES:
+        print('Wrong lang code {}, use: {}'.format(
+            lang, ', '.join([key for key in googletrans.LANGUAGES if key != 'ru'])))
+        exit(1)
+    if lang == 'ru':
+        print('Don\'t use ru.')
+        exit(1)
+    if args.up:
+        file_path = os.path.join(LNG_DIR, '{}.py'.format(lang))
+        main_trans(file_path)
     else:
-        main_gen(bool(vars(args).get('only_changes')))
+        file_path = os.path.join(LNG_DIR, 'gt_{}.py'.format(lang))
+        main_trans(file_path, args.gt, args.d, args.p, args.no_gt, args.full)
 
 
 if __name__ == '__main__':
