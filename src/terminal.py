@@ -279,7 +279,7 @@ class _SampleWorker:
 
     def rec_rec(self, model, sample):
         # Записываем образец sample для модели model
-        rec_nums = {'1': F('первого'), '2': F('второго'), '3': F('третьего')},
+        rec_nums = {'1': F('первого'), '2': F('второго'), '3': F('третьего')}
         if sample not in rec_nums:
             self.log('{}: {}'.format(F('Ошибка записи - недопустимый параметр'), sample), logger.ERROR)
             self.own.say(F('Ошибка записи - недопустимый параметр'))
