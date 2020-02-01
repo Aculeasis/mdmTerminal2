@@ -293,8 +293,8 @@ class Writter:
         dict_comments['_LNG'] = lng_comment
         self._writter(data, dicts, False, dict_comments, comments)
 
-    def write_gen(self, data: dict):
-        comments = {key: make_txt_comment(val) for key, val in data.items()}
+    def write_gen(self, data: dict, no_lines: bool):
+        comments = {key: make_txt_comment(val, no_lines) for key, val in data.items()}
         data = {key: ASSIGNS.get(key, None) for key in data}
         self._writter(data, HEADER_DICTS, True, {}, comments)
 
@@ -330,13 +330,47 @@ def walking():
     yield from _walk(SRC_DIR, subdir=WALK_SUBDIR, no_files=TOP_IGNORE)
 
 
-def make_txt_comment(val: list) -> str:
+def make_txt_comment(val: list, no_lines: bool) -> str:
+    return _make_txt_comment_def(val) if no_lines else _make_txt_comment_line(val)
+
+
+def _make_txt_comment_line(val: list) -> str:
     calls = OrderedDict()
     for v in val:
         if v['file'] not in calls:
             calls[v['file']] = OrderedDict()
         calls[v['file']][str(v['line'])] = None
     return ' '.join('{}#L{}'.format(k, ';#L'.join(v.keys())) for k, v in calls.items())
+
+
+def _make_txt_comment_def(val: list) -> str:
+    calls = OrderedDict()
+    for v in val:
+        if v['file'] not in calls:
+            calls[v['file']] = OrderedDict()
+        if v['class'] and v['class'] not in calls[v['file']]:
+            calls[v['file']][v['class']] = OrderedDict()
+        if v['def'] and v['class']:
+            calls[v['file']][v['class']][v['def']] = None
+        elif v['class']:
+            calls[v['file']][v['class']][v['class']] = None
+        elif v['def']:
+            calls[v['file']]['#' + v['def']] = str(v['def'])
+        else:
+            line = '#L{}'.format(v['line'])
+            calls[v['file']][line] = line
+    result = []
+    for k, v in calls.items():
+        f_result = []
+        for k2, v2 in v.items():
+            if isinstance(v2, str):
+                f_result.append('.{}'.format(v2))
+            else:
+                def_ = ', '.join(v2) or '!error'
+                def_ = def_ if len(v2) < 2 else '({})'.format(def_)
+                f_result.append('{}.{}'.format(k2, def_))
+        result.append('{}#{}'.format(k, ';'.join(f_result)))
+    return ' '.join(result)
 
 
 def get_diff(new: dict, old: dict) -> tuple:
@@ -378,6 +412,8 @@ def cli():
     parser.add_argument('--only-changes', action='store_true', help='Don\'t save file if _LANG unchanged')
     parser.add_argument('-up', type=str, default='', metavar='[LNG]',
                         help='Make/update language file')
+    parser.add_argument('--no-lines', action='store_true',
+                        help='Saving class\\method names in comments, instead of line numbers')
     parser.add_argument('-gt', type=str, default='', metavar='[LNG]',
                         help='Use google translate to translate ru.py to another language')
     parser.add_argument('--no-gt', action='store_true', help='Don\'t translate, save direct')
@@ -474,7 +510,7 @@ def main_trans(file_path, lang='', delay=3, proxies=None, direct=True, full=Fals
     print('Check {} before using'.format(file_path))
 
 
-def main_gen(only_changes):
+def main_gen(only_changes, no_lines):
     parser = Parser()
     sum_time = time.time()
     sum_parse = len([parser.parse(path, name) for path, name in walking()])
@@ -494,14 +530,14 @@ def main_gen(only_changes):
         print('The most popular strings({} calls)'.format(pop_count))
         for k, v in parser.result.items():
             if len(v) == pop_count:
-                print('  # {}'.format(make_txt_comment(v)))
+                print('  # {}'.format(make_txt_comment(v, no_lines)))
                 print('  {}'.format(repr(k)))
     border()
     add, del_ = get_diff(parser.result, get_old())
     print_diff(add, del_)
     if not only_changes or add or del_:
         border()
-        Writter(DST_FILE).write_gen(parser.result)
+        Writter(DST_FILE).write_gen(parser.result, no_lines)
     print()
 
 
@@ -510,7 +546,7 @@ def main():
     args = cli()
     lang = args.up or args.gt
     if not lang:
-        main_gen(args.only_changes)
+        main_gen(args.only_changes, args.no_lines)
         return
 
     if lang not in googletrans.LANGUAGES:
