@@ -9,7 +9,7 @@ import logger
 from lib.map_settings.map_settings import make_map_settings
 from lib.socket_wrapper import Connect
 from owner import Owner
-from utils import file_to_base64, pretty_time, TextBox
+from utils import file_to_base64, pretty_time, TextBox, singleton
 
 # old -> new
 OLD_CMD = {
@@ -17,6 +17,7 @@ OLD_CMD = {
     'volume_q': 'volume',
     'music_volume_q': 'mvolume'
 }
+SELF_AUTH_CHANNEL = 'net.self.auth'
 
 
 def api_commands(*commands, true_json=None, true_legacy=None, pure_json=None):
@@ -563,7 +564,7 @@ class SocketAPIHandler(threading.Thread, APIHandler):
     # Вызов: команда, данные
     NET = 'net'
     # Канал для блокирующих команд
-    # Вызов: соманда, данные, блокировка, коннектор
+    # Вызов: команда, данные, блокировка, коннектор
     # Обработчик будет приостановлен на 60 сек или до вызова блокировки подписчиком.
     NET_BLOCK = 'net_block'
 
@@ -579,8 +580,8 @@ class SocketAPIHandler(threading.Thread, APIHandler):
         self.id = None
         # Команды API не требующие авторизации
         self.NON_AUTH = {
-            'authorization', 'hi', 'voice', 'play', 'pause', 'tts', 'ask', 'settings', 'rec', 'remote_log', 'listener',
-            'volume', 'nvolume', 'mvolume', 'nvolume_say', 'mvolume_say', 'get'
+            'authorization', 'self.authorization', 'hi', 'voice', 'play', 'pause', 'tts', 'ask', 'settings', 'rec',
+            'remote_log', 'listener', 'volume', 'nvolume', 'mvolume', 'nvolume_say', 'mvolume_say', 'get',
         }
 
     @api_commands('authorization')
@@ -597,6 +598,27 @@ class SocketAPIHandler(threading.Thread, APIHandler):
             return msg
         return 'already'
 
+    @api_commands('self.authorization', pure_json=True)
+    def _self_authorization(self, cmd, data: dict):
+        keys = ('token', 'owner')
+        dict_key_checker(data, keys)
+        for key in keys:
+            if not isinstance(data[key], str):
+                raise InternalException(msg='Value in {} must be str, not {}.'.format(key, type(data[key])))
+            if not data[key]:
+                raise InternalException(2, 'Empty key - {}.'.format(key))
+        if not self._conn.auth:
+            fun = SelfAuthInstance().owner_cb(data['owner'])
+            if not fun:
+                raise InternalException(3, 'Unknown owner - {}'.format(data['owner']))
+            if not fun(data['token'], self._conn.ip, self._conn.port):
+                raise InternalException(4, 'forbidden: rejected')
+            self._conn.auth = True
+            msg = 'authorized'
+            self.log('API.{} {} from {}'.format(cmd, msg, repr(data['owner'])), logger.INFO)
+            return msg
+        return 'already'
+
     @api_commands('deauthorization')
     def _deauthorization(self, cmd, _):
         if self._conn.auth:
@@ -607,12 +629,14 @@ class SocketAPIHandler(threading.Thread, APIHandler):
         return 'already'
 
     def join(self, timeout=30):
+        SelfAuthInstance().unsubscribe(self.own)
         self._conn.close()
         super().join(timeout=timeout)
 
     def start(self):
         if not self.work:
             self.work = True
+            SelfAuthInstance().subscribe(self.own)
             super().start()
             self.log('start', logger.INFO)
 
@@ -743,3 +767,41 @@ class SocketAPIHandler(threading.Thread, APIHandler):
 class Unlock(threading.Event):
     def __call__(self, *args, **kwargs):
         self.set()
+
+
+@singleton
+class SelfAuthInstance:
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._owners = dict()
+        self._events = ('add', 'remove')
+        self._subscribers = 0
+
+    def _cb(self, event: str, name: str, fun: callable, *_):
+        """fun(token: str, ip: str, port: int) -> bool:"""
+        if not name or not callable(fun):
+            raise RuntimeError('Wrong callback: {}, {}, {}'.format(event, name, fun))
+        if event == 'add':
+            self._owners[name] = fun
+        elif event == 'remove':
+            self._owners.pop(name, None)
+        else:
+            raise RuntimeError('Wrong callback: {}, {}, {}'.format(event, name, fun))
+
+    def owner_cb(self, name: str) -> callable or None:
+        return self._owners.get(name)
+
+    def subscribe(self, own: Owner):
+        with self._lock:
+            self._subscribers += 1
+            if self._subscribers == 1:
+                own.subscribe(self._events, self._cb, SELF_AUTH_CHANNEL)
+
+    def unsubscribe(self, own: Owner):
+        with self._lock:
+            if not self._subscribers:
+                return
+            self._subscribers -= 1
+            if not self._subscribers:
+                own.unsubscribe(self._events, self._cb, SELF_AUTH_CHANNEL)
+                self._owners.clear()
