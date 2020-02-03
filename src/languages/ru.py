@@ -49,394 +49,240 @@ AWS_SPEAKER = {
 }
 
 _LNG = {
-    # config.py#L93
+    # config.py
     'Ошибка получения ключа для Yandex: {}': None,
-    # config.py#L307
     'Ошибка сохранения {}: {}': None,
-    # config.py#L314
     'Файл не найден: {}': None,
-    # config.py#L319
     'Ошибка загрузки {}: {}': None,
-    # config.py#L348
     'Конфигурация сохранена за {}': None,
-    # config.py#L349
     'Конфигурация сохранена!': None,
-    # config.py#L354
     'Директория с моделями не найдена {}': None,
-    # config.py#L368
     'Загружено {} моделей': _config_pretty_models,
-    # config.py#L376
     'Файл настроек не найден по пути {}. Для первого запуска это нормально': None,
-    # config.py#L382
     'Загружено {} опций за {}': None,
-    # config.py#L383
     'Конфигурация загружена!': None,
-    # config.py#L390
     'Ошибка инициализации языка {}: {}': None,
-    # config.py#L391
     'Локализация {} загружена за {}': None,
-    # config.py#L409
     'Конфигурация изменилась': None,
-    # config.py#L412
     'Конфигурация не изменилась': None,
-    # config.py#L428
     'Директория c tts кэшем не найдена {}': None,
-    # config.py#L451
     'Удалены поврежденные файлы: {}': None,
-    # config.py#L454
     'Размер tts кэша {}: {}': None,
     'Ок.': None,
     'Удаляем...': None,
-    # config.py#L473
     'Удалено: {}': None,
-    # config.py#L474
     'Удалено {} файлов. Новый размер TTS кэша {}': None,
-    # config.py#L480
     'Директория {} не найдена. Создаю...': None,
-    # config.py#L485 terminal.py#L311 player.py#L174
+    # config.py terminal.py player.py
     'Файл {} не найден.': None,
-    # config.py#L485
+    # config.py
     'Это надо исправить!': None,
-    # config.py#L497
     'Терминал еще не настроен, мой IP адрес: {}': None,
-    # loader.py#L67
+    # loader.py
     'Приветствую. Голосовой терминал настраивается, три... два... один...': None,
-    # loader.py#L95
     'Голосовой терминал завершает свою работу.': None,
-    # listener.py#L93
+    # listener.py
     '{} слушает': None,
-    # listener.py#L94;#L105
     'Голосовая активация по {}{}': None,
-    # modules.py#L21;#L24;#L18
+    # modules.py
     'блокировка': None,
-    # modules.py#L22
     'Блокировка снята': None,
-    # modules.py#L26
     'Блокировка включена': None,
-    # modules.py#L17
     'Блокировка': None,
     'Включение/выключение блокировки терминала': None,
-    # modules.py#L34;#L31
     'выход': None,
-    # modules.py#L35
     'Внимание! Выход из режима разработчика': None,
-    # modules.py#L36;#L30
     'режим разработчика': None,
-    # modules.py#L38
     "Внимание! Включён режим разработчика. Для возврата в обычный режим скажите 'выход'": None,
-    # modules.py#L29 modules_manager.py#L24
+    # modules.py modules_manager.py
     'Отладка': None,
-    # modules.py#L29
+    # modules.py
     'Режим настройки и отладки': None,
-    # modules.py#L48
     'Модуль {} не найден': None,
-    # modules.py#L52
     'Модуль {} системный, его нельзя настраивать': None,
-    # modules.py#L54;#L43
     'активировать': None,
     'деактивировать': None,
     'активировать везде': None,
-    # modules.py#L55;#L43
     'удалить': None,
     'восстановить': None,
-    # modules.py#L58
     'Модуль {} удален. Вначале его нужно восстановить': None,
-    # modules.py#L61
     'Модуль {} уже в режиме {}': None,
-    # modules.py#L62
     'Теперь модуль {} доступен в режиме {}': None,
-    # modules.py#L67
     'Модуль {} и так {}': None,
-    # modules.py#L68
     'Модуль {} {}': None,
-    # modules.py#L71
     'Это невозможно, откуда тут {}': None,
-    # modules.py#L42
     'Менеджер': None,
     'Управление модулями': None,
-    # modules.py#L75;#L76
     'Скажи': None,
-    # modules.py#L75
     'Произнесение фразы': None,
-    # modules.py#L81;#L82
     'Ничего': None,
-    # modules.py#L94;#L100
     'до': None,
-    # modules.py#L100
     'от': None,
-    # modules.py#L109
     'Это слишком много для меня - считать {} чисел.': None,
-    # modules.py#L127
     'Я всё сосчитала': None,
-    # modules.py#L88
     'считалка': None,
     'Считалка до числа. Или от числа до числа. Считалка произносит не больше 20 чисел за раз': None,
-    # modules.py#L89
     'сосчитай': None,
     'считай': None,
     'посчитай': None,
-    # modules.py#L135;#L143;#L190;#L204
     'Ошибка': None,
-    # modules.py#L139;#L152
     'Не поддерживается для {}': None,
-    # modules.py#L142
     ' Я очень {}.': None,
-    # modules.py#L143
     'Меня зовут {}.{}': None,
-    # modules.py#L131
     'Кто я': None,
     'Получение информации о настройках голосового генератора (только для Яндекса и RHVoice)': None,
-    # modules.py#L132
     'кто ты': None,
     'какая ты': None,
-    # modules.py#L146
     'Теперь я': None,
     'Изменение характера или голоса голосового генератора (только для Яндекса и RHVoice)': None,
-    # modules.py#L147
     'теперь ты': None,
     'стань': None,
-    # modules.py#L183;#L197
     'Я уже {}.': None,
-    # modules.py#L187
     'Теперь меня зовут {}, а еще я {}.': None,
-    # modules.py#L191
     'без характера': None,
-    # modules.py#L201
     'Теперь я очень {} {}.': None,
-    # modules.py#L212
     'о': None,
     'про': None,
     'в': None,
-    # modules.py#L220
     'Ищу в вики о {}': None,
-    # modules.py#L225
     'Уточните свой вопрос: {}': None,
-    # modules.py#L227
     'Я ничего не знаю о {}.': None,
-    # modules.py#L208
     'Вики': None,
     'Поиск в Википедии': None,
-    # modules.py#L209
     'расскажи': None,
     'что ты знаешь': None,
     'кто такой': None,
     'что такое': None,
     'зачем нужен': None,
     'для чего': None,
-    # modules.py#L237
     'любую фразу': None,
-    # modules.py#L242
     '. Модуль удален': None,
-    # modules.py#L243
     'Модуль {} доступен в режиме {}. Для активации скажите {}. Модуль предоставляет {} {}': None,
-    # modules.py#L250;#L261
     'Всего {} модулей удалены, это: {}': None,
-    # modules.py#L255
     'Скажите {}. Это активирует {}. Модуль предоставляет {}': None,
-    # modules.py#L262
     'Работа модуля помощь завершена.': None,
-    # modules.py#L230
     'Помощь': None,
     'Справку по модулям (вот эту)': None,
-    # modules.py#L231
     'помощь': None,
     'справка': None,
     'help': None,
     'хелп': None,
-    # modules.py#L269
     'Come Along With Me.': None,
-    # modules.py#L266
     'Выход': None,
     'Завершение работы голосового терминала': None,
-    # modules.py#L267
     'завершение работы': None,
     'завершить работу': None,
     'завершить': None,
-    # modules.py#L275
     'Терминал перезагрузится через 5... 4... 3... 2... 1...': None,
-    # modules.py#L272;#L273
     'Перезагрузка': None,
-    # modules.py#L272
     'Перезапуск голосового терминала': None,
-    # modules.py#L273
     'Ребут': None,
     'Рестарт': None,
     'reboot': None,
-    # modules.py#L286;#L278;#L279
     'громкость': None,
-    # modules.py#L278
     'Изменение громкости': None,
-    # modules.py#L279
     'громкость музыки': None,
-    # modules.py#L296 modules_manager.py#L363
+    # modules.py modules_manager.py
     'Вы ничего не сказали?': None,
-    # modules.py#L300
+    # modules.py
     'IP сервера не задан.': None,
-    # modules.py#L301
     'IP сервера не задан, исправьте это! Мой IP адрес: {}': None,
-    # modules.py#L304
     'Скажи ': None,
-    # modules.py#L310
     'Запрос был успешен: {}': None,
-    # modules.py#L313;#L314
     'Ошибка коммуникации с сервером: {}': None,
-    # modules.py#L292
     'Мажордом': None,
     'Отправку команд на сервер': None,
-    # modules.py#L320
     'Соответствие фразе не найдено: {}': None,
-    # modules.py#L317
     'Терминатор': None,
     'Информацию что соответствие фразе не найдено': None,
-    # modules_manager.py#L24
+    # modules_manager.py
     'Обычный': None,
     'Любой': None,
-    # modules_manager.py#L29
     'восстановлен': None,
     'удален': None,
-    # modules_manager.py#L191
     'Отключенные модули: {}': None,
-    # modules_manager.py#L193
     'Неактивные модули: {}': None,
-    # modules_manager.py#L195
     'Активные модули: {}': None,
-    # modules_manager.py#L209
     'Обнаружены конфликты в режиме {}: {}': None,
-    # modules_manager.py#L444
     'Захвачено {}': None,
-    # terminal.py#L161
+    # terminal.py
     'Пустая очередь? Impossible!': None,
-    # terminal.py#L165
     'Получено {}:{}, lvl={} опоздание {} секунд.': None,
-    # terminal.py#L167
     '{} Игнорирую.': None,
-    # terminal.py#L183
     'Не верный вызов, WTF? {}:{}, lvl={}': None,
-    # terminal.py#L195;#L197;#L219
     'Недопустимое значение: {}': None,
-    # terminal.py#L204;#L206
     'Не настроено': None,
-    # terminal.py#L208;#L210
     'Громкость {} процентов': None,
-    # terminal.py#L226;#L228
     'Громкость музыки {} процентов': None,
-    # terminal.py#L282
     'первого': None,
     'второго': None,
     'третьего': None,
-    # terminal.py#L284;#L285
     'Ошибка записи - недопустимый параметр': None,
-    # terminal.py#L292
     'Запись {} образца на 5 секунд начнется после звукового сигнала': None,
-    # terminal.py#L297
     'Запись {} образца завершена. Вы можете прослушать свою запись.': None,
-    # terminal.py#L301
     'Ошибка сохранения образца {}: {}': None,
-    # terminal.py#L310
     'Ошибка воспроизведения - файл {} не найден': None,
-    # terminal.py#L318;#L319
     'Ошибка компиляции - файл {} не найден.': None,
-    # terminal.py#L339
     'Ошибка удаление модели номер {}': None,
-    # terminal.py#L344
     'Модель номер {} удалена': None,
-    # terminal.py#L348
     'Модель номер {} не найдена': None,
-    # terminal.py#L498
     'Полный консенсус по модели {} не достигнут [{}/{}]. Советую пересоздать модель.': None,
-    # terminal.py#L502
     'Полный консенсус по модели {} не достигнут. Компиляция отменена.': None,
-    # terminal.py#L509
     'Компилирую {}': None,
-    # terminal.py#L514
     'Ошибка компиляции модели {}: {}': None,
-    # terminal.py#L515
     'Ошибка компиляции модели номер {}': None,
-    # terminal.py#L521
     'Модель{} скомпилирована успешно за {}: {}': None,
-    # terminal.py#L522
     'Модель{} номер {} скомпилирована успешно за {}': None,
-    # logger.py#L148
+    # logger.py
     'Логгирование в {} невозможно - отсутствуют права на запись. Исправьте это': None,
-    # stts.py#L65
+    # stts.py
     'Неизвестный провайдер: {}': None,
-    # stts.py#L68
     '{} за {}{}: {}': None,
-    # stts.py#L86
     '{}найдено в кэше': None,
-    # stts.py#L97
     '{}сгенерированно {}': None,
-    # stts.py#L177
     "Ошибка синтеза речи от {}, ключ '{}'. ({})": None,
-    # stts.py#L231;#L257;#L354;#L355
     'Микрофоны не найдены': None,
-    # stts.py#L255
     'Доступны {}, от 0 до {}.': None,
-    # stts.py#L258
     'Не верный индекс микрофона {}. {}': None,
-    # stts.py#L281
     'Голос записан за {}': None,
-    # stts.py#L383
     'Во время записи произошел сбой, это нужно исправить': None,
-    # stts.py#L409;#L410
     'Ошибка распознавания - неизвестный провайдер {}': None,
-    # stts.py#L412
     'Для распознавания используем {}': None,
-    # stts.py#L429
     'Произошла ошибка распознавания': None,
-    # stts.py#L431
     "Ошибка распознавания речи от {}, ключ '{}'. ({})": None,
-    # stts.py#L436
     'Распознано за {}': None,
-    # stts.py#L456
     'Распознано: {}. Консенсус: {}': None,
-    # stts.py#L543
     'Привет': None,
     'Слушаю': None,
     'На связи': None,
     'Привет-Привет': None,
-    # stts.py#L544
     'Я ничего не услышала': None,
     'Вы ничего не сказали': None,
     'Ничего не слышно': None,
     'Не поняла': None,
-    # stts.py#L545
     'Ничего не слышно, повторите ваш запрос': None,
-    # player.py#L176
+    # player.py
     'Неизвестный тип файла: {}': None,
-    # player.py#L177
     'Играю {} ...': None,
     'Стримлю {} ...': None,
-    # updater.py#L54;#L177
+    # updater.py
     'Выполнен откат.': None,
-    # updater.py#L111;#L112
     'Во время обновления возникла ошибка': None,
-    # updater.py#L122;#L123
     'Вы используете последнюю версию терминала.': None,
-    # updater.py#L126
     'Файлы обновлены: {}': None,
-    # updater.py#L140;#L144;#L146
     'Терминал успешно обновлен.': None,
-    # updater.py#L146
     'Требуется перезапуск.': None,
-    # updater.py#L158
     'Во время обработки обновления или установки зависимостей возникла ошибка': None,
-    # updater.py#L165
     'Выполняется откат обновления.': None,
-    # updater.py#L172
     'Во время отката обновления возникла ошибка: {}': None,
-    # updater.py#L173
     'Откат невозможен.': None,
-    # updater.py#L176
     'Откат обновления выполнен успешно.': None,
-    # updater.py#L183
     'Зависимости {} {}обновлены: {}': None,
     'не ': None,
-    # music_controls.py#L88 lib/base_music_controller.py#L144
-    'Ошибка подключения к {}-серверу': None,
-    # server.py#L39
+    # server.py
     'Ошибка запуска сервера{}.': None,
     ' - адрес уже используется': None,
-    # server.py#L40
     'Ошибка запуска сервера на {}:{}: {}': None,
+    # lib/base_music_controller.py
+    'Ошибка подключения к {}-серверу': None,
 }
