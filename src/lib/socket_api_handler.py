@@ -636,7 +636,7 @@ class SocketAPIHandler(threading.Thread, APIHandler):
             return self._handle_exception(InternalException(code=-32603, msg=str(e), id_=id_), cmd, logger.CRIT)
         return {'result': result, 'id': id_} if id_ is not None else None
 
-    def _processing(self, data: dict or str) -> dict or None:
+    def __processing(self, data: dict or str) -> dict or None:
         def none():
             return {'result': None, 'id': id_} if id_ is not None else None
 
@@ -696,9 +696,9 @@ class SocketAPIHandler(threading.Thread, APIHandler):
             return None
 
         if not self.is_jsonrpc or not isinstance(data, list):
-            return self._processing(data)
+            return self.__processing(data)
         # JSON-RPC Batch
-        return [x for x in [self._processing(cmd) for cmd in data] if x is not None] or None
+        return [x for x in [self.__processing(cmd) for cmd in data] if x is not None] or None
 
     def parse(self, data: str):
         result = self._parse(data)
