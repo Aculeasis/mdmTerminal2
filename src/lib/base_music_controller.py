@@ -111,6 +111,12 @@ class BaseControl(threading.Thread):
     def _connect(self):
         raise NotImplementedError
 
+    def _is_connect_error(self, e: Exception) -> bool:
+        msg = F('Ошибка подключения к {}-серверу', self._name.upper())
+        self.log('{}: {}'.format(msg, e), logger.ERROR)
+        self.is_conn = False
+        return False
+
     def _disconnect(self):
         raise NotImplementedError
 

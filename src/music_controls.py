@@ -14,7 +14,6 @@ except ImportError as _e:
             raise ImportError(cls.e)
 
 import logger as logger_
-from languages import F
 from lib.base_music_controller import str_to_int, BaseControl, auto_reconnect
 from owner import Owner
 from utils import get_ip_address, url_builder_cached
@@ -85,10 +84,7 @@ class MPDControl(BaseControl):
         try:
             self._mpd.connect(self._cfg['ip'], self._cfg['port'], 15)
         except (self.__lib.MPDError, IOError) as e:
-            msg = F('Ошибка подключения к {}-серверу', self._name.upper())
-            self.log('{}: {}'.format(msg, e), logger_.ERROR)
-            self.is_conn = False
-            return False
+            return self._is_connect_error(e)
         else:
             self.is_conn = True
             return True
@@ -180,11 +176,8 @@ class LMSControl(BaseControl):
                 raise RuntimeError('Login failed?: {}'.format(e))
             self._player = self._lms_get_one_player(self._cfg['lms_player'], self._lms.get_players())
         except (IOError, RuntimeError, ValueError) as e:
-            msg = LNG['err_conn'].format(self._name.upper())
-            self.log('{}: {}'.format(msg, e), logger_.ERROR)
-            self.is_conn = False
             self._player = None
-            return False
+            return self._is_connect_error(e)
         else:
             self.log('Linked to {} on {}'.format(self._player.name, self._player.ip_address), logger_.INFO)
             self.is_conn = True
@@ -306,9 +299,7 @@ class Volumio2Control(BaseControl):
             self._ws.emit('getStatus')
             self._status_wait.wait(0.2)
         except socketio.client.exceptions.SocketIOError as e:
-            msg = LNG['err_conn'].format(self._name.upper())
-            self.log('{}: {}'.format(msg, e), logger_.ERROR)
-            self.is_conn = False
+            return self._is_connect_error(e)
         return self.is_conn
 
     def _disconnect(self):
@@ -389,10 +380,7 @@ class DLNAControl(BaseControl):
         try:
             self._dlna = find_MediaRenderer(self._cfg['ip'], self._cfg['ip'])
         except media_render.Error as e:
-            msg = LNG['err_conn'].format(self._name.upper())
-            self.log('{}: {}'.format(msg, e), logger_.ERROR)
-            self.is_conn = False
-            return False
+            return self._is_connect_error(e)
         else:
             self.log('Connected to {}'.format(self._dlna.pretty_name), logger_.INFO)
             self._dlna.log_cb = lambda x: self.log(x, logger_.WARN)
