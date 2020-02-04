@@ -4,11 +4,12 @@ import socket
 
 import logger as logger_
 from languages import F
-from lib.socket_api_handler import SocketAPIHandler, InternalException, upgrade_duplex, api_commands
+from lib.api.misc import api_commands, upgrade_duplex, InternalException
+from lib.api.api import API
 from owner import Owner
 
 
-class MDTServer(SocketAPIHandler):
+class MDTServer(API):
     def __init__(self, cfg, log, owner: Owner):
         super().__init__(cfg, log, owner, name='MDTServer')
         self._local = ('', 7999)

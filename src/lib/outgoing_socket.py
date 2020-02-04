@@ -6,7 +6,7 @@ import threading
 import time
 
 import logger
-from lib.socket_api_handler import upgrade_duplex
+from lib.api.misc import upgrade_duplex
 from lib.socket_wrapper import create_connection
 from owner import Owner
 

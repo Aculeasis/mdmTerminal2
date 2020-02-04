@@ -4,7 +4,7 @@ import queue
 import time
 
 import logger
-from lib.socket_api_handler import SocketAPIHandler
+from lib.api.api import API
 from owner import Owner
 
 
@@ -15,11 +15,11 @@ def make_dict_reply(cmd: str or None) -> dict:
         return {'method': 'ping', 'params': [str(time.time())], 'id': 'pong'}
 
 
-class DuplexMode(SocketAPIHandler):
+class DuplexMode(API):
     UPGRADE_DUPLEX = 'upgrade duplex'
 
     def __init__(self, cfg, log, owner: Owner):
-        super().__init__(cfg, log, owner, name='DuplexMode', duplex_mode=True)
+        super().__init__(cfg, log, owner, name='DuplexMode')
         self._queue = queue.Queue()
         self.own.subscribe(self.UPGRADE_DUPLEX, self._handle_upgrade_duplex, self.UPGRADE_DUPLEX)
         self._has_started = False
