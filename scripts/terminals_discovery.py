@@ -6,9 +6,15 @@ import socket
 MULTICAST_TTL = 15
 TIMEOUT = 10
 BUFFER_SIZE = 1024 * 2
-REQUEST = b'M-SEARCH * HTTP/1.1\r\nHost:239.255.255.250:1900\r\nST:mdmt2\r\nMan:"ssdp:discover"\r\nMX:1\r\n\r\n'
 RESPONSE_URI = 'mdmt2'
 CRLF = b'\r\n'
+REQUEST = CRLF.join([
+    b'M-SEARCH * HTTP/1.1',
+    b'Host:239.255.255.250:1900',
+    b'ST:rn:schemas-upnp-org:service:mdmTerminal2',
+    b'Man:"ssdp:discover"',
+    b'MX:1', b'', b''
+])
 
 
 class DiscoveryClient:
@@ -32,16 +38,19 @@ class DiscoveryClient:
 
     def run_forever(self):
         self._client.sendto(REQUEST, self._sendto)
+        is_printing = False
         while True:
             try:
                 msg, address = self._client.recvfrom(BUFFER_SIZE)
             except socket.timeout:
                 self._client.sendto(REQUEST, self._sendto)
-                print()
+                if is_printing:
+                    print('=' * 30)
+                is_printing = False
                 continue
-
             headers = get_headers(msg)
             if headers.get('URI') == RESPONSE_URI:
+                is_printing = True
                 if 'Server' in headers:
                     print('{} {}'.format(headers.get('AL', '{}:{}'.format(*address)), headers['Server']))
                 else:
