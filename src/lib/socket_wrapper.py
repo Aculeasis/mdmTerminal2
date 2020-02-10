@@ -65,7 +65,7 @@ def get_headers(request_text: bytearray) -> dict:
         if line:
             line = line.split(b': ', 1)
             if len(line) == 2:
-                result[line[0].decode()] = line[1]
+                result[line[0].decode().lower()] = line[1]
     return result
 
 
@@ -347,7 +347,7 @@ class WSServerAdapter(WSClientAdapter):
             if b'\r\n\r\n' in header_buffer:
                 # handshake rfc 6455
                 try:
-                    key = get_headers(header_buffer)['Sec-WebSocket-Key']
+                    key = get_headers(header_buffer)['sec-websocket-key']
                     k = key + GUID_STR
                     k_s = base64.b64encode(hashlib.sha1(k).digest()).decode('ascii')
                     raw_send(HANDSHAKE_STR.format(acceptstr=k_s))
