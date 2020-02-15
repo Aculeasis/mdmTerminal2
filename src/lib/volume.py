@@ -7,7 +7,7 @@ QUOTE = '\''
 UNDEFINED = 'undefined'
 
 BEST = ('Line Out', 'Lineout volume control')
-WORST = ('line', 'out')
+WORST = ('PCM', 'line', 'out')
 
 
 def extract_volume_control():
