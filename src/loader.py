@@ -202,6 +202,10 @@ class Loader(Owner):
         return name in STT.PROVIDERS
 
     @property
+    def duplex_allow_notify(self) -> bool:
+        return self._duplex_mode.notify
+
+    @property
     def duplex_mode_on(self) -> bool:
         return self._duplex_mode.duplex
 
@@ -367,7 +371,7 @@ class Loader(Owner):
 
     @property
     def outgoing_available(self) -> bool:
-        return self._cfg['smarthome']['ip'] or self._duplex_mode.duplex
+        return self._cfg['smarthome']['ip'] or self._duplex_mode.notify
 
     def update(self):
         self._updater.update()

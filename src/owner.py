@@ -139,6 +139,13 @@ class Owner:
         raise NotImplementedError
 
     @property
+    def duplex_allow_notify(self) -> bool:
+        """
+        Duplex mode активен и клиент согласен принимать уведомления.
+        """
+        raise NotImplementedError
+
+    @property
     def duplex_mode_on(self) -> bool:
         """
         Duplex mode активен.

@@ -184,7 +184,7 @@ class MajordomoNotifier(threading.Thread):
             params['terminal'] = terminal
         if calling_user:
             params['username'] = calling_user
-        if self.own.duplex_mode_on:
+        if self.own.duplex_allow_notify:
             return self._send_over_socket(target, params)
         else:
             return self._send_over_http(target, params, auth)

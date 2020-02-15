@@ -15,6 +15,14 @@ def make_dict_reply(cmd: str or None) -> dict:
         return {'method': 'ping', 'params': [str(time.time())], 'id': 'pong'}
 
 
+def from_json(cmd) -> tuple:
+    if isinstance(cmd, dict):
+        notify = cmd.get('notify')
+        notify = notify if isinstance(notify, bool) else True
+        return cmd.get('cmd'), notify
+    return cmd, True
+
+
 class DuplexMode(API):
     UPGRADE_DUPLEX = 'upgrade duplex'
 
@@ -23,7 +31,7 @@ class DuplexMode(API):
         self._queue = queue.Queue()
         self.own.subscribe(self.UPGRADE_DUPLEX, self._handle_upgrade_duplex, self.UPGRADE_DUPLEX)
         self._has_started = False
-        self.duplex = False
+        self.duplex, self.notify = False, False
         self._notify_duplex = self.own.registration('duplex_mode')
 
     def start(self):
@@ -58,11 +66,11 @@ class DuplexMode(API):
             lock()
 
     def _api_close(self):
-        self.duplex = False
+        self.duplex, self.notify = False, False
         self._conn.close()
 
-    def _conn_open(self):
-        self.duplex = True
+    def _conn_open(self, notify: bool):
+        self.duplex, self.notify = True, notify
         self._notify_duplex('open')
 
     def _conn_close(self):
@@ -79,8 +87,9 @@ class DuplexMode(API):
                 break
 
             self._conn, cmd = conn
+            cmd, notify = from_json(cmd)
 
-            self._conn_open()
+            self._conn_open(notify)
             try:
                 self._processing(make_dict_reply(cmd))
             finally:

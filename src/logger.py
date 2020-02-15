@@ -8,6 +8,7 @@ import time
 import zlib
 from logging.handlers import RotatingFileHandler
 from functools import lru_cache
+import json
 
 from languages import F
 from owner import Owner
@@ -18,6 +19,8 @@ INFO = logging.INFO
 WARN = logging.WARN
 ERROR = logging.ERROR
 CRIT = logging.CRITICAL
+# Спецсообщения для удаленного логгера
+_REMOTE = 999
 
 LOG_LEVEL = {
     'debug'   : DEBUG,
@@ -35,6 +38,7 @@ LVL_NAME = {
     WARN: 'WARN ',
     ERROR: 'ERROR',
     CRIT: 'CRIT ',
+    _REMOTE: 'REMOTE',
 }
 
 COLORS = {
@@ -47,6 +51,9 @@ COLORS = {
 COLOR_END = '\033[0m'
 NAME_COLOR = '1;36'
 MODULE_COLOR = 36
+
+REMOTE_LOG_MODE = {'raw', 'json', 'colored'}
+REMOTE_LOG_DEFAULT = 'colored'
 
 
 def colored(msg, color):
@@ -108,7 +115,7 @@ class Logger(threading.Thread):
         self._handler = None
         self._app_log = None
         self._conn = None
-        self._conn_raw = False
+        self._remote_log_mode = REMOTE_LOG_DEFAULT
         self._queue = queue.Queue()
         self.log = self.add('Logger')
         self.log('start', INFO)
@@ -173,7 +180,7 @@ class Logger(threading.Thread):
 
         if self.cfg.get('file') and in_file and self.permission_check():
             self._handler = RotatingFileHandler(filename=self.cfg.get('file'), maxBytes=1024 * 1024,
-                                                backupCount=2, delay=0, encoding='utf8',
+                                                backupCount=2, encoding='utf8',
                                                 )
             self._handler.rotator = _rotator
             self._handler.namer = _namer
@@ -192,21 +199,28 @@ class Logger(threading.Thread):
             conn_ = conn.extract()
             if conn_:
                 conn_.settimeout(None)
-                self._queue.put_nowait(['remote_log', conn_, data == 'raw'])
+                self._queue.put_nowait(['remote_log', conn_, data])
         finally:
             lock()
 
-    def _add_connect(self, conn, raw):
+    def _add_connect(self, conn, mode):
         self._close_connect()
         self._conn = conn
-        self._conn_raw = raw
+        self._remote_log_mode = mode if mode in REMOTE_LOG_MODE else REMOTE_LOG_DEFAULT
         self._conn.start_remote_log()
         self.log('OPEN REMOTE LOG FOR {}:{}'.format(self._conn.ip, self._conn.port), WARN)
 
     def _close_connect(self):
         if self._conn:
             try:
-                self._conn.write(colored('CLOSE REMOTE LOG, BYE.', COLORS[INFO]))
+                msg = 'CLOSE REMOTE LOG, BYE.'
+                if self._remote_log_mode == 'raw':
+                    pass
+                elif self._remote_log_mode == 'json':
+                    msg = self._to_print_json(('Logger',), msg, _REMOTE, time.time())
+                else:
+                    msg = colored(msg, COLORS[INFO])
+                self._conn.write(msg)
             except RuntimeError:
                 pass
             try:
@@ -231,10 +245,12 @@ class Logger(threading.Thread):
             print_line = self._to_print(names, msg, lvl, l_time)
             print(print_line)
         if self._conn:
-            if self._conn_raw:
+            if self._remote_log_mode == 'raw':
                 print_line = self._to_print_raw(names, msg, lvl, l_time)
-            elif print_line is None:
-                print_line = self._to_print(names, msg, lvl, l_time)
+            elif self._remote_log_mode == 'json':
+                print_line = self._to_print_json(names, msg, lvl, l_time)
+            else:
+                print_line = print_line or self._to_print(names, msg, lvl, l_time)
             self._to_remote_log(print_line)
         if self._app_log and lvl >= self.file_lvl:
             self._to_file(_name_builder(names), msg, lvl)
@@ -248,12 +264,16 @@ class Logger(threading.Thread):
             time_str += '.{:03d}'.format(int(l_time * 1000 % 1000))
         return time_str
 
-    def _to_print(self, names, msg, lvl, l_time) -> str:
+    def _to_print(self, names: tuple, msg: str, lvl: int, l_time: float) -> str:
         str_time = self._str_time(l_time)
         return '{} {}: {}'.format(str_time, _name_builder(names, True), colored(msg, COLORS[lvl]))
 
-    def _to_print_raw(self, names, msg, lvl, l_time) -> str:
+    def _to_print_raw(self, names: tuple, msg: str, lvl: int, l_time: float) -> str:
         return '{} {} {}: {}'.format(self._str_time(l_time), LVL_NAME[lvl], _name_builder(names), msg)
+
+    @staticmethod
+    def _to_print_json(names: tuple, msg: str, lvl: int, l_time: float) -> str:
+        return json.dumps({'lvl': LVL_NAME[lvl], 'time': l_time, 'callers': names, 'msg': msg}, ensure_ascii=False)
 
     def _to_remote_log(self, line: str):
         if self._conn:

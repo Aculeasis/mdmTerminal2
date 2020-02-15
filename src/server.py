@@ -15,10 +15,11 @@ class MDTServer(API):
         self._local = ('', 7999)
         self._socket = socket.socket()
 
-    @api_commands('upgrade duplex')
-    def _upgrade_duplex(self, *_):
+    @api_commands('upgrade duplex', true_json=True)
+    def _upgrade_duplex(self, _, data):
+        data = {'notify': data.get('notify') if isinstance(data, dict) else True, 'cmd': self.id}
         try:
-            upgrade_duplex(self.own, self._conn, self.id)
+            upgrade_duplex(self.own, self._conn, data)
         except RuntimeError as e:
             raise InternalException(msg=str(e))
 
