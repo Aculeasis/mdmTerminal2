@@ -60,7 +60,10 @@ class ConfigUpdater:
 
     def _ini_to_cfg(self, path: str):
         cfg = configparser.ConfigParser()
-        cfg.read(path, encoding='utf8')
+        try:
+            cfg.read(path, encoding='utf8')
+        except UnicodeDecodeError as e:
+            self._log('Config file {} has broken: {}'.format(path, e), logger.CRIT)
         data = {sec.lower(): dict(cfg[sec]) for sec in cfg.sections()}
         save_me, data = self._ini_version_updated(data)
         self._save_me |= save_me
