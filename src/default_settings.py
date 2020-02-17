@@ -143,6 +143,10 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'turnoff': -1,
         'fallback': True,
     },
+    'backup': {
+        'interval': 0,
+        'max_count': 3,
+    },
     'volume': {
         'card': 0,
         'line_out': '',
@@ -160,9 +164,9 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'blacklist_on_failure': False,
     },
     'system': {
-        'ini_version': 45,
+        'ini_version': 46,
         'ws_token': 'token_is_unset',
         'PLUGINS_API': 3,
-        'VERSION': (0, 15, 1),
+        'VERSION': (0, 15, 2),
     }
 }

@@ -44,7 +44,9 @@ _LNG = {  # google translate - it's a good idea!
     # config.py
     'Ошибка получения ключа для Yandex: {}': 'Error receiving key for Yandex: {}',
     'Ошибка сохранения {}: {}': 'Error saving {}: {}',
+    # config.py backup.py
     'Файл не найден: {}': 'File not found: {}',
+    # config.py
     'Ошибка загрузки {}: {}': 'Loading error {}: {}',
     'Конфигурация сохранена за {}': 'Configuration saved for {}',
     'Конфигурация сохранена!': 'Configuration saved!',
@@ -275,6 +277,22 @@ _LNG = {  # google translate - it's a good idea!
     'Ошибка запуска сервера{}.': 'Error starting server {}.',
     ' - адрес уже используется': ' - the address is already in use',
     'Ошибка запуска сервера на {}:{}: {}': 'Error starting server on {}: {}: {}',
+    # backup.py
+    'Запущено восстановление из бэкапа {}...': 'Restored from backup {} ...',
+    'Восстановление не возможно: {}': 'Recovery is not possible: {}',
+    'Восстановление не удалось: {}': 'Recovery failed: {}',
+    'бэкап не создан': 'backup not created',
+    'Восстановление завершено за {}, восстановлено {} файлов': 'Recovery completed in {}, restored {} files',
+    'Демон еще работает': 'The daemon is still running',
+    'Некорректное имя файла: {}': 'Invalid file name: {}',
+    'Архив поврежден: {}: {}': 'Archive damaged: {}: {}',
+    'Ошибка создания бэкапа': 'Error creating backup',
+    'Файл {} уже существует, отмена.': 'File {} already exists, cancel.',
+    'файл уже существует': 'file already exists',
+    'Бэкап {} создан за {} [size: {}, compressed: {}, rate: {}%]': 'Backup {} was created for {} [size: {}, compressed: {}, rate: {}%]',
+    'Бэкап успешно создан': 'Backup successfully created',
+    'Ошибка удаления старого бэкапа {}: {}': 'Error deleting old backup {}: {}',
+    'Удален старый бэкап {}': 'Deleted old backup {}',
     # lib/base_music_controller.py
     'Ошибка подключения к {}-серверу': 'Error connecting to {} server',
 }

@@ -5,6 +5,7 @@ import time
 
 import logger
 import stts
+from backup import Backup
 from config import ConfigHandler
 from discovery_server import DiscoveryServer
 from duplex_mode import DuplexMode
@@ -35,6 +36,7 @@ class Loader(Owner):
     def __init__(self, init_cfg: dict, path: dict, die_in):
         self._die_in = die_in
         self.reload = False
+        self._restore_filename = None
         self._lock = threading.Lock()
         self._stts_lock = threading.Lock()
         self._join_lock = threading.Lock()
@@ -55,6 +57,7 @@ class Loader(Owner):
         self._stt = stts.SpeechToText(cfg=self._cfg, log=self._logger.add('STT'), owner=self)
         self._mm = ModuleManager(cfg=self._cfg, log=self._logger.add('MM'), owner=self)
         self._updater = Updater(cfg=self._cfg, log=self._logger.add('Updater'), owner=self)
+        self._backup = Backup(cfg=self._cfg, log=self._logger.add('Backup'), owner=self)
         self._terminal = MDTerminal(cfg=self._cfg, log=self._logger.add('Terminal'), owner=self)
         self._server = server_constructor(cfg=self._cfg, logger=self._logger, owner=self)
         self._plugins = Plugins(cfg=self._cfg, log=self._logger.add('Plugins'), owner=self)
@@ -73,6 +76,7 @@ class Loader(Owner):
         self._terminal.start()
         self._server.start()
         self._discovery.start()
+        self._backup.start()
         self._plugins.start()
 
         self.messenger(lambda: self.log(available_version_msg(self._cfg.version_info), logger.INFO), None)
@@ -86,6 +90,7 @@ class Loader(Owner):
         self.join_thread(self._discovery)
         self.join_thread(self._server)
         self.join_thread(self._terminal)
+        self.join_thread(self._backup)
         self.join_thread(self._updater)
         self.join_thread(self._notifier)
         self.join_thread(self._duplex_mode)
@@ -98,6 +103,10 @@ class Loader(Owner):
         self._play.stop()
         self.join_thread(self._music)
         self.join_thread(self._pub)
+
+        if self._restore_filename:
+            self._backup.restore(self._restore_filename)
+            self._restore_filename = ''
 
         self._logger.join()
 
@@ -379,6 +388,17 @@ class Loader(Owner):
     def manual_rollback(self):
         self._updater.manual_rollback()
 
+    def backup_manual(self):
+        self._backup.manual_backup()
+
+    def backup_restore(self, filename: str):
+        if not self._restore_filename and filename:
+            self._restore_filename = filename
+            self.die_in(3, reload=True)
+
+    def backup_list(self) -> list:
+        return self._backup.backup_list()
+
     def modules_tester(self, phrase: str, call_me=None, rms=None, model=None):
         return self._mm.tester(phrase, call_me, rms, model)
 
@@ -458,6 +478,12 @@ class Loader(Owner):
             if is_sub_dict('music', diff):
                 # reconfigure music server
                 self.music_reload()
+            if is_sub_dict('update', diff):
+                # update 'update' interval
+                self._updater.reload()
+            if is_sub_dict('backup', diff):
+                # update backup interval
+                self._backup.reload()
             if is_sub_dict('smarthome', diff):
                 if 'allow_addresses' in diff['smarthome']:
                     # re-init allow ip addresses

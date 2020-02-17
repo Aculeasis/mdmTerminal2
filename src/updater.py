@@ -40,6 +40,9 @@ class Updater(threading.Thread):
         self._sleep.set()
         super().join(timeout=timeout)
 
+    def reload(self):
+        self._sleep.set()
+
     def update(self):
         self._action = 'update'
         self._sleep.set()
@@ -85,13 +88,14 @@ class Updater(threading.Thread):
             return 10 * 60
         return interval - diff
 
-    def _check_update(self, say=True):
+    def _check_update(self, manual=True):
         self._old_hash = None
         msg = self._update()
-        self._last['check'] = int(time.time())
+        if not manual:
+            self._last['check'] = int(time.time())
         self._last['hash'] = self._old_hash or self._last['hash']
         self._save_cfg()
-        if msg and say:
+        if msg and manual:
             self.own.terminal_call('tts', msg)
 
     def _save_cfg(self):

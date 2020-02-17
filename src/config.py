@@ -157,7 +157,7 @@ class ConfigHandler(utils.HashableDict):
         return result
 
     def _path_check(self):
-        for dir_ in ('resources', 'data', 'plugins', 'models', 'samples'):
+        for dir_ in ('resources', 'data', 'plugins', 'models', 'samples', 'backups'):
             self._make_dir(self.path[dir_])
         for file in ('ding', 'dong', 'bimp'):
             self._lost_file(self.path[file])

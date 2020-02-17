@@ -3,6 +3,7 @@ __pycache__
 *.swp
 src/tts_cache
 src/data
+src/backups
 env
 src/settings.ini
 src/test.py

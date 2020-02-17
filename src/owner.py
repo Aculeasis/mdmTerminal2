@@ -350,6 +350,15 @@ class Owner:
     def manual_rollback(self):
         raise NotImplementedError
 
+    def backup_manual(self):
+        raise NotImplementedError
+
+    def backup_restore(self, filename: str):
+        raise NotImplementedError
+
+    def backup_list(self) -> list:
+        raise NotImplementedError
+
     def modules_tester(self, phrase: str, call_me=None, rms=None, model=None):
         raise NotImplementedError
 

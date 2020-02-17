@@ -20,3 +20,4 @@ swig
 lame
 git
 libtool
+zlib1g

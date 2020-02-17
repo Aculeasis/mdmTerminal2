@@ -9,7 +9,7 @@ from lib.api.misc import InternalException, api_commands, dict_key_checker, json
 from lib.api.socket_api_handler import SocketAPIHandler
 from lib.map_settings.map_settings import make_map_settings
 from owner import Owner
-from utils import file_to_base64, pretty_time, TextBox
+from utils import file_to_base64, pretty_time, TextBox, is_valid_base_filename
 
 # old -> new
 OLD_CMD = {
@@ -340,6 +340,32 @@ class API(SocketAPIHandler):
     @api_commands('maintenance.reload', 'maintenance.stop')
     def _api_maintenance(self, cmd: str, *_):
         self.own.die_in(3, reload=cmd.endswith('.reload'))
+
+    @api_commands('backup.manual')
+    def _api_backup_manual(self, *_):
+        self.own.backup_manual()
+
+    @api_commands('backup.restore')
+    def _api_backup_restore(self, _, data):
+        if not data:
+            raise InternalException(msg='Empty filename')
+        if not is_valid_base_filename(data):
+            raise InternalException(2, 'Wrong filename')
+        files = self.own.backup_list()
+        if not files:
+            raise InternalException(3, 'No backups')
+        if data == 'last':
+            filename, timestamp = files[-1]
+        else:
+            filename, timestamp = next((item for item in files if item[0] == data), (None, None))
+            if not filename:
+                raise InternalException(4, 'File no found: {}'.format(data))
+        self.own.backup_restore(filename)
+        return {'filename': filename, 'timestamp': timestamp}
+
+    @api_commands('backup.list')
+    def _api_backup_list(self, *_) -> list:
+        return [{'filename': filename, 'timestamp': timestamp} for filename, timestamp in self.own.backup_list()]
 
 
 def _rpc_data_extractor(data: str) -> tuple:
