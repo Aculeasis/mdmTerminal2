@@ -369,7 +369,7 @@ class SpeechToText:
             self.own.say(self.own.tts(hello)(), lvl, True, is_file=True, blocking=120)
         else:
             self.own.set_lvl(lvl)
-        r = sr.Recognizer()
+        r = sr.Recognizer(record_callback=self.own.record_callback)
         mic = sr.Microphone(device_index=self.get_mic_index())
         vad = self.own.get_vad_detector(mic)
         self.own.play(self.cfg.path['ding'], lvl, blocking=3)

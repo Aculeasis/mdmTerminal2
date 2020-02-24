@@ -80,6 +80,7 @@ class API(SocketAPIHandler):
             'nvolume': self.own.get_volume,
             'mvolume': lambda : self.own.music_real_volume,
             'mstate': self.own.music_state,
+            'listener': self.own.terminal_listen,
         }
 
         def get_value(key):
@@ -241,7 +242,7 @@ class API(SocketAPIHandler):
         return self.cfg.get_all_testfile()
 
     @staticmethod
-    @api_commands('ping')
+    @api_commands('ping', true_json=True)
     def _api_ping(_, data: str):
         """
         Пустая команда для поддержания и проверки соединения,

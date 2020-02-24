@@ -25,7 +25,7 @@ class MDTerminal(threading.Thread):
         self.cfg = cfg
         self.own = owner
         self.work = False
-        self._listening = True
+        self.listening = True
         self._snowboy = None
         self._queue = queue.Queue()
         self._wait = threading.Event()
@@ -129,7 +129,7 @@ class MDTerminal(threading.Thread):
         return not listen.is_alive()
 
     def _reload(self, *_):
-        if self._listening:
+        if self.listening:
             self._snowboy = self.own.recognition_forever(self._interrupt_check, self._detected_parse)
         else:
             self._snowboy = None
@@ -231,14 +231,14 @@ class MDTerminal(threading.Thread):
         cmd = cmd.lower()
         listening = None
         if not cmd:
-            listening = not self._listening
+            listening = not self.listening
         elif cmd in ('off', 'disable'):
             listening = False
         elif cmd in ('on', 'enable'):
             listening = True
 
-        if listening is not None and listening != self._listening:
-            self._listening = listening
+        if listening is not None and listening != self.listening:
+            self.listening = listening
             self._reload()
 
     @lru_cache(maxsize=1)

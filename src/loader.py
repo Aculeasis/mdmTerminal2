@@ -414,6 +414,9 @@ class Loader(Owner):
     def terminal_call(self, cmd: str, data='', lvl: int = 0, save_time: bool = True):
         self._terminal.call(cmd, data, lvl, save_time)
 
+    def terminal_listen(self) -> bool:
+        return self._terminal.listening
+
     def recognition_forever(self, interrupt_check: callable, callback: callable):
         return self._listen.recognition_forever(interrupt_check, callback)
 

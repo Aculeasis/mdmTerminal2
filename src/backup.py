@@ -67,7 +67,10 @@ class Backup(threading.Thread):
             if self._sleep.is_set():
                 self._sleep.clear()
                 if self._action == 'backup':
-                    self._backup(manual=True)
+                    if self._backup(manual=True, remove_old=False):
+                        self.own.sub_call('default', self.NAME, 'ok')
+                    else:
+                        self.own.sub_call('default', self.NAME, 'error')
                 self._action = None
             elif to_sleep:
                 self._backup()
