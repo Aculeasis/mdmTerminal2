@@ -111,7 +111,21 @@ class BaseControl(threading.Thread):
     def _connect(self):
         raise NotImplementedError
 
+    def _last_chance(self, func, args):
+        try:
+            return func(*args)
+        except Exception as e:
+            self._execute_error_report(func, args, e)
+            return None
+
+    def _execute_error_report(self, func, args, error):
+        name = getattr(func, '__name__', None) or 'func'
+        self.log(
+            'Error executing {}({}): {}'.format(name, ', '.join(repr(arg) for arg in args[1:]), error), logger.ERROR
+        )
+
     def _is_connect_error(self, e: Exception) -> bool:
+        self._callbacks_event({'volume': -1, 'state': 'error'})
         msg = F('Ошибка подключения к {}-серверу', self._name.upper())
         self.log('{}: {}'.format(msg, e), logger.ERROR)
         self.is_conn = False
@@ -138,6 +152,7 @@ class BaseControl(threading.Thread):
         self._force_resume(True)
         self._connect()
         self._subscribe()
+        self._callbacks_event_disabled()
 
     def reload(self):
         if self.work:
@@ -156,7 +171,7 @@ class BaseControl(threading.Thread):
 
     def state(self) -> str:
         if not self.is_conn:
-            return 'disconnected'
+            return 'disabled' if not self._cfg['control'] else 'error'
         return self._ctl_get_state() or 'error'
 
     def play(self, uri):
@@ -306,6 +321,7 @@ class BaseControl(threading.Thread):
     def run(self):
         self._init()
         self._subscribe()
+        self._callbacks_event_disabled()
         while self.work:
             try:
                 cmd = self._queue.get(timeout=self._check_time)
@@ -343,8 +359,12 @@ class BaseControl(threading.Thread):
                 return
             self._stop_paused()
 
-    def _callbacks_event(self):
-        status = self._ctl_get_status()
+    def _callbacks_event_disabled(self):
+        if not self._cfg['control']:
+            self._callbacks_event({'volume': -1, 'state': 'disabled'})
+
+    def _callbacks_event(self, status=None):
+        status = self._ctl_get_status() if status is None else status
         if not status:
             return
         if self._old_volume is None:

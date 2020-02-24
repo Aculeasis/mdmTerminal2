@@ -28,11 +28,15 @@ class DummyControl:
     get_track_name = None
     is_conn = False
 
-    def __init__(self, *_, **__):
-        pass
+    def __init__(self, *_, owner: Owner):
+        self.own = owner
+        self._is_new = True
 
     def start(self):
-        pass
+        if self._is_new:
+            self._is_new = False
+            self.own.music_status_callback(self.state())
+            self.own.music_volume_callback(self.volume)
 
     def join(self, timeout=None):
         pass
@@ -64,16 +68,18 @@ class MPDControl(BaseControl):
         import mpd
         self.__lib = mpd
         self._mpd = self.__lib.MPDClient(use_unicode=True)
+        self.ERRORS = (self.__lib.MPDError, IOError)
 
     def reconnect_wrapper(self, func, *args):
         try:
             return func(*args)
-        except (self.__lib.MPDError, IOError):
+        except self.__lib.CommandError as e:
+            self._execute_error_report(func, args, e)
+        except self.ERRORS:
             self._connect()
-            if not self.is_conn:
-                return None
-            else:
-                return func(*args)
+            if self.is_conn:
+                return self._last_chance(func, args)
+        return None
 
     def _connect(self):
         if self.is_conn:
@@ -83,7 +89,7 @@ class MPDControl(BaseControl):
             return False
         try:
             self._mpd.connect(self._cfg['ip'], self._cfg['port'], 15)
-        except (self.__lib.MPDError, IOError) as e:
+        except self.ERRORS as e:
             return self._is_connect_error(e)
         else:
             self.is_conn = True
@@ -93,11 +99,11 @@ class MPDControl(BaseControl):
         self.is_conn = False
         try:
             self._mpd.close()
-        except (self.__lib.MPDError, IOError):
+        except self.ERRORS:
             pass
         try:
             self._mpd.disconnect()
-        except (self.__lib.MPDError, IOError):
+        except self.ERRORS:
             self._mpd = self.__lib.MPDClient(use_unicode=True)
 
     @auto_reconnect
@@ -443,10 +449,10 @@ def music_constructor(cfg, logger, owner: Owner, old=None):
             cls = TYPE_MAP[name]
         log = logger.add(name.upper())
         try:
-            return cls(name, cfg['music'], log, owner)
+            return cls(name, cfg['music'], log, owner=owner)
         except Exception as e:
             log('Init Error: {}'.format(e), logger_.CRIT)
-            return DummyControl()
+            return DummyControl(owner=owner)
 
     if not (old is None or isinstance(old, (BaseControl, DummyControl))):
         raise TypeError('Wrong type: {}'.format(type(old)))
