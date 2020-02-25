@@ -5,6 +5,8 @@ import time
 
 import logger
 from lib.api.api import API
+from lib.api.misc import api_commands
+from lib.subscriptions_worker import SubscriptionsWorker
 from owner import Owner
 
 
@@ -30,6 +32,7 @@ class DuplexMode(API):
         super().__init__(cfg, log, owner, name='DuplexMode')
         self._queue = queue.Queue()
         self.own.subscribe(self.UPGRADE_DUPLEX, self._handle_upgrade_duplex, self.UPGRADE_DUPLEX)
+        self._notify_worker = SubscriptionsWorker(owner)
         self._has_started = False
         self.duplex, self.notify = False, False
         self._notify_duplex = self.own.registration('duplex_mode')
@@ -40,6 +43,7 @@ class DuplexMode(API):
 
     def join(self, timeout=30):
         self._queue.put_nowait(None)
+        self._notify_worker.join()
         super().join(timeout=timeout)
 
     def send_on_socket(self, data):
@@ -50,7 +54,7 @@ class DuplexMode(API):
 
     def off(self):
         if self.duplex:
-            self._conn.close()
+            self._api_close()
 
     def _handle_upgrade_duplex(self, _, cmd, lock, conn):
         try:
@@ -67,11 +71,21 @@ class DuplexMode(API):
 
     def _api_close(self):
         self.duplex, self.notify = False, False
+        self._notify_worker.disconnect()
         self._conn.close()
+
+    @api_commands('subscribe', pure_json=True)
+    def _api_subscribe(self, _, data: list):
+        return self._notify_worker.subscribe(data)
+
+    @api_commands('unsubscribe', pure_json=True)
+    def _api_unsubscribe(self, _, data: list):
+        return self._notify_worker.unsubscribe(data)
 
     def _conn_open(self, notify: bool):
         self.duplex, self.notify = True, notify
         self._notify_duplex('open')
+        self._notify_worker.connect(self._conn)
 
     def _conn_close(self):
         self._api_close()
