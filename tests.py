@@ -9,6 +9,7 @@ sys.path.insert(0, os.path.join(os.path.abspath(sys.path[0]), 'src'))
 
 import main
 from loader import Loader
+from utils import SignalHandlerDummy
 # noinspection PyUnresolvedReferences
 from utests import *
 
@@ -34,9 +35,6 @@ def check_log(log_file):
 
 
 def tests_mono():
-    def dummy(*_, **__):
-        pass
-
     home = main.HOME
     path = main.get_path(home)
     cfg = main.get_cfg()
@@ -46,7 +44,7 @@ def tests_mono():
     test_log_file = os.path.join(home, 'mdmt2.log.test')
     cfg['log'].update({'file_lvl': 'warn', 'print_lvl': 'warn', 'file': test_log_file})
     try:
-        loader = Loader(init_cfg=cfg, path=path, die_in=dummy)
+        loader = Loader(init_cfg=cfg, path=path, sig=SignalHandlerDummy())
         loader.start_all_systems()
         time.sleep(10)
         loader.stop_all_systems()

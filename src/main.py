@@ -53,7 +53,7 @@ def get_path(home) -> dict:
 def main():
     print('MAIN: Start...')
     sig = SignalHandler((signal.SIGINT, signal.SIGTERM))
-    loader = Loader(init_cfg=get_cfg(), path=get_path(HOME), die_in=sig.die_in)
+    loader = Loader(init_cfg=get_cfg(), path=get_path(HOME), sig=sig)
     try:
         loader.start_all_systems()
     except RuntimeError:

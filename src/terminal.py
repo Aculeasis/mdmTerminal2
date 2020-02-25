@@ -277,17 +277,22 @@ class _SampleWorker:
         # Перезагружает терминал, строго в треде самого терминала
         self._reload_cb = reload_cb
 
+    def _send_notify(self, event: str, state: bool) -> None:
+        self.own.sub_call('default', event, state)
+        return None
+
     def rec_rec(self, model, sample):
         # Записываем образец sample для модели model
+        self._send_notify('sample_record', True)
         rec_nums = {'1': F('первого'), '2': F('второго'), '3': F('третьего')}
         if sample not in rec_nums:
             self.log('{}: {}'.format(F('Ошибка записи - недопустимый параметр'), sample), logger.ERROR)
             self.own.say(F('Ошибка записи - недопустимый параметр'))
-            return
+            return self._send_notify('sample_record', False)
         pmdl_name = ''.join(['model', model, self.cfg.path['model_ext']])
         if not self.cfg.is_model_name(pmdl_name):
             self.log('Wrong model filename: {}'.format(repr(pmdl_name)), logger.ERROR)
-            return
+            return self._send_notify('sample_record', False)
 
         hello = F('Запись {} образца на 5 секунд начнется после звукового сигнала', rec_nums[sample])
         save_to = self.cfg.path_to_sample(model, sample)
@@ -301,6 +306,7 @@ class _SampleWorker:
             err = F('Ошибка сохранения образца {}: {}', rec_nums[sample], err)
             self.log(err, logger.ERROR)
             self.own.say(err)
+        self._send_notify('sample_record', False)
 
     def rec_play(self, model, sample):
         file = self.cfg.path_to_sample(model, sample)
@@ -311,6 +317,7 @@ class _SampleWorker:
             self.log(F('Файл {} не найден.', file), logger.WARN)
 
     def rec_compile(self, model, username):
+        self._send_notify('model_compile', True)
         samples = []
         for num in ('1', '2', '3'):
             sample_path = self.cfg.path_to_sample(model, num)
@@ -322,6 +329,7 @@ class _SampleWorker:
         if len(samples) == 3:
             username = username if len(username) > 1 else None
             self._compile_model(model, samples, username)
+        self._send_notify('model_compile', False)
 
     def rec_del(self, model, _):
         is_del = False
@@ -519,7 +527,7 @@ class _SampleWorker:
 
         msg = ', "{}",'.format(phrase) if phrase else ''
         self.log(F('Модель{} скомпилирована успешно за {}: {}', msg, work_time, pmdl_path), logger.INFO)
-        self.own.say(F('Модель{} номер {} скомпилирована успешно за {}', msg, model, work_time))
+        self.own.say(F('Модель{} номер {} скомпилирована успешно за {}', msg, model, work_time), blocking=60)
 
         self._save_model_data(pmdl_name, username, phrase)
 

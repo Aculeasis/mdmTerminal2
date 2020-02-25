@@ -25,7 +25,7 @@ from plugins import Plugins
 from server import server_constructor
 from terminal import MDTerminal
 from updater import Updater
-from utils import state_cache, Messenger, pretty_time
+from utils import state_cache, Messenger, pretty_time, SignalHandlerDummy
 
 
 def is_sub_dict(key, data: dict):
@@ -33,8 +33,8 @@ def is_sub_dict(key, data: dict):
 
 
 class Loader(Owner):
-    def __init__(self, init_cfg: dict, path: dict, die_in):
-        self._die_in = die_in
+    def __init__(self, init_cfg: dict, path: dict, sig: SignalHandlerDummy):
+        self._sig = sig
         self.reload = False
         self._restore_filename = None
         self._lock = threading.Lock()
@@ -42,6 +42,7 @@ class Loader(Owner):
         self._join_lock = threading.Lock()
 
         self._pub = PubSub()
+        self._sig.set_wakeup_callback(lambda: self.sub_call('default', 'terminal_stop', True))
 
         self._logger = logger.Logger()
         proxies.add_logger(self._logger.add('Proxy'))
@@ -404,7 +405,7 @@ class Loader(Owner):
 
     def die_in(self, wait, reload=False):
         self.reload = reload
-        self._die_in(wait)
+        self._sig.die_in(wait)
 
     @property
     def get_volume_status(self) -> dict:

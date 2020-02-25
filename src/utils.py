@@ -17,7 +17,6 @@ import traceback
 import urllib.parse
 from copy import deepcopy
 from functools import lru_cache
-
 import requests
 import socks  # install socks-proxy dependencies - pip install requests[socks]
 import urllib3
@@ -58,14 +57,36 @@ class RuntimeErrorTrace(RuntimeError):
         super().__init__('{},  Traceback: \n{}'.format(args, traceback.format_exc()))
 
 
-class SignalHandler:
+class SignalHandlerDummy:
+    def __init__(self, *_, **__):
+        pass
+
+    def set_wakeup_callback(self, wakeup):
+        pass
+
+    def die_in(self, sec: int):
+        pass
+
+    def interrupted(self) -> bool:
+        pass
+
+    def sleep(self, sleep_time):
+        pass
+
+
+class SignalHandler(SignalHandlerDummy):
     def __init__(self, signals=(signal.SIGTERM,)):
+        super().__init__()
         self._sleep = threading.Event()
         self._death_time = 0
+        self._wakeup = None
         [signal.signal(signal_, self._signal_handler) for signal_ in signals]
 
     def _signal_handler(self, _, __):
         self._sleep.set()
+
+    def set_wakeup_callback(self, wakeup):
+        self._wakeup = wakeup
 
     def die_in(self, sec: int):
         self._death_time = sec
@@ -76,6 +97,8 @@ class SignalHandler:
 
     def sleep(self, sleep_time):
         self._sleep.wait(sleep_time)
+        if self._wakeup:
+            self._wakeup()
         if self._death_time:
             time.sleep(self._death_time)
 

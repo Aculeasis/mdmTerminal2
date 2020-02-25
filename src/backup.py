@@ -67,10 +67,7 @@ class Backup(threading.Thread):
             if self._sleep.is_set():
                 self._sleep.clear()
                 if self._action == 'backup':
-                    if self._backup(manual=True, remove_old=False):
-                        self.own.sub_call('default', self.NAME, 'ok')
-                    else:
-                        self.own.sub_call('default', self.NAME, 'error')
+                    self._backup(manual=True, remove_old=False)
                 self._action = None
             elif to_sleep:
                 self._backup()
@@ -116,6 +113,17 @@ class Backup(threading.Thread):
         return (self.cfg.load_dict(self.NAME) or {}).get('last_backup', 0)
 
     def _backup(self, manual=False, remove_old=True) -> bool:
+        def manual_notify(state: bool):
+            if manual:
+                self.own.sub_call('default', 'manual_backup', state)
+
+        manual_notify(True)
+        result = self.__backup(manual, remove_old)
+        manual_notify(False)
+        self.own.sub_call('default', self.NAME, 'ok' if result else 'error')
+        return result
+
+    def __backup(self, manual, remove_old) -> bool:
         def say(msg_: str):
             if manual:
                 self.own.say(msg_, lvl=0)
