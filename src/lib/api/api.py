@@ -9,7 +9,7 @@ from lib.api.misc import InternalException, api_commands, dict_key_checker, json
 from lib.api.socket_api_handler import SocketAPIHandler
 from lib.map_settings.map_settings import make_map_settings
 from owner import Owner
-from utils import file_to_base64, pretty_time, TextBox, is_valid_base_filename
+from utils import file_to_base64, pretty_time, TextBox, is_valid_base_filename, deprecated
 
 # old -> new
 OLD_CMD = {
@@ -25,8 +25,10 @@ class API(SocketAPIHandler):
         self.cfg = cfg
         # Команды API не требующие авторизации
         self.NON_AUTH.update({
-            'authorization', 'self.authorization', 'hi', 'voice', 'play', 'pause', 'tts', 'ask', 'settings', 'rec',
-            'remote_log', 'listener', 'volume', 'nvolume', 'mvolume', 'nvolume_say', 'mvolume_say', 'get',
+            'authorization', 'self.authorization', 'authorization.self',
+            'hi', 'voice', 'play', 'pause', 'tts', 'ask',
+            'settings', 'rec', 'remote_log', 'listener', 'volume',
+            'nvolume', 'mvolume', 'nvolume_say', 'mvolume_say', 'get',
         })
 
     @api_commands('authorization')
@@ -44,7 +46,12 @@ class API(SocketAPIHandler):
         return 'already'
 
     @api_commands('self.authorization', pure_json=True)
+    @deprecated
     def _api_self_authorization(self, cmd, data: dict):
+        return self._api_authorization_self(cmd, data)
+
+    @api_commands('authorization.self', pure_json=True)
+    def _api_authorization_self(self, cmd, data: dict):
         keys = ('token', 'owner')
         dict_key_checker(data, keys)
         for key in keys:
