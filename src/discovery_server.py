@@ -50,6 +50,7 @@ HTTP_XML_REPLY = lf_to_crlf('''<root>
                 <URLBase>{2}:{3}</URLBase>
                 <serviceType>urn:schemas-upnp-org:service:mdmTerminal2:1</serviceType>
                 <serviceId>urn:schemas-upnp-org:serviceId:mdmTerminal2</serviceId>
+                <controlURL></controlURL>
                 <eventSubURL/>
             </service>
         </serviceList>
@@ -66,7 +67,7 @@ def valid_request(msg: bytes) -> bool:
             break
     return st and (
             st in ('ssdp:all', 'upnp:rootdevice') or
-            st.startswith(('urn:schemas-upnp-org:device:MediaRenderer', 'rn:schemas-upnp-org:service:mdmTerminal2')))
+            st.startswith(('urn:schemas-upnp-org:device:MediaRenderer', 'urn:schemas-upnp-org:service:mdmTerminal2')))
 
 
 class DiscoveryServer(threading.Thread):

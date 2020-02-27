@@ -11,7 +11,7 @@ CRLF = b'\r\n'
 REQUEST = CRLF.join([
     b'M-SEARCH * HTTP/1.1',
     b'Host:239.255.255.250:1900',
-    b'ST:rn:schemas-upnp-org:service:mdmTerminal2',
+    b'ST:urn:schemas-upnp-org:service:mdmTerminal2',
     b'Man:"ssdp:discover"',
     b'MX:1', b'', b''
 ])
