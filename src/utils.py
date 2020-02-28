@@ -196,7 +196,7 @@ def pretty_time(sec) -> str:
     while abs(sec) < 1 and index < max_index and sec:
         sec *= 1000
         index += 1
-    sec = int(sec) if sec % 1 < 0.01 else round(sec, 2)
+    sec = int(sec) if abs(sec) % 1 < 0.01 else round(sec, 2)
     return '{} {}'.format(sec, ends[index])
 
 
