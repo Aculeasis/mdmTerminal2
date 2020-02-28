@@ -42,13 +42,15 @@ ALL_EXCEPTS = (OSError, websocket.WebSocketException, TypeError, ValueError, Att
 
 if PLATFORM == 'Windows':
     def is_http(conn: socket.socket) -> bool:
-        conn.setblocking(False)
+        # А зачем я вообще извращался с setblocking?
+        # conn.setblocking(False)
         try:
             return conn.recv(4, socket.MSG_PEEK) == b'GET '
-        except (socket.error, BlockingIOError):
+        # except (socket.error, BlockingIOError):
+        except socket.error:
             pass
-        finally:
-            conn.setblocking(True)
+        # finally:
+        #    conn.setblocking(True)
         return False
 else:
     def is_http(conn: socket.socket) -> bool:
