@@ -311,7 +311,7 @@ class ConfigHandler(utils.HashableDict):
     def load_dict(self, name: str, format_='json') -> dict or None:
         file_path = os.path.join(self.path['data'], name + DATA_FORMATS.get(format_, '.json'))
         if not os.path.isfile(file_path):
-            self.log(F('Файл не найден: {}', file_path))
+            self.log(F('Файл не найден (это нормально): {}', file_path))
             return None
         try:
             return utils.dict_from_file(file_path)

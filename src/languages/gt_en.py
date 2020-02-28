@@ -44,9 +44,7 @@ _LNG = {  # google translate - it's a good idea!
     # config.py
     'Ошибка получения ключа для Yandex: {}': 'Error receiving key for Yandex: {}',
     'Ошибка сохранения {}: {}': 'Error saving {}: {}',
-    # config.py backup.py
-    'Файл не найден: {}': 'File not found: {}',
-    # config.py
+    'Файл не найден (это нормально): {}': 'File not found (this is normal): {}',
     'Ошибка загрузки {}: {}': 'Loading error {}: {}',
     'Конфигурация сохранена за {}': 'Configuration saved for {}',
     'Конфигурация сохранена!': 'Configuration saved!',
@@ -285,6 +283,7 @@ _LNG = {  # google translate - it's a good idea!
     'Восстановление завершено за {}, восстановлено {} файлов': 'Recovery completed in {}, restored {} files',
     'Демон еще работает': 'The daemon is still running',
     'Некорректное имя файла: {}': 'Invalid file name: {}',
+    'Файл не найден: {}': 'File not found: {}',
     'Архив поврежден: {}: {}': 'Archive damaged: {}: {}',
     'Ошибка создания бэкапа': 'Error creating backup',
     'Файл {} уже существует, отмена.': 'File {} already exists, cancel.',
