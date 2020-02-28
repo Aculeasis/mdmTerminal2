@@ -100,13 +100,6 @@ class Client:
                     if result:
                         self._send(result.encode())
                     continue
-                if line.startswith('pong:'):
-                    try:
-                        diff = time.time() - float(line.split(':', 1)[1])
-                    except (ValueError, TypeError):
-                        pass
-                    else:
-                        line = 'ping {} ms'.format(int(diff * 1000))
                 print('Ответ: {}'.format(line))
 
     def stop(self):
@@ -476,7 +469,19 @@ def parse_json(data: str, api):
     else:
         result = data if data is not None else 'null'
     if result is not None:
-        print('Ответ на {}: {}'.format(repr(cmd), result))
+        line = 'Ответ на {}: {}'.format(repr(cmd), result)
+        if cmd == 'ping':
+            line = parse_ping(result) or line
+        print(line)
+
+
+def parse_ping(data):
+    try:
+        diff = time.time() - float(data[0])
+    except (ValueError, TypeError, IndexError):
+        return None
+    else:
+        return 'ping {} ms'.format(int(diff * 1000))
 
 
 if __name__ == '__main__':
