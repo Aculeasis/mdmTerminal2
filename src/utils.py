@@ -193,7 +193,7 @@ def pretty_time(sec) -> str:
     ends = ['sec', 'ms']  # , 'ns']
     max_index = len(ends) - 1
     index = 0
-    while sec < 1 and index < max_index and sec:
+    while abs(sec) < 1 and index < max_index and sec:
         sec *= 1000
         index += 1
     sec = int(sec) if sec % 1 < 0.01 else round(sec, 2)

@@ -8,6 +8,7 @@ import logger
 from lib.api.misc import InternalException, api_commands, dict_key_checker, json_parser, dict_list_to_list_in_tuple
 from lib.api.socket_api_handler import SocketAPIHandler
 from lib.map_settings.map_settings import make_map_settings
+from lib.totp_salt import check_token_with_totp
 from owner import Owner
 from utils import file_to_base64, pretty_time, TextBox, is_valid_base_filename, deprecated
 
@@ -25,25 +26,44 @@ class API(SocketAPIHandler):
         self.cfg = cfg
         # Команды API не требующие авторизации
         self.NON_AUTH.update({
-            'authorization', 'self.authorization', 'authorization.self',
+            'authorization', 'self.authorization', 'authorization.self', 'authorization.totp',
             'hi', 'voice', 'play', 'pause', 'tts', 'ask',
             'settings', 'rec', 'remote_log', 'listener', 'volume',
             'nvolume', 'mvolume', 'nvolume_say', 'mvolume_say', 'get',
         })
 
-    @api_commands('authorization')
-    def _api_authorization(self, cmd, remote_hash):
+    def _base_authorization(self, cmd, equal, sub_msg='') -> str:
+        # compare(token) -> bool
         if not self._conn.auth:
             token = self.cfg.gt('smarthome', 'token')
             if token:
-                local_hash = hashlib.sha512(token.encode()).hexdigest()
-                if local_hash != remote_hash:
-                    raise InternalException(msg='forbidden: wrong hash')
+                if not equal(token):
+                    raise InternalException(msg='forbidden: wrong hash{}'.format(sub_msg))
             self._conn.auth = True
             msg = 'authorized'
-            self.log('API.{} {}'.format(cmd, msg), logger.INFO)
+            self.log('API.{} {}{}'.format(cmd, msg, sub_msg), logger.INFO)
             return msg
         return 'already'
+
+    @api_commands('authorization')
+    def _api_authorization(self, cmd, remote_hash):
+        return self._base_authorization(cmd, lambda token: hashlib.sha512(token.encode()).hexdigest() == remote_hash)
+
+    @api_commands('authorization.totp', pure_json=True)
+    def _api_authorization_totp(self, cmd, data):
+        time_ = time.time()
+        dict_key_checker(data, ('hash',))
+        remote_hash = data['hash']
+        if not isinstance(remote_hash, str):
+            raise InternalException(2, 'hash must be str, not {}'.format(type(remote_hash)))
+        if 'timestamp' in data:
+            timestamp = data['timestamp']
+            if not isinstance(timestamp, float):
+                raise InternalException(2, 'timestamp must be float, not {}'.format(type(timestamp)))
+        else:
+            timestamp = None
+        time_diff = '; diff: {}'.format(pretty_time(time_ - timestamp)) if timestamp else ''
+        return self._base_authorization(cmd, lambda token: check_token_with_totp(token, remote_hash, time_), time_diff)
 
     @api_commands('self.authorization', pure_json=True)
     @deprecated
