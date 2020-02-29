@@ -4,6 +4,22 @@ import threading
 
 import logger
 import utils
+from lib.tools.settings_tester import SETTINGS_TESTER
+
+
+def _hard_test_option(value, tester) -> str or None:
+    msg = None
+    if callable(tester):
+        try:
+            test = tester(value)
+        except Exception as e:
+            return '{}'.format(e)
+        else:
+            if isinstance(test, str):
+                msg = test or 'incorrect'
+            elif isinstance(test, bool) and not test:
+                msg = 'incorrect'
+    return msg
 
 
 class ConfigUpdater:
@@ -136,33 +152,36 @@ class ConfigUpdater:
             if not isinstance(val, dict):
                 self._print_result('Section must be dict. {}: {}'.format(key, val), logger.CRIT)
                 continue
-            self._recursive_parser(self._cfg, self._new_cfg, key, val, self._source in self.EXTERNALS)
+            external = self._source in self.EXTERNALS
+            tester = SETTINGS_TESTER.get(key)
+            self._recursive_parser(self._cfg, self._new_cfg, key, val, external, tester)
 
-    def _recursive_parser(self, cfg: dict, cfg_diff: dict, key, val, external):
+    def _recursive_parser(self, cfg: dict, cfg_diff: dict, key, val, external, tester):
         if not isinstance(key, str):
             self._log('Key type must be string only, not {}. Ignore key \'{}\''.format(type(key), key), logger.ERROR)
             return
         key = key if not external else key.lower()
         if isinstance(val, dict) and isinstance(cfg.get(key, {}), dict):  # секция
-            self._parse_section_element(cfg, cfg_diff, key, val, external)
+            self._parse_section_element(cfg, cfg_diff, key, val, external, tester)
         elif external and isinstance(val, (dict, list, set, tuple)):
             msg = 'Invalid type of option \'{}:{}\' {}, from server. Ignoring.'.format(key, val, type(val))
             self._log(msg, logger.ERROR)
         else:
-            if self._parse_param_element(cfg, cfg_diff, key, val, self._source == 2):
+            if self._parse_param_element(cfg, cfg_diff, key, val, self._source == 2, tester):
                 self._change_count += 1
 
-    def _parse_section_element(self, cfg: dict, cfg_diff: dict, key, val, external):
+    def _parse_section_element(self, cfg: dict, cfg_diff: dict, key, val, external, tester):
         if external and key not in cfg:  # Не принимаем новые секции от сервера
             self._log('Ignore new section from server \'{}:{}\''.format(key, val), logger.ERROR)
             return
         cfg_diff[key] = cfg_diff.get(key, {})
         for key_, val_ in val.items():
-            self._recursive_parser(cfg.get(key, {}), cfg_diff[key], key_, val_, external)
+            tester_key = tester.get(key_) if isinstance(tester, dict) else None
+            self._recursive_parser(cfg.get(key, {}), cfg_diff[key], key_, val_, external, tester_key)
         if not cfg_diff[key] and key in cfg:  # Удаляем существующие пустые секции
             del cfg_diff[key]
 
-    def _parse_param_element(self, cfg: dict, cfg_diff: dict, key, val, from_json):
+    def _parse_param_element(self, cfg: dict, cfg_diff: dict, key, val, from_json, tester):
         if from_json and isinstance(val, str) and key not in self.NOT_LOWER:
             val = val.lower()
         source_type = type(cfg.get(key, ''))
@@ -172,10 +191,17 @@ class ConfigUpdater:
                 raise ValueError('Ignore \'NoneType\'')
             tmp = source_type(val) if source_type != bool else utils.bool_cast(val)
         except (ValueError, TypeError) as e:
-            msg = 'Wrong type of option \'{}:{}\' {}, keep old value. {}'.format(key, val, type(val), e)
+            old = repr(cfg.get(key, 'old value'))
+            msg = 'Wrong type of option \'{}:{}\' {}, keep {}. {}'.format(key, val, type(val), old, e)
             self._log(msg, logger.ERROR)
         else:
             if key not in cfg or tmp != cfg[key]:
+                test = _hard_test_option(tmp, tester)
+                if test:
+                    old = repr(cfg.get(key, 'old value'))
+                    msg = 'Wrong value of option \'{}:{}\', keep {}. {}'.format(key, tmp, old, test)
+                    self._log(msg, logger.ERROR)
+                    return False
                 cfg_diff[key] = tmp
                 return True
         return False
@@ -222,7 +248,7 @@ class ConfigUpdater:
                 cfg[sec] = {}
                 add_empty = True
 
-            self._save_me |= self._parse_param_element(cfg.get(sec, {}), cfg[sec], key_move, val, False)
+            self._save_me |= self._parse_param_element(cfg.get(sec, {}), cfg[sec], key_move, val, False, None)
 
             if not cfg[sec] and add_empty:
                 del cfg[sec]
