@@ -133,6 +133,8 @@ class Logger(threading.Thread):
         self.log('stop.', INFO)
         self._queue.put_nowait(None)
         super().join(timeout=timeout)
+        self._close_connect()
+        self._stop_file_logging()
 
     def run(self):
         while True:
@@ -147,7 +149,6 @@ class Logger(threading.Thread):
                 self._add_connect(data[1], data[2])
             else:
                 self.log('Wrong data: {}'.format(repr(data)), ERROR)
-        self._close_connect()
 
     def permission_check(self):
         if not write_permission_check(self.cfg.get('file')):
@@ -155,6 +156,14 @@ class Logger(threading.Thread):
             self.log(F(msg, self.cfg.get('file')), CRIT)
             return False
         return True
+
+    def _stop_file_logging(self):
+        if self._app_log:
+            self._app_log.removeHandler(self._handler)
+            self._app_log = None
+        if self._handler:
+            self._handler.close()
+            self._handler = None
 
     def _init(self):
         self.file_lvl = get_loglvl(self.cfg.get('file_lvl', 'info'))
@@ -170,13 +179,7 @@ class Logger(threading.Thread):
             self.own.unsubscribe(self.REMOTE_LOG, self._add_remote_log, self.CHANNEL)
             self._close_connect()
 
-        if self._app_log:
-            self._app_log.removeHandler(self._handler)
-            self._app_log = None
-
-        if self._handler:
-            self._handler.close()
-            self._handler = None
+        self._stop_file_logging()
 
         if self.cfg.get('file') and in_file and self.permission_check():
             self._handler = RotatingFileHandler(filename=self.cfg.get('file'), maxBytes=1024 * 1024,
