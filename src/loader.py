@@ -154,6 +154,9 @@ class Loader(Owner):
     def has_subscribers(self, event: str, channel='default') -> bool:
         return self._pub.has_subscribers(event, channel)
 
+    def send_notify(self, event: str, *args, **kwargs):
+        return self._pub.sub_call('default', event, *args, **kwargs)
+
     def sub_call(self, channel: str, event: str, *args, **kwargs):
         return self._pub.sub_call(channel, event, *args, **kwargs)
 
@@ -212,18 +215,11 @@ class Loader(Owner):
         return name in STT.PROVIDERS
 
     @property
-    def duplex_allow_notify(self) -> bool:
-        return self._duplex_mode.notify
-
-    @property
     def duplex_mode_on(self) -> bool:
         return self._duplex_mode.duplex
 
     def duplex_mode_off(self):
         return self._duplex_mode.off()
-
-    def send_on_duplex_mode(self, data):
-        self._duplex_mode.send_on_socket(data)
 
     def plugins_status(self, state: str) -> dict:
         return self._plugins.status(state)
@@ -372,16 +368,9 @@ class Loader(Owner):
     def volume_callback(self, volume: int):
         self._pub.call('volume', volume)
 
-    def send_to_srv(self, qry: str, username=None, more=None) -> str:
-        return self._notifier.send(qry, username, more)
-
     @property
     def srv_ip(self) -> str:
         return self._cfg['smarthome']['ip']
-
-    @property
-    def outgoing_available(self) -> bool:
-        return self._cfg['smarthome']['ip'] or self._duplex_mode.notify
 
     def update(self):
         self._updater.update()

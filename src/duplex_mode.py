@@ -17,14 +17,6 @@ def make_dict_reply(cmd: str or None) -> dict:
         return {'method': 'ping', 'params': [str(time.time())], 'id': 'pong'}
 
 
-def from_json(cmd) -> tuple:
-    if isinstance(cmd, dict):
-        notify = cmd.get('notify')
-        notify = notify if isinstance(notify, bool) else True
-        return cmd.get('cmd'), notify
-    return cmd, True
-
-
 class DuplexMode(API):
     UPGRADE_DUPLEX = 'upgrade duplex'
 
@@ -34,7 +26,7 @@ class DuplexMode(API):
         self.own.subscribe(self.UPGRADE_DUPLEX, self._handle_upgrade_duplex, self.UPGRADE_DUPLEX)
         self._notify_worker = SubscriptionsWorker(owner)
         self._has_started = False
-        self.duplex, self.notify = False, False
+        self.duplex = False
         self._notify_duplex = self.own.registration('duplex_mode')
 
     def start(self):
@@ -45,12 +37,6 @@ class DuplexMode(API):
         self._queue.put_nowait(None)
         self._notify_worker.join()
         super().join(timeout=timeout)
-
-    def send_on_socket(self, data):
-        if self.duplex:
-            self._conn.write(data)
-        else:
-            raise RuntimeError('duplex disabled')
 
     def off(self):
         if self.duplex:
@@ -70,7 +56,7 @@ class DuplexMode(API):
             lock()
 
     def _api_close(self):
-        self.duplex, self.notify = False, False
+        self.duple = False
         self._notify_worker.disconnect()
         self._conn.close()
 
@@ -82,8 +68,8 @@ class DuplexMode(API):
     def _api_unsubscribe(self, _, data: list):
         return self._notify_worker.unsubscribe(data)
 
-    def _conn_open(self, notify: bool):
-        self.duplex, self.notify = True, notify
+    def _conn_open(self):
+        self.duplex = True
         self._notify_duplex('open')
         self._notify_worker.connect(self._conn)
 
@@ -101,9 +87,8 @@ class DuplexMode(API):
                 break
 
             self._conn, cmd = conn
-            cmd, notify = from_json(cmd)
 
-            self._conn_open(notify)
+            self._conn_open()
             try:
                 self._processing(make_dict_reply(cmd))
             finally:

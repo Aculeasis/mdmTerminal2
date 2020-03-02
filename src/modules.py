@@ -296,22 +296,25 @@ def majordomo(self, _, phrase):
         self.log(F('Вы ничего не сказали?'), logger.DEBUG)
         return
 
-    if not self.own.outgoing_available:
-        self.log(F('IP сервера не задан.'), logger.CRIT)
-        return Say(F('IP сервера не задан, исправьте это! Мой IP адрес: {}', self.cfg.gts('ip')))
+    if not self.own.has_subscribers('cmd'):
+        if not self.cfg['smarthome']['ip']:
+            self.log(F('IP сервера не задан.'), logger.CRIT)
+            return Say(F('IP сервера не задан, исправьте это! Мой IP адрес: {}', self.cfg.gts('ip')))
+        else:
+            msg = F('Невозможно доставить - маршрут не найден')
+            self.log(msg, logger.CRIT)
+            return Say(msg)
 
     # FIX: 'Скажи ' -> 'скажи '
     if phrase.startswith(F('Скажи ')):
         phrase = phrase[0].lower() + phrase[1:]
 
-    username = self.cfg.gt('persons', self.model) if self.model else None
-    more = dict(zip(('rms_min', 'rms_max', 'rms_avg'), self.rms)) if self.rms else None
-    try:
-        self.log(F('Запрос был успешен: {}', self.own.send_to_srv(phrase, username, more)), logger.DEBUG)
-    except RuntimeError as e:
-        e = '[{}] {}'.format(self.own.srv_ip, e)
-        self.log(F('Ошибка коммуникации с сервером: {}', e), logger.ERROR)
-        return Say(F('Ошибка коммуникации с сервером: {}', ''))
+    kwargs = {'qry': phrase}
+    if self.model:
+        kwargs['username'] = self.cfg.gt('persons', self.model)
+    if self.rms:
+        kwargs.update(zip(('rms_min', 'rms_max', 'rms_avg'), self.rms))
+    self.own.send_notify('cmd', **kwargs)
 
 
 @mod.name(ANY, F('Терминатор'), F('Информацию что соответствие фразе не найдено'))

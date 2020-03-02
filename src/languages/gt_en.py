@@ -179,9 +179,8 @@ _LNG = {  # google translate - it's a good idea!
     # modules.py
     'IP сервера не задан.': 'Server IP is not set.',
     'IP сервера не задан, исправьте это! Мой IP адрес: {}': 'Server IP is not set, fix it! My IP Address: {}',
+    'Невозможно доставить - маршрут не найден': 'Unable to deliver - route not found',
     'Скажи ': 'Tell me ',
-    'Запрос был успешен: {}': 'The request was successful: {}',
-    'Ошибка коммуникации с сервером: {}': 'Error communicating with server: {}',
     'Мажордом': 'Majordom',
     'Отправку команд на сервер': 'Sending commands to the server',
     'Соответствие фразе не найдено: {}': 'No matching phrase found: {}',
@@ -227,6 +226,9 @@ _LNG = {  # google translate - it's a good idea!
     'Модель{} номер {} скомпилирована успешно за {}': 'Model {} number {} compiled successfully for {}',
     # logger.py
     'Логгирование в {} невозможно - отсутствуют права на запись. Исправьте это': 'Logging in {} is not possible - there are no write permissions. Fix it',
+    # notifier.py
+    'Запрос был успешен: {}': 'The request was successful: {}',
+    'Ошибка коммуникации с сервером: {}': 'Error communicating with server: {}',
     # stts.py
     'Неизвестный провайдер: {}': 'Unknown provider: {}',
     '{} за {}{}: {}': '{} behind {}{}: {}',

@@ -90,7 +90,7 @@ class Client:
                     print(line)
                     continue
                 if self.thread and self.token and stage:
-                    stage = handshake(line, stage)
+                    stage = self._handshake(line, stage)
                     if stage < 0:
                         return
                     continue
@@ -101,6 +101,21 @@ class Client:
                         self._send(result.encode())
                     continue
                 print('Ответ: {}'.format(line))
+
+    def _handshake(self, line: str, stage: int):
+        try:
+            data = json.loads(line)
+            if not isinstance(data, dict):
+                raise TypeError('Data must be dict type')
+        except (json.decoder.JSONDecodeError, TypeError, ValueError) as e:
+            print('Ошибка декодирования: {}'.format(e))
+            return -1
+        if 'result' in data and data.get('id') == 'upgrade duplex':
+            self._send(
+                json.dumps({'method': 'subscribe', 'params': ['cmd', 'talking', 'record']}, ensure_ascii=False).encode()
+            )
+            return 0
+        return stage
 
     def stop(self):
         if self.thread and self.work:
@@ -381,19 +396,6 @@ def base64_to_bytes(data):
         raise RuntimeError(e)
 
 
-def handshake(line: str, stage: int):
-    try:
-        data = json.loads(line)
-        if not isinstance(data, dict):
-            raise TypeError('Data must be dict type')
-    except (json.decoder.JSONDecodeError, TypeError, ValueError) as e:
-        print('Ошибка декодирования: {}'.format(e))
-        return -1
-    if 'result' in data and data.get('id') == 'upgrade duplex':
-        return 0
-    return stage
-
-
 def parse_dict(cmd, data):
     if cmd == 'recv_model':
         for key in ('filename', 'data'):
@@ -453,12 +455,23 @@ def parse_json(data: str, api):
         print('Терминал сообщил об ошибке {} [{}]: {}'.format(*result))
         return
     if 'method' in data:
-        if data['method'] not in ('cmd', 'api') or api:
-            print('{}: {}, id: {}'.format(data['method'], data.get('params'), data.get('id')))
-        if data['method'] == 'cmd':
-            tts = data.get('params', {}).get('qry', '')
-            if tts:
-                return json.dumps({'method': 'tts', 'params': {'text': tts}}, ensure_ascii=False)
+        if isinstance(data['method'], str) and data['method'].startswith('notify.') and api:
+            notify = data['method'].split('.', 1)[1]
+            info = data.get('params')
+            if isinstance(info, dict):
+                args = info.get('args')
+                kwargs = info.get('kwargs')
+                if isinstance(args, list) and len(args) == 1 and not kwargs:
+                    info = args[0]
+                    if isinstance(info, bool):
+                        info = 'ON' if info else 'OFF'
+                elif isinstance(kwargs, dict) and not args:
+                    info = kwargs
+            print('Уведомление: {}: {}'.format(notify, info))
+            if notify == 'cmd':
+                tts = data.get('params', {}).get('kwargs', {}).get('qry', '')
+                if tts:
+                    return json.dumps({'method': 'tts', 'params': {'text': tts}}, ensure_ascii=False)
         return
     cmd = data.get('id')
     data = data.get('result')

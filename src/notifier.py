@@ -8,6 +8,7 @@ from functools import lru_cache
 import requests
 
 import logger
+from languages import F
 from lib.outgoing_socket import OutgoingSocket
 from owner import Owner
 from utils import url_builder, REQUEST_ERRORS
@@ -18,6 +19,8 @@ class MajordomoNotifier(threading.Thread):
     EVENTS = ('speech_recognized_unsuccess', 'speech_recognized_success', 'voice_activated', 'ask_again',
               'music_status', 'start_record', 'stop_record', 'start_talking', 'stop_talking', 'mic_test_error')
     SELF_EVENTS = ('volume', 'music_volume', 'updater', 'listener', 'version')
+
+    CMD = 'cmd'
 
     def __init__(self, cfg, log, owner: Owner):
         super().__init__(name='Notifier')
@@ -90,11 +93,14 @@ class MajordomoNotifier(threading.Thread):
         self.cfg.save_dict(self.FILE, {'events': self._events})
 
     def _subscribe(self):
-        # Подписываемся на нужные события, если нужно
-        if self._allow_notify:
-            self.own.subscribe(self._events, self._callback)
+        if self._allow_messages:
+            self.own.subscribe(self.CMD, self._callback)
+            # Подписываемся на нужные события, если нужно
+            if self._allow_notify:
+                self.own.subscribe(self._events, self._callback)
 
     def _unsubscribe(self):
+        self.own.unsubscribe(self.CMD, self._callback)
         self.own.unsubscribe(self._events, self._callback)
 
     def reload(self, diff: dict):
@@ -122,8 +128,8 @@ class MajordomoNotifier(threading.Thread):
         self.outgoing.join(timeout=timeout)
 
     def run(self):
-        def ignore():
-            return not self._allow_notify or self._skip.is_skip
+        def allow_notify():
+            return self._allow_notify and not self._skip.is_skip
         while self.work:
             to_sleep = self._cfg['heartbeat_timeout']
             if to_sleep <= 0:
@@ -131,46 +137,69 @@ class MajordomoNotifier(threading.Thread):
             try:
                 data = self._queue.get(timeout=to_sleep)
             except queue.Empty:
-                if ignore():
-                    continue
-                # Отправляем пинг на сервер
-                data = self.own.get_volume_status
-                data['uptime'] = uptime()
+                if self._allow_messages and allow_notify():
+                    # Отправляем пинг на сервер
+                    data = self.own.get_volume_status
+                    data['uptime'] = uptime()
+                    self._send_notify(data)
             else:
-                if not isinstance(data, dict) or ignore():
+                if data is None or not self._allow_messages:
                     continue
-            self._send_notify(data)
+                if data['name'] == self.CMD:
+                    self._send_cmd(data['kwargs'])
+                elif allow_notify():
+                    self._prepare_notify(data)
 
-    def send(self, qry: str, user, more) -> str:
-        params = {'qry': qry}
-        if more and isinstance(more, dict):
-            params.update(more)
-        return self._send('cmd', params, user)
+    def _callback(self, name, *args, **kwargs):
+        self._queue.put_nowait({'name': name, 'args': args, 'kwargs': kwargs, 'uptime': uptime()})
 
-    @property
-    def _allow_notify(self) -> bool:
-        return self._cfg['object_name'] and self._cfg['object_method'] and self.own.outgoing_available
+    def _prepare_notify(self, msg: dict):
+        name = msg['name']
+        data = msg['args'][0] if msg['args'] else None
+        kwargs = {'uptime': msg['uptime']}
 
-    def _callback(self, name, data=None, *_, **__):
-        if not self._allow_notify:
-            return
-        kwargs = {'uptime': uptime()}
         if name in self._dynamic_self_events:
             kwargs[name] = data
         elif name == 'music_status':
             kwargs['status'] = 'music_{}'.format(data)
         else:
             kwargs['status'] = name
-        self._queue.put_nowait(kwargs)
+        self._send_notify(kwargs)
 
-    def _send_notify(self, params: dict):
+    @property
+    def _allow_messages(self) -> bool:
+        return self._cfg['ip'] and not self._cfg['disable_http']
+
+    @property
+    def _allow_notify(self) -> bool:
+        return self._cfg['object_name'] and self._cfg['object_method']
+
+    def _send_cmd(self, kwargs: dict):
+        username = kwargs.pop('username', None)
         try:
-            self._send('api', params)
+            self.log(F('Запрос был успешен: {}', self._send('cmd', kwargs, username)), logger.DEBUG)
         except RuntimeError as e:
             self._skip.got_error()
-            self.log(e, logger.ERROR)
+            e = '[{}] {}'.format(self.own.srv_ip, e)
+            self.log(F('Ошибка коммуникации с сервером: {}', e), logger.ERROR)
+            self.own.say(F('Ошибка коммуникации с сервером: {}', ''))
         else:
             self._skip.clear()
+
+    def _send_notify(self, params: dict):
+        def call(*_, **__):
+            try:
+                self._send('api', params)
+            except RuntimeError as e:
+                self._skip.got_error()
+                self.log('{}'.format(e), logger.ERROR)
+            else:
+                self._skip.clear()
+        if self._cfg['async_notify']:
+            # http очень медленный
+            self.own.messenger(call, None)
+        else:
+            call()
 
     def _send(self, target: str, params: dict, user=None) -> str:
         # https://github.com/sergejey/majordomo-chromegate/blob/master/js/main.js#L196
@@ -184,25 +213,19 @@ class MajordomoNotifier(threading.Thread):
             params['terminal'] = terminal
         if calling_user:
             params['username'] = calling_user
-        if self.own.duplex_allow_notify:
-            return self._send_over_socket(target, params)
-        else:
-            return self._send_over_http(target, params, auth)
+        return self._send_http_request(target, params, auth)
 
     @lru_cache(maxsize=2)
     def _make_url(self, target: str) -> str:
-        ip = self._cfg['ip']
-        if not ip or self._cfg['disable_http']:
-            return ''
-        elif target == 'api':
+        if target == 'api':
             target_path = 'api/method/{}.{}'.format(self._cfg['object_name'], self._cfg['object_method'])
         elif target == 'cmd':
             target_path = 'command.php'
         else:
             return ''
-        return '{}/{}'.format(url_builder(ip), target_path)
+        return '{}/{}'.format(url_builder(self._cfg['ip']), target_path)
 
-    def _send_over_http(self, target: str, params: dict, auth: tuple or None) -> str:
+    def _send_http_request(self, target: str, params: dict, auth: tuple or None) -> str:
         url = self._make_url(target)
         if not url:
             return 'http disabled'
@@ -213,10 +236,6 @@ class MajordomoNotifier(threading.Thread):
         if not reply.ok:
             raise RuntimeError('Server reply error from \'{}\'. {}: {}'.format(url, reply.status_code, reply.reason))
         return reply.request.url
-
-    def _send_over_socket(self, target: str, params: dict) -> str:
-        self.own.send_on_duplex_mode({'method': target, 'params': params})
-        return 'in socket {}: {}'.format(target, repr(params)[:300])
 
 
 class MyQueue(queue.Queue):

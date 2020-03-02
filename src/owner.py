@@ -51,6 +51,12 @@ class Owner:
         """
         raise NotImplementedError
 
+    def send_notify(self, event: str, *args, **kwargs):
+        """
+        sub_call в канал default
+        """
+        raise NotImplementedError
+
     def sub_call(self, channel: str, event: str, *args, **kwargs):
         """
         Активирует событие напрямую.
@@ -139,13 +145,6 @@ class Owner:
         raise NotImplementedError
 
     @property
-    def duplex_allow_notify(self) -> bool:
-        """
-        Duplex mode активен и клиент согласен принимать уведомления.
-        """
-        raise NotImplementedError
-
-    @property
     def duplex_mode_on(self) -> bool:
         """
         Duplex mode активен.
@@ -156,15 +155,6 @@ class Owner:
         """
         Закрыть активное соединение в duplex mode (если есть).
         :return: None
-        """
-        raise NotImplementedError
-
-    def send_on_duplex_mode(self, data):
-        """
-        Отправить данные через подключение в duplex mode.
-        Сработает только если self.duplex_mode_on = True.
-        Может вызвать RuntimeError.
-        :param data: bytes, str or dict
         """
         raise NotImplementedError
 
@@ -333,15 +323,8 @@ class Owner:
     def volume_callback(self, volume: int):
         raise NotImplementedError
 
-    def send_to_srv(self, qry: str, username=None, more=None) -> str:
-        raise NotImplementedError
-
     @property
     def srv_ip(self) -> str:
-        raise NotImplementedError
-
-    @property
-    def outgoing_available(self) -> bool:
         raise NotImplementedError
 
     def update(self):

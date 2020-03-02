@@ -53,7 +53,8 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'disable_http': False,
         'disable_server': False,
         'unsafe_rpc': False,
-        'send_rms': False
+        'send_rms': False,
+        'async_notify': True,
     },
     'music': {
         'control': True,
@@ -164,9 +165,9 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'blacklist_on_failure': False,
     },
     'system': {
-        'ini_version': 46,
+        'ini_version': 47,
         'ws_token': 'token_is_unset',
         'PLUGINS_API': 3,
-        'VERSION': (0, 15, 6),
+        'VERSION': (0, 15, 7),
     }
 }
