@@ -31,7 +31,7 @@ class SubscriptionsWorker(threading.Thread):
             elif cmd == 'connect':
                 self._queue = queue.Queue()
                 self._conn = item
-            else:
+            elif cmd.alive:
                 name, args, kwargs = _send_adapter(*item)
                 msg = {'method': 'notify.{}'.format(name), 'params': {'args': args, 'kwargs': kwargs}}
                 cmd.write(msg)

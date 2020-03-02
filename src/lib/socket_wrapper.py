@@ -82,6 +82,7 @@ class Connect:
         self.auth = auth
         self._send_lock = threading.Lock()
         self._recv_lock = threading.Lock()
+        self.alive = conn is not None
 
     @property
     def proto(self) -> str:
@@ -121,15 +122,17 @@ class Connect:
             try:
                 return Connect(self._conn, self._ip_info, self._ws_allow, self.auth)
             finally:
+                self.alive = False
                 self._conn = None
                 self._ip_info = None
                 self.auth = False
 
     def insert(self, conn, ip_info):
+        self.auth = False
+        self.alive = True
         self._conn = conn
         self._is_ws = isinstance(conn, websocket.WebSocket)
         self._ip_info = ip_info
-        self.auth = False
 
     def start_remote_log(self):
         """
@@ -141,6 +144,7 @@ class Connect:
     def close(self):
         if self._conn:
             self._ws_close() if self._is_ws else self._tcp_close()
+        self.alive = False
         self.auth = False
 
     def _tcp_close(self):

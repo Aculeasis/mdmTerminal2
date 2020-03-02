@@ -278,6 +278,8 @@ class SocketAPIHandler(threading.Thread, APIHandler):
             self._write(reply, True)
 
     def _write(self, data, quite=False):
+        if not self._conn.alive:
+            return
         try:
             self._conn.write(data)
         except RuntimeError as e:
