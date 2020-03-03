@@ -56,7 +56,7 @@ class DuplexMode(API):
             lock()
 
     def _api_close(self):
-        self.duple = False
+        self.duplex = False
         self._notify_worker.disconnect()
         self._conn.close()
 
