@@ -160,6 +160,10 @@ class Connect:
 
     def _ws_close(self):
         try:
+            self._conn.abort()
+        except ALL_EXCEPTS:
+            pass
+        try:
             self._conn.close(timeout=0.5)
         except ALL_EXCEPTS:
             pass

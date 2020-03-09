@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import queue
+import threading
 import time
 
 import logger
@@ -28,6 +29,7 @@ class DuplexMode(API):
         self._has_started = False
         self.duplex = False
         self._notify_duplex = self.own.registration('duplex_mode')
+        self._upgrade_duplex_lock = threading.Lock()
 
     def start(self):
         self._has_started = True
@@ -47,13 +49,17 @@ class DuplexMode(API):
             # Забираем сокет у сервера
             conn_ = conn.extract()
             if conn_:
-                conn_.settimeout(None)
-                self._api_close()
-                self._queue.put_nowait((conn_, cmd))
-                if not self._has_started:
-                    self.start()
+                self.own.messenger(self._handle_upgrade_duplex_safe, None, conn_, cmd)
         finally:
             lock()
+
+    def _handle_upgrade_duplex_safe(self, conn, cmd):
+        with self._upgrade_duplex_lock:
+            conn.settimeout(None)
+            self._api_close()
+            self._queue.put_nowait((conn, cmd))
+            if not self._has_started:
+                self.start()
 
     def _api_close(self):
         self.duplex = False

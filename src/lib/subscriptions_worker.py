@@ -53,7 +53,7 @@ class SubscriptionsWorker(threading.Thread):
         if self.work:
             self.work = False
             self._queue.put_nowait((None, None))
-            self.join(timeout)
+            super().join(timeout)
 
     def subscribe(self, data: list) -> bool:
         data = _sanitize_subscribe_list(data) - self._subscribes

@@ -56,6 +56,10 @@ REMOTE_LOG_MODE = {'raw', 'json', 'colored'}
 REMOTE_LOG_DEFAULT = 'colored'
 
 
+def _to_print_json(names: tuple, msg: str, lvl: int, l_time: float) -> str:
+    return json.dumps({'lvl': LVL_NAME[lvl], 'time': l_time, 'callers': names, 'msg': msg}, ensure_ascii=False)
+
+
 def colored(msg, color):
     return '\033[{}m{}{}'.format(color, msg, COLOR_END)
 
@@ -103,9 +107,6 @@ class _LogWrapper:
 
 
 class Logger(threading.Thread):
-    REMOTE_LOG = 'remote_log'
-    CHANNEL = 'net_block'
-
     def __init__(self):
         super().__init__(name='Logger')
         self.cfg, self.own = None, None
@@ -114,8 +115,7 @@ class Logger(threading.Thread):
         self.in_print = None
         self._handler = None
         self._app_log = None
-        self._conn = None
-        self._remote_log_mode = REMOTE_LOG_DEFAULT
+        self._remote_log = None
         self._queue = queue.Queue()
         self.log = self.add('Logger')
         self.log('start', INFO)
@@ -123,18 +123,20 @@ class Logger(threading.Thread):
     def init(self, cfg, owner: Owner):
         self.cfg = cfg['log']
         self.own = owner
+        self._remote_log = RemoteLogger(cfg, owner, self.log.add('Remote'))
+        self._remote_log.start()
         self._init()
         self.start()
 
     def reload(self):
+        self._remote_log.reload()
         self._queue.put_nowait('reload')
 
     def join(self, timeout=30):
+        self._remote_log.join()
         self.log('stop.', INFO)
         self._queue.put_nowait(None)
         super().join(timeout=timeout)
-        self._close_connect()
-        self._stop_file_logging()
 
     def run(self):
         while True:
@@ -145,10 +147,9 @@ class Logger(threading.Thread):
                 break
             elif data == 'reload':
                 self._init()
-            elif isinstance(data, list) and len(data) == 3 and data[0] == 'remote_log':
-                self._add_connect(data[1], data[2])
             else:
                 self.log('Wrong data: {}'.format(repr(data)), ERROR)
+        self._stop_file_logging()
 
     def permission_check(self):
         if not write_permission_check(self.cfg.get('file')):
@@ -171,14 +172,6 @@ class Logger(threading.Thread):
         self.in_print = self.cfg.get('method', 3) in [2, 3] and self.print_lvl <= CRIT
         in_file = self.cfg.get('method', 3) in [1, 3] and self.file_lvl <= CRIT
 
-        if self.cfg['remote_log']:
-            # Подписка
-            self.own.subscribe(self.REMOTE_LOG, self._add_remote_log, self.CHANNEL)
-        else:
-            # Отписка
-            self.own.unsubscribe(self.REMOTE_LOG, self._add_remote_log, self.CHANNEL)
-            self._close_connect()
-
         self._stop_file_logging()
 
         if self.cfg.get('file') and in_file and self.permission_check():
@@ -196,43 +189,6 @@ class Logger(threading.Thread):
             self._app_log.setLevel(logging.DEBUG)
             self._app_log.addHandler(self._handler)
 
-    def _add_remote_log(self, _, data, lock, conn):
-        try:
-            # Забираем сокет у сервера
-            conn_ = conn.extract()
-            if conn_:
-                conn_.settimeout(None)
-                self._queue.put_nowait(['remote_log', conn_, data])
-        finally:
-            lock()
-
-    def _add_connect(self, conn, mode):
-        self._close_connect()
-        self._conn = conn
-        self._remote_log_mode = mode if mode in REMOTE_LOG_MODE else REMOTE_LOG_DEFAULT
-        self._conn.start_remote_log()
-        self.log('OPEN REMOTE LOG FOR {}:{}'.format(self._conn.ip, self._conn.port), WARN)
-
-    def _close_connect(self):
-        if self._conn:
-            try:
-                msg = 'CLOSE REMOTE LOG, BYE.'
-                if self._remote_log_mode == 'raw':
-                    pass
-                elif self._remote_log_mode == 'json':
-                    msg = self._to_print_json(('Logger',), msg, _REMOTE, time.time())
-                else:
-                    msg = colored(msg, COLORS[INFO])
-                self._conn.write(msg)
-            except RuntimeError:
-                pass
-            try:
-                self._conn.close()
-            except RuntimeError:
-                pass
-            self.log('CLOSE REMOTE LOG FOR {}:{}'.format(self._conn.ip, self._conn.port), WARN)
-            self._conn = None
-
     def add(self, name) -> _LogWrapper:
         return _LogWrapper(name, self._print)
 
@@ -247,14 +203,14 @@ class Logger(threading.Thread):
         if self.in_print and lvl >= self.print_lvl:
             print_line = self._to_print(names, msg, lvl, l_time)
             print(print_line)
-        if self._conn:
-            if self._remote_log_mode == 'raw':
+        if self._remote_log.connected:
+            if self._remote_log.mode == 'raw':
                 print_line = self._to_print_raw(names, msg, lvl, l_time)
-            elif self._remote_log_mode == 'json':
-                print_line = self._to_print_json(names, msg, lvl, l_time)
+            elif self._remote_log.mode == 'json':
+                print_line = _to_print_json(names, msg, lvl, l_time)
             else:
                 print_line = print_line or self._to_print(names, msg, lvl, l_time)
-            self._to_remote_log(print_line)
+            self._remote_log.msg(print_line)
         if self._app_log and lvl >= self.file_lvl:
             self._to_file(_name_builder(names), msg, lvl)
 
@@ -274,13 +230,104 @@ class Logger(threading.Thread):
     def _to_print_raw(self, names: tuple, msg: str, lvl: int, l_time: float) -> str:
         return '{} {} {}: {}'.format(self._str_time(l_time), LVL_NAME[lvl], _name_builder(names), msg)
 
-    @staticmethod
-    def _to_print_json(names: tuple, msg: str, lvl: int, l_time: float) -> str:
-        return json.dumps({'lvl': LVL_NAME[lvl], 'time': l_time, 'callers': names, 'msg': msg}, ensure_ascii=False)
 
-    def _to_remote_log(self, line: str):
-        if self._conn:
+class RemoteLogger(threading.Thread):
+    REMOTE_LOG = 'remote_log'
+    CHANNEL = 'net_block'
+
+    def __init__(self, cfg, owner: Owner, log):
+        super().__init__(name='RemoteLogger')
+        self.cfg = cfg
+        self.own = owner
+        self.log = log
+        self.mode = REMOTE_LOG_DEFAULT
+        self._queue = queue.Queue()
+        self._conn = None
+        self.connected = False
+
+    def reload(self):
+        self._queue.put_nowait(('reload', None))
+
+    def start(self) -> None:
+        self.log('start', INFO)
+        super().start()
+
+    def join(self, timeout=5):
+        self.log('stopping...')
+        self._queue.put_nowait((None, None))
+        super().join(timeout=timeout)
+        self.log('stop.', INFO)
+
+    def run(self):
+        self._init()
+        while True:
+            data = self._queue.get()
+            if data[0] == 'msg':
+                self._to_remote_log(data[1], data[2])
+            elif data[0] is None:
+                break
+            elif data[0] == 'reload':
+                self._init()
+            elif data[0] == 'remote_log':
+                data[1].settimeout(None)
+                self._add_connect(data[1], data[2])
+            else:
+                self.log('Wrong data: {}'.format(repr(data)), ERROR)
+        self._close_connect()
+
+    def msg(self, line: str):
+        self._queue.put_nowait(('msg', line, self._conn))
+
+    def _to_remote_log(self, line: str, conn):
+        if conn == self._conn and self._conn.alive:
             try:
                 self._conn.write(line)
             except RuntimeError:
                 self._close_connect()
+
+    def _add_remote_log(self, _, data, lock, conn):
+        try:
+            # Забираем сокет у сервера
+            conn_ = conn.extract()
+            if conn_:
+                self._queue.put_nowait(('remote_log', conn_, data))
+        finally:
+            lock()
+
+    def _init(self):
+        if self.cfg.gt('log', 'remote_log'):
+            # Подписка
+            self.own.subscribe(self.REMOTE_LOG, self._add_remote_log, self.CHANNEL)
+        else:
+            # Отписка
+            self.own.unsubscribe(self.REMOTE_LOG, self._add_remote_log, self.CHANNEL)
+            self._close_connect()
+
+    def _close_connect(self):
+        self.connected = False
+        if self._conn:
+            try:
+                msg = 'CLOSE REMOTE LOG, BYE.'
+                if self.mode == 'raw':
+                    pass
+                elif self.mode == 'json':
+                    msg = _to_print_json(('Logger',), msg, _REMOTE, time.time())
+                else:
+                    msg = colored(msg, COLORS[INFO])
+                self._conn.write(msg)
+            except RuntimeError:
+                pass
+            try:
+                self._conn.close()
+            except RuntimeError:
+                pass
+            self.log('CLOSE REMOTE LOG FOR {}:{}'.format(self._conn.ip, self._conn.port), WARN)
+            self._conn = None
+
+    def _add_connect(self, conn, mode):
+        self._close_connect()
+        self.connected = True
+        self._conn = conn
+        self.mode = mode if mode in REMOTE_LOG_MODE else REMOTE_LOG_DEFAULT
+        self._conn.start_remote_log()
+        self.log('OPEN REMOTE LOG FOR {}:{}'.format(self._conn.ip, self._conn.port), WARN)
