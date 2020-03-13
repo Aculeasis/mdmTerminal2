@@ -47,10 +47,18 @@ class API(SocketAPIHandler):
 
     @api_commands('authorization')
     def _api_authorization(self, cmd, remote_hash):
+        """Авторизация, повышает привилегии текущего подключения."""
         return self._base_authorization(cmd, lambda token: hashlib.sha512(token.encode()).hexdigest() == remote_hash)
 
     @api_commands('authorization.totp', pure_json=True)
     def _api_authorization_totp(self, cmd, data):
+        """
+        Перед хешированием токена добавляет к нему "соль" - Unix time поделенный на 2 и округленный до целого.
+        Хеш будет постоянно меняться, но требует чтобы время на терминале и подключаемом устройстве точно совпадало.
+        Также можно передать timestamp, он не участвует в хешировании но позволит узнать временную разницу:
+
+        {"method":"authorization.totp","params":{"hash":"3a2af9d519e51c5bff2e283f2a3d384c6ey0721cb1d715ef356508c57bf1544c498328c59f5670e4aeb6bda135497f4e310960a77f88a046d2bb4185498d941f","timestamp":1582885520.931},"id":"8a5559310b336bad7e139550b7f648ad"}
+        """
         time_ = time.time()
         dict_key_checker(data, ('hash',))
         remote_hash = data['hash']
@@ -72,6 +80,11 @@ class API(SocketAPIHandler):
 
     @api_commands('authorization.self', pure_json=True)
     def _api_authorization_self(self, cmd, data: dict):
+        """
+        Альтернативный способ авторизации, для внутренних нужд:
+
+        {"method": "authorization.self", "params": {"token": "token", "owner": "owner"}}
+        """
         keys = ('token', 'owner')
         dict_key_checker(data, keys)
         for key in keys:
@@ -93,6 +106,7 @@ class API(SocketAPIHandler):
 
     @api_commands('deauthorization')
     def _api_deauthorization(self, cmd, _):
+        """Отменяет авторизацию для текущего подключения."""
         if self._conn.auth:
             self._conn.auth = False
             msg = 'deauthorized'
@@ -102,6 +116,11 @@ class API(SocketAPIHandler):
 
     @api_commands('get', true_json=('get',), true_legacy=('get',))
     def _api_get(self, _, data):
+        """
+        Возвращает значение в зависимости от key вместе с ним самим.
+        Возможные значения key - volume, nvolume, mvolume, mstate, listener.
+        С JSON-RPC можно запросить несколько значений.
+        """
         cmd_map = {
             'volume': self.own.get_volume,
             'nvolume': self.own.get_volume,
@@ -128,8 +147,27 @@ class API(SocketAPIHandler):
     def _api_terminal_direct(self, name: str, cmd: str):
         self.own.terminal_call(OLD_CMD[name] if name in OLD_CMD else name, cmd)
 
-    @api_commands('tts', 'ask', true_json=True)
-    def _api_says(self, cmd, data):
+    @api_commands('ask', true_json=True)
+    def _api_ask(self, cmd, data):
+        """
+        Произнести текст.
+
+        JSON-RPC использует другой синтаксис и позволяет опционально задать провайдера:
+        {"method": "tts", "params": {"text": "привет", "provider": "google"}}
+        """
+        self._base_says(cmd, data)
+
+    @api_commands('tts', true_json=True)
+    def _api_tts(self, cmd, data):
+        """
+        Произнести текст и перейти в режим ожидания голосовой команды.
+
+        JSON-RPC использует другой синтаксис и позволяет опционально задать провайдера:
+        {"method": "ask", "params": {"text": "скажи привет", "provider": "rhvoice-rest"}}
+        """
+        self._base_says(cmd, data)
+
+    def _base_says(self, cmd, data):
         data = data if isinstance(data, dict) else {'text': data[0]}
         dict_key_checker(data, keys=('text',))
         self.own.terminal_call(cmd, TextBox(data['text'], data.get('provider')))
@@ -294,22 +332,20 @@ class API(SocketAPIHandler):
         Возвращает справку по команде из __doc__ или список доступных команд если команда не задана.
         Учитывает только команды представленные в API, подписчики не проверяются.
         """
-        result = {'cmd': cmd}
+        result = {'cmd': cmd, 'msg': ''}
         if not cmd:
             result.update(cmd=[x for x in self.API], msg='Available commands')
         elif cmd not in self.API:
             raise InternalException(msg='Unknown command: {}'.format(cmd))
         else:
             if self.API[cmd].__doc__:
-                clear_doc = self.API[cmd].__doc__.split('\n\n')[0].rstrip().strip('\n')
-            else:
-                clear_doc = 'Undocumented'
+                result['msg'] = self.API[cmd].__doc__.strip('\n').rstrip()
+            result['msg'] = result['msg'] or 'Undocumented'
             flags = [k for k, s in (
                 ('TRUE_JSON', self.TRUE_JSON), ('TRUE_LEGACY', self.TRUE_LEGACY), ('PURE_JSON', self.PURE_JSON)
             ) if cmd in s]
             if flags:
-                clear_doc = '{}\nFLAGS: {}'.format(clear_doc, flags)
-            result['msg'] = clear_doc
+                result['flags'] = flags
         return result
 
     @api_commands('notifications.list')

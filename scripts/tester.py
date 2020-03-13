@@ -418,12 +418,18 @@ def parse_dict(cmd, data):
         for key in ('cmd', 'msg'):
             if key not in data:
                 return print('Не хватает ключа в body: {}'.format(key))
+        flags = None
         if isinstance(data['cmd'], (list, dict)):
             data['cmd'] = ', '.join(x for x in data['cmd'])
         if isinstance(data['msg'], str) and '\n' in data['msg']:
             data['msg'] = '\n' + data['msg']
+        if isinstance(data.get('flags'), list) and data['flags']:
+            flags = ', '.join(data['flags'])
+
         print('\nINFO: {}'.format(data['cmd']))
         print('MSG: {}\n'.format(data['msg']))
+        if flags:
+            print('FLAGS: {}\n'.format(flags))
         return
     else:
         return cmd, data
