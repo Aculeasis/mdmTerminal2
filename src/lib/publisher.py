@@ -41,10 +41,10 @@ class PubSub(threading.Thread):
         super().join(timeout=timeout)
 
     def run(self):
-        while self.work:
-            self._processing(self._queue.get())
+        while self._processing(self._queue.get()):
+            pass
 
-    def _processing(self, data):
+    def _processing(self, data) -> bool:
         if isinstance(data, tuple):
             self._call_processing(*data)
         elif isinstance(data, list):
@@ -56,9 +56,10 @@ class PubSub(threading.Thread):
             else:
                 raise RuntimeError('Wrong command: {}, {}'.format(repr(cmd), repr(data)))
         elif data is None:
-            return
+            return False
         else:
             raise RuntimeError('Wrong type of data: {}'.format(repr(data)))
+        return True
 
     def _call_processing(self, channel, name, args, kwargs):
         # Вызываем подписчиков

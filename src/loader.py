@@ -44,7 +44,7 @@ class Loader(Owner):
         self._pub = PubSub()
         self._sig.set_wakeup_callback(lambda: self.sub_call('default', 'terminal_stop', True))
 
-        self._logger = logger.Logger()
+        self._logger = logger.Logger(self)
         proxies.add_logger(self._logger.add('Proxy'))
         self._cfg = ConfigHandler(cfg=init_cfg, path=path, log=self._logger.add('CFG'), owner=self)
         self._logger.init(cfg=self._cfg, owner=self)
@@ -103,12 +103,13 @@ class Loader(Owner):
         self._stt.stop()
         self._play.stop()
         self.join_thread(self._music)
-        self.join_thread(self._pub)
 
         if self._restore_filename:
             self._backup.restore(self._restore_filename)
             self._restore_filename = ''
 
+        self.join_thread(self._logger.remote_log)
+        self.join_thread(self._pub)
         self._logger.join()
 
     def log(self, msg: str, lvl=logger.DEBUG):

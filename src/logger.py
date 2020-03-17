@@ -56,7 +56,7 @@ REMOTE_LOG_MODE = {'raw', 'json', 'colored'}
 REMOTE_LOG_DEFAULT = 'colored'
 
 
-def _to_print_json(names: tuple, msg: str, lvl: int, l_time: float) -> str:
+def _to_print_json(l_time: float, names: tuple, msg: str, lvl: int) -> str:
     return json.dumps({'lvl': LVL_NAME[lvl], 'time': l_time, 'callers': names, 'msg': msg}, ensure_ascii=False)
 
 
@@ -90,51 +90,56 @@ def _name_builder(names: tuple, colored_=False):
 
 
 class _LogWrapper:
-    def __init__(self, name: str or list, print_):
-        if isinstance(name, str):
-            name = [name]
-        self.name = name
-        self._print = print_
+    def __init__(self, name: str or tuple, call_event):
+        self.name = (name,) if isinstance(name, str) else name
+        self._call_event = call_event
+
+    def _print(self, *args):
+        self._call_event(time.time(), *args)
 
     def __call__(self, msg: str, lvl=DEBUG):
         self._print(self.name, msg, lvl)
 
     def module(self, module_name: str, msg: str, lvl=DEBUG):
-        self._print(self.name + [module_name], msg, lvl)
+        self._print(self.name + (module_name,), msg, lvl)
 
     def add(self, name: str):
-        return _LogWrapper(self.name + [name], self._print)
+        return _LogWrapper(self.name + (name,), self._call_event)
 
 
 class Logger(threading.Thread):
-    def __init__(self):
+    EVENT = 'log'
+
+    def __init__(self, tmp_own: Owner):
         super().__init__(name='Logger')
+        self._queue = queue.Queue()
+        self._call_event = tmp_own.registration(self.EVENT)
+        # Не отписываемся
+        tmp_own.subscribe(self.EVENT, lambda _, *args, **__: self._queue.put_nowait(args))
         self.cfg, self.own = None, None
         self.file_lvl = None
         self.print_lvl = None
         self.in_print = None
         self._handler = None
         self._app_log = None
-        self._remote_log = None
-        self._queue = queue.Queue()
+        self.remote_log = None
         self.log = self.add('Logger')
         self.log('start', INFO)
 
     def init(self, cfg, owner: Owner):
         self.cfg = cfg['log']
         self.own = owner
-        self._remote_log = RemoteLogger(cfg, owner, self.log.add('Remote'))
-        self._remote_log.start()
+        self.remote_log = RemoteLogger(cfg, owner, self.log.add('Remote'))
+        self.remote_log.start()
         self._init()
         self.start()
 
     def reload(self):
-        self._remote_log.reload()
+        self.remote_log.reload()
         self._queue.put_nowait('reload')
 
     def join(self, timeout=30):
-        self._remote_log.join()
-        self.log('stop.', INFO)
+        self._queue.put_nowait((time.time(), self.log.name, 'stop.', INFO))
         self._queue.put_nowait(None)
         super().join(timeout=timeout)
 
@@ -190,27 +195,23 @@ class Logger(threading.Thread):
             self._app_log.addHandler(self._handler)
 
     def add(self, name) -> _LogWrapper:
-        return _LogWrapper(name, self._print)
+        return _LogWrapper(name, self._call_event)
 
-    def _print(self, *args):
-        self._queue.put_nowait((time.time(), *args))
-
-    def _best_print(self, l_time: float, names: list, msg: str, lvl: int):
-        names = tuple(names)
+    def _best_print(self, l_time: float, names: tuple, msg: str, lvl: int):
         if lvl not in COLORS:
             raise RuntimeError('Incorrect log level:{}'.format(lvl))
         print_line = None
         if self.in_print and lvl >= self.print_lvl:
-            print_line = self._to_print(names, msg, lvl, l_time)
+            print_line = self._to_print(l_time, names, msg, lvl)
             print(print_line)
-        if self._remote_log.connected:
-            if self._remote_log.mode == 'raw':
-                print_line = self._to_print_raw(names, msg, lvl, l_time)
-            elif self._remote_log.mode == 'json':
-                print_line = _to_print_json(names, msg, lvl, l_time)
+        if self.remote_log.connected:
+            if self.remote_log.mode == 'raw':
+                print_line = self._to_print_raw(l_time, names, msg, lvl)
+            elif self.remote_log.mode == 'json':
+                print_line = _to_print_json(l_time, names, msg, lvl)
             else:
-                print_line = print_line or self._to_print(names, msg, lvl, l_time)
-            self._remote_log.msg(print_line)
+                print_line = print_line or self._to_print(l_time, names, msg, lvl)
+            self.remote_log.msg(print_line)
         if self._app_log and lvl >= self.file_lvl:
             self._to_file(_name_builder(names), msg, lvl)
 
@@ -223,11 +224,11 @@ class Logger(threading.Thread):
             time_str += '.{:03d}'.format(int(l_time * 1000 % 1000))
         return time_str
 
-    def _to_print(self, names: tuple, msg: str, lvl: int, l_time: float) -> str:
+    def _to_print(self, l_time: float, names: tuple, msg: str, lvl: int) -> str:
         str_time = self._str_time(l_time)
         return '{} {}: {}'.format(str_time, _name_builder(names, True), colored(msg, COLORS[lvl]))
 
-    def _to_print_raw(self, names: tuple, msg: str, lvl: int, l_time: float) -> str:
+    def _to_print_raw(self, l_time: float, names: tuple, msg: str, lvl: int) -> str:
         return '{} {} {}: {}'.format(self._str_time(l_time), LVL_NAME[lvl], _name_builder(names), msg)
 
 
@@ -244,6 +245,7 @@ class RemoteLogger(threading.Thread):
         self._queue = queue.Queue()
         self._conn = None
         self.connected = False
+        self.work = True
 
     def reload(self):
         self._queue.put_nowait(('reload', None))
@@ -253,10 +255,8 @@ class RemoteLogger(threading.Thread):
         super().start()
 
     def join(self, timeout=5):
-        self.log('stopping...')
         self._queue.put_nowait((None, None))
         super().join(timeout=timeout)
-        self.log('stop.', INFO)
 
     def run(self):
         self._init()
@@ -311,7 +311,7 @@ class RemoteLogger(threading.Thread):
                 if self.mode == 'raw':
                     pass
                 elif self.mode == 'json':
-                    msg = _to_print_json(('Logger',), msg, _REMOTE, time.time())
+                    msg = _to_print_json(time.time(), ('Logger',), msg, _REMOTE)
                 else:
                     msg = colored(msg, COLORS[INFO])
                 self._conn.write(msg)
