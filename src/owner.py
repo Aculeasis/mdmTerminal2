@@ -144,20 +144,6 @@ class Owner:
     def is_stt_provider(self, name: str) -> bool:
         raise NotImplementedError
 
-    @property
-    def duplex_mode_on(self) -> bool:
-        """
-        Duplex mode активен.
-        """
-        raise NotImplementedError
-
-    def duplex_mode_off(self):
-        """
-        Закрыть активное соединение в duplex mode (если есть).
-        :return: None
-        """
-        raise NotImplementedError
-
     def plugins_status(self, state: str) -> dict:
         """
         Имена и абсолютные пути до плагинов в определенном состоянии.

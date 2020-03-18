@@ -34,7 +34,7 @@ class MajordomoNotifier(threading.Thread):
         self._skip = SkipNotifications()
         self._dynamic_self_events = set(self.SELF_EVENTS)
         self._events = ()
-        self.outgoing = OutgoingSocket(self._cfg, log.add('O'), self.own)
+        self.outgoing = OutgoingSocket(cfg, log.add('O'), self.own)
 
     def list_notifications(self) -> list:
         with self._lock:
@@ -124,6 +124,7 @@ class MajordomoNotifier(threading.Thread):
     def join(self, timeout=30):
         self._save()
         self._queue.put_nowait(None)
+        self._unsubscribe()
         super().join(timeout=timeout)
         self.outgoing.join(timeout=timeout)
 

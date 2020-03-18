@@ -9,7 +9,8 @@ class PubSub(threading.Thread):
         self._event_callbacks = {}
         # Очередь вызовов, все вызовы и изменения подписок делаем в треде
         self._queue = queue.Queue()
-        self.work = True
+        self.stopping = False
+        self._unsubscribe_later = []
         self.start()
 
     def subscribe(self, event, callback, channel='default') -> bool:
@@ -44,6 +45,12 @@ class PubSub(threading.Thread):
         while self._processing(self._queue.get()):
             pass
 
+    def report(self):
+        while self._unsubscribe_later:
+            self._remove_subscribe(*self._unsubscribe_later.pop(0))
+        if self._event_callbacks:
+            print('PubSub orphans:', self._event_callbacks)
+
     def _processing(self, data) -> bool:
         if isinstance(data, tuple):
             self._call_processing(*data)
@@ -52,7 +59,10 @@ class PubSub(threading.Thread):
             if cmd == 'add_subscribe':
                 self._add_subscribe(data, channel)
             elif cmd == 'remove_subscribe':
-                self._remove_subscribe(data, channel)
+                if self.stopping:
+                    self._unsubscribe_later.append((data, channel))
+                else:
+                    self._remove_subscribe(data, channel)
             else:
                 raise RuntimeError('Wrong command: {}, {}'.format(repr(cmd), repr(data)))
         elif data is None:

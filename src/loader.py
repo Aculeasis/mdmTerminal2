@@ -8,7 +8,7 @@ import stts
 from backup import Backup
 from config import ConfigHandler
 from discovery_server import DiscoveryServer
-from duplex_mode import DuplexMode
+from duplex_mode import DuplexPool
 from languages import F
 from lib import STT, TTS
 from lib import volume as volume_
@@ -62,7 +62,8 @@ class Loader(Owner):
         self._terminal = MDTerminal(cfg=self._cfg, log=self._logger.add('Terminal'), owner=self)
         self._server = server_constructor(cfg=self._cfg, logger=self._logger, owner=self)
         self._plugins = Plugins(cfg=self._cfg, log=self._logger.add('Plugins'), owner=self)
-        self._duplex_mode = DuplexMode(cfg=self._cfg, log=self._logger.add('DuplexMode'), owner=self)
+        self._duplex_pool = DuplexPool(cfg=self._cfg, log=self._logger.add('DP'), owner=self)
+
         self._discovery = DiscoveryServer(cfg=self._cfg, log=self._logger.add('Discovery'))
 
     def start_all_systems(self):
@@ -94,7 +95,7 @@ class Loader(Owner):
         self.join_thread(self._backup)
         self.join_thread(self._updater)
         self.join_thread(self._notifier)
-        self.join_thread(self._duplex_mode)
+        self.join_thread(self._duplex_pool)
 
         self._play.quiet()
         self._play.kill_popen()
@@ -109,8 +110,11 @@ class Loader(Owner):
             self._restore_filename = ''
 
         self.join_thread(self._logger.remote_log)
-        self.join_thread(self._pub)
+        self._pub.stopping = True
         self._logger.join()
+        self._pub.join()
+
+        self._pub.report()
 
     def log(self, msg: str, lvl=logger.DEBUG):
         self._log(msg, lvl)
@@ -125,6 +129,9 @@ class Loader(Owner):
             return ' {}'.format(_call()) if callable(_call) else ''
 
         with self._join_lock:
+            close_signal = getattr(obj, 'close_signal', None)
+            if close_signal:
+                close_signal()
             if not obj.work:
                 return
             log_present = callable(getattr(obj, 'log', None))
@@ -214,13 +221,6 @@ class Loader(Owner):
 
     def is_stt_provider(self, name: str) -> bool:
         return name in STT.PROVIDERS
-
-    @property
-    def duplex_mode_on(self) -> bool:
-        return self._duplex_mode.duplex
-
-    def duplex_mode_off(self):
-        return self._duplex_mode.off()
 
     def plugins_status(self, state: str) -> dict:
         return self._plugins.status(state)
@@ -487,6 +487,7 @@ class Loader(Owner):
                     self.messenger(self.server_reload, None)
                 # resubscribe
                 self._notifier.reload(diff)
+                self._duplex_pool.reload()
             if is_sub_dict('noise_suppression', diff):
                 # reconfigure APM. Reload terminal - later
                 self._cfg.apm_configure()

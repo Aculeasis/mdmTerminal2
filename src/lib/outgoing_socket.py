@@ -6,7 +6,7 @@ import threading
 import time
 
 import logger
-from lib.api.misc import upgrade_duplex
+from duplex_mode import DuplexInstance
 from lib.socket_wrapper import create_connection
 from owner import Owner
 
@@ -31,9 +31,8 @@ def _get_address(outgoing_socket: str) -> tuple:
 
 class OutgoingSocket(threading.Thread):
     INTERVAL = 60
-    EVENT = 'duplex_mode'
 
-    def __init__(self, cfg: dict, log, own: Owner):
+    def __init__(self, cfg, log, own: Owner):
         super().__init__(name='OutgoingSocket')
         self.cfg = cfg
         self.log = log
@@ -41,50 +40,68 @@ class OutgoingSocket(threading.Thread):
         self.work = False
         self._connected = False
         self._wait = threading.Event()
+        self._duplex = None
+        self._outgoing_socket = None
 
-    def _duplex_mode_event(self, cmd, state, *_):
-        if cmd == self.EVENT:
-            if state == 'close':
-                self._connected = False
-            elif state == 'open':
-                self._connected = True
-            self._wait.set()
+    def _close_callback(self):
+        self._connected = False
+        self._wait.set()
 
     def reload(self):
+        self._set_outgoing_socket()
         self._wait.set()
 
     def start(self):
+        self._set_outgoing_socket()
         if not self.work:
             self.work = True
-            self.own.subscribe(self.EVENT, self._duplex_mode_event)
             super().start()
 
     def join(self, timeout=None):
         if self.work:
             self.work = False
-            self.own.unsubscribe(self.EVENT, self._duplex_mode_event)
             self._wait.set()
             super().join(timeout=timeout)
 
+    def _close_duplex(self):
+        if self._duplex:
+            self._connected = False
+            self._duplex.join()
+            self._duplex = None
+
+    def _start_duplex(self, address: tuple, conn):
+        conn.auth = True
+        self._connected = True
+        name = '{}::{}:{}'.format(*address)
+        self._duplex = DuplexInstance(
+            self.cfg, self.log.add(name), self.own, name, conn.extract(), '', self._close_callback
+        )
+        self.log('Upgrade duplex ok {}'.format(name), logger.INFO)
+
+    def _set_outgoing_socket(self):
+        outgoing_socket = self.cfg.gt('smarthome', 'outgoing_socket')
+        if outgoing_socket != self._outgoing_socket:
+            self._outgoing_socket = outgoing_socket
+            self._connected = False
+
     def run(self):
         while self.work:
+            self._close_duplex()
             self._connect()
-            sleep_time = self.INTERVAL
+            sleep_time = self.INTERVAL if not self._connected else 0
             while self.work and (self._connected or sleep_time > 0):
                 self._wait.clear()
                 s_time = time.time()
                 self._wait.wait(self.INTERVAL)
                 if sleep_time > 0:
                     sleep_time -= (time.time() - s_time)
+        self._close_duplex()
 
     def _connect(self) -> bool:
-        outgoing_socket = self.cfg['outgoing_socket']
-        # FIXME: race condition
-        time.sleep(0.1)
-        if not outgoing_socket or self.own.duplex_mode_on:
+        if not self._outgoing_socket:
             return False
         try:
-            proto, *address = _get_address(outgoing_socket)
+            proto, *address = _get_address(self._outgoing_socket)
         except RuntimeError as e:
             self.log('outgoing_socket: {}'.format(e), logger.CRIT)
             return False
@@ -96,7 +113,7 @@ class OutgoingSocket(threading.Thread):
             self.log('Connect to {}::{}:{}: {}'.format(*address, e), logger.ERROR)
             return False
 
-        token = self.cfg['token']
+        token = self.cfg.gt('smarthome', 'token')
         hash_ = hashlib.sha512(token.encode() if token else os.urandom(64)).hexdigest()
         stage = 1
         try:
@@ -110,11 +127,7 @@ class OutgoingSocket(threading.Thread):
                         soc.write({'method': 'upgrade duplex', 'id': 'upgrade duplex'})
                     else:
                         self._check_stage(line, 'upgrade duplex')
-                        soc.auth = True
-                        upgrade_duplex(self.own, soc)
-                        self.log('Upgrade duplex ok {}::{}:{}'.format(*address), logger.INFO)
-                        # FIXME: race condition
-                        time.sleep(0.1)
+                        self._start_duplex(address, soc)
                         return True
                 except (ValueError, TypeError) as e:
                     self.log('Wrong reply {}::{}:{}: {}'.format(*address, e), logger.WARN)

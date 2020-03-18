@@ -14,6 +14,10 @@ SETTINGS_TESTER = {
         'vad_lvl': lambda x: min_max(x, 1, 3),
         'speech_timeout': lambda x: min_max(x, min_=0),
     },
+    'smarthome': {
+        'heartbeat_timeout': lambda x: min_max(x, min_=0),
+        'pool_size': lambda x: min_max(x, min_=0),
+    },
     'log': {
         'method': lambda x: min_max(x, 0, 3),
     },

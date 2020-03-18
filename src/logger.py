@@ -13,6 +13,7 @@ import json
 from languages import F
 from owner import Owner
 from utils import write_permission_check
+from uuid import uuid4
 
 DEBUG = logging.DEBUG
 INFO = logging.INFO
@@ -114,23 +115,26 @@ class Logger(threading.Thread):
         super().__init__(name='Logger')
         self._queue = queue.Queue()
         self._call_event = tmp_own.registration(self.EVENT)
-        # Не отписываемся
-        tmp_own.subscribe(self.EVENT, lambda _, *args, **__: self._queue.put_nowait(args))
+        tmp_own.subscribe(self.EVENT, self._event)
         self.cfg, self.own = None, None
         self.file_lvl = None
         self.print_lvl = None
         self.in_print = None
         self._handler = None
         self._app_log = None
+        self._await = None
         self.remote_log = None
         self.log = self.add('Logger')
         self.log('start', INFO)
+
+    def _event(self, _, *args, **__):
+        self._queue.put_nowait(args)
 
     def init(self, cfg, owner: Owner):
         self.cfg = cfg['log']
         self.own = owner
         self.remote_log = RemoteLogger(cfg, owner, self.log.add('Remote'))
-        self.remote_log.start()
+        self.remote_log.init()
         self._init()
         self.start()
 
@@ -139,14 +143,19 @@ class Logger(threading.Thread):
         self._queue.put_nowait('reload')
 
     def join(self, timeout=30):
-        self._queue.put_nowait((time.time(), self.log.name, 'stop.', INFO))
-        self._queue.put_nowait(None)
+        self._await = True
+        self.log('stop', INFO)
+        self._await = '{}'.format(uuid4())
+        self.log(self._await)
         super().join(timeout=timeout)
+        self.own.unsubscribe(self.EVENT, self._event)
 
     def run(self):
         while True:
             data = self._queue.get()
             if isinstance(data, tuple):
+                if self._await and self._await == data[2]:
+                    break
                 self._best_print(*data)
             elif data is None:
                 break
@@ -245,21 +254,28 @@ class RemoteLogger(threading.Thread):
         self._queue = queue.Queue()
         self._conn = None
         self.connected = False
-        self.work = True
+        self.work = None
 
     def reload(self):
+        self.start()
         self._queue.put_nowait(('reload', None))
 
     def start(self) -> None:
-        self.log('start', INFO)
-        super().start()
+        if self.work is None:
+            self.work = True
+            self.log('start', INFO)
+            super().start()
+
+    def close_signal(self):
+        if self.work is None:
+            self.init(init=False)
 
     def join(self, timeout=5):
         self._queue.put_nowait((None, None))
         super().join(timeout=timeout)
 
     def run(self):
-        self._init()
+        self.init()
         while True:
             data = self._queue.get()
             if data[0] == 'msg':
@@ -267,13 +283,13 @@ class RemoteLogger(threading.Thread):
             elif data[0] is None:
                 break
             elif data[0] == 'reload':
-                self._init()
+                self.init()
             elif data[0] == 'remote_log':
                 data[1].settimeout(None)
                 self._add_connect(data[1], data[2])
             else:
                 self.log('Wrong data: {}'.format(repr(data)), ERROR)
-        self._close_connect()
+        self.init(init=False)
 
     def msg(self, line: str):
         self._queue.put_nowait(('msg', line, self._conn))
@@ -291,11 +307,12 @@ class RemoteLogger(threading.Thread):
             conn_ = conn.extract()
             if conn_:
                 self._queue.put_nowait(('remote_log', conn_, data))
+                self.start()
         finally:
             lock()
 
-    def _init(self):
-        if self.cfg.gt('log', 'remote_log'):
+    def init(self, init=True):
+        if self.cfg.gt('log', 'remote_log') and init:
             # Подписка
             self.own.subscribe(self.REMOTE_LOG, self._add_remote_log, self.CHANNEL)
         else:

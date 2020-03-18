@@ -3,64 +3,61 @@ import queue
 import threading
 
 from lib.api.api import InternalException
+from lib.socket_wrapper import Connect
 from owner import Owner
 
 
 class SubscriptionsWorker(threading.Thread):
-    def __init__(self, own: Owner):
+    def __init__(self, own: Owner, conn: Connect):
         super().__init__()
         self.own = own
+        self._conn = conn
         self._queue = queue.Queue()
-        self.work = True
-        self._conn = None
-        self._disconnect = False
         self._subscribes = set()
+        self.work = True
         self.start()
 
     def run(self) -> None:
         while self.work:
-            cmd, item = self._queue.get()
-            if not self.work:
-                return
-            if self._disconnect:
-                self._disconnect = False
-                self._queue = queue.Queue()
-                self._conn = None
-            elif cmd is None:
-                continue
-            elif cmd == 'connect':
-                self._queue = queue.Queue()
-                self._conn = item
-            elif cmd.alive:
-                name, args, kwargs = _send_adapter(*item)
+            notify = self._queue.get()
+            if notify is None:
+                break
+            elif self._conn.alive:
+                name, args, kwargs = _send_adapter(*notify)
                 msg = {'method': 'notify.{}'.format(name), 'params': {'args': args, 'kwargs': kwargs}}
-                cmd.write(msg)
+                self._conn.write(msg)
+            else:
+                break
+        self._unsubscribe_all()
 
     def _new_message(self, name, *args, **kwargs):
-        self._queue.put_nowait((self._conn, (name, args, kwargs)))
+        if self.work:
+            self._queue.put_nowait((name, args, kwargs))
 
-    def connect(self, conn):
-        self._queue.put_nowait(('connect', conn))
-
-    def disconnect(self):
+    def _unsubscribe_all(self):
+        self.work = False
         if self._subscribes:
             self.own.unsubscribe(list(self._subscribes), self._new_message)
             self._subscribes.clear()
-            self._disconnect = True
-            self._queue.put_nowait((None, None))
+
+    def close_signal(self):
+        self._queue.put_nowait(None)
+        self.work = False
 
     def join(self, timeout=5):
-        if self.work:
-            self.work = False
-            self._queue.put_nowait((None, None))
-            super().join(timeout)
+        self.close_signal()
+        super().join(timeout)
 
     def subscribe(self, data: list) -> bool:
+        if not self.work:
+            return False
         data = _sanitize_subscribe_list(data) - self._subscribes
         self._subscribes.update(data)
         return self.own.subscribe(list(data), self._new_message)
 
     def unsubscribe(self, data: list) -> bool:
+        if not self.work:
+            return False
         data = _sanitize_subscribe_list(data) & self._subscribes
         self._subscribes.difference_update(data)
         return self.own.unsubscribe(list(data), self._new_message)
