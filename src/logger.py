@@ -143,7 +143,6 @@ class Logger(threading.Thread):
         self._queue.put_nowait('reload')
 
     def join(self, timeout=30):
-        self._await = True
         self.log('stop', INFO)
         self._await = '{}'.format(uuid4())
         self.log(self._await)
