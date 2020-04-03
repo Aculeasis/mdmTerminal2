@@ -59,7 +59,7 @@ class MDTerminal(threading.Thread):
     def join(self, timeout=30):
         self._wait.set()
         super().join(timeout=timeout)
-        self._listener_notify(False)
+        self._listener_notify_cached(False)
 
     def start(self):
         self.work = True
@@ -133,7 +133,7 @@ class MDTerminal(threading.Thread):
             self._snowboy = self.own.recognition_forever(self._interrupt_check, self._detected_parse)
         else:
             self._snowboy = None
-        self._listener_notify(bool(self._snowboy))
+        self._listener_notify_cached(bool(self._snowboy))
         self._wait.set()
 
     def _listen(self):
@@ -229,19 +229,28 @@ class MDTerminal(threading.Thread):
 
     def _change_listener(self, cmd: str):
         cmd = cmd.lower()
-        listening = None
         if not cmd:
             listening = not self.listening
         elif cmd in ('off', 'disable'):
             listening = False
         elif cmd in ('on', 'enable'):
             listening = True
+        else:
+            return
 
-        if listening is not None and listening != self.listening:
+        if listening != self.listening:
             self.listening = listening
             self._reload()
+        else:
+            self._listener_notify_always()
 
     @lru_cache(maxsize=1)
+    def _listener_notify_cached(self, state: bool):
+        self._listener_notify(state)
+
+    def _listener_notify_always(self):
+        self._listener_notify(bool(self._snowboy))
+
     def _listener_notify(self, state: bool):
         self.own.sub_call('default', 'listener', 'on' if state else 'off')
 
