@@ -15,6 +15,7 @@
 **Интеграция**
 - [MajorDoMo](https://github.com/sergejey/majordomo): [MDM VoiceAssistant](https://github.com/lanket/mdmPiTerminalModule).
 - [intraHouse](https://github.com/intrahouseio): [plugin-voiceterminal](https://github.com/intrahouseio/intraHouse.plugin-voiceterminal) (WIP).
+- [Home Assistant](https://home-assistant.io/): Через [плагин](https://github.com/netman1ac/mdmt2-mqtt) для поддержки MQTT.
 - [Приложение под Android](https://github.com/Aculeasis/mdmt2-config-android).
 - Google Home: Через [плагин](https://github.com/Aculeasis/mdmt2-google-assistant) (частично).
 - [API документация](https://github.com/Aculeasis/mdmTerminal2/wiki/API-(draft)) (WIP).
