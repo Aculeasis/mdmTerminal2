@@ -51,6 +51,13 @@ class Owner:
         """
         raise NotImplementedError
 
+    def events_list(self, channel='default') -> list:
+        """
+        :param channel: канал.
+        :return: список событий у которых есть подписчики.
+        """
+        raise NotImplementedError
+
     def send_notify(self, event: str, *args, **kwargs):
         """
         sub_call в канал default

@@ -145,7 +145,7 @@ class TestShell(cmd__.Cmd):
     def _send_json(self, cmd: str, data='', is_logger=False):
         self._send(json.dumps({'method': cmd, 'params': [data], 'id': cmd}, ensure_ascii=False), is_logger)
 
-    def _send_true_json(self, cmd: str, data: dict):
+    def _send_true_json(self, cmd: str, data: dict or list):
         self._send(json.dumps({'method': cmd, 'params': data, 'id': cmd}, ensure_ascii=False))
 
     def _send(self, cmd: str, is_logger=False):
@@ -170,6 +170,9 @@ class TestShell(cmd__.Cmd):
         else:
             print('Start duplex')
             self._client = Client((self._ip, self._port), self._token, self.chunk_size, True, api=self._api)
+
+    def _is_duplex(self) -> bool:
+        return self._client and not self._client.is_logger and self._client.work and self._client.connect
 
     def _send_says(self, cmd: str, data: str):
         test = data.rsplit('~', 1)
@@ -357,6 +360,12 @@ class TestShell(cmd__.Cmd):
     def do_info(self, arg):
         """Информация о команде"""
         self._send_json('info', data=arg)
+
+    def do_events_list(self, _):
+        """Список событий имеющих подписчиков"""
+        if not self._is_duplex():
+            return print('Duplex must be active!')
+        self._send_true_json('events_list', data=[])
 
 
 def str_to_list(line) -> list:

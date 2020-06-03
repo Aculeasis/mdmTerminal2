@@ -27,6 +27,9 @@ class PubSub(threading.Thread):
     def has_subscribers(self, event: str, channel='default') -> bool:
         return event in self._event_callbacks.get(channel, {})
 
+    def events_list(self, channel='default') -> list:
+        return list(self._event_callbacks.get(channel, {}).keys())
+
     def call(self, name, *args, **kwargs):
         # Внешний вызов, канал default
         self._queue.put_nowait(('default', name, args, kwargs))

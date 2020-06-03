@@ -150,20 +150,20 @@ class API(SocketAPIHandler):
     @api_commands('ask', true_json=True)
     def _api_ask(self, cmd, data):
         """
-        Произнести текст.
+        Произнести текст и перейти в режим ожидания голосовой команды.
 
         JSON-RPC использует другой синтаксис и позволяет опционально задать провайдера:
-        {"method": "tts", "params": {"text": "привет", "provider": "google"}}
+        {"method": "ask", "params": {"text": "скажи привет", "provider": "rhvoice-rest"}}
         """
         self._base_says(cmd, data)
 
     @api_commands('tts', true_json=True)
     def _api_tts(self, cmd, data):
         """
-        Произнести текст и перейти в режим ожидания голосовой команды.
+        Произнести текст.
 
         JSON-RPC использует другой синтаксис и позволяет опционально задать провайдера:
-        {"method": "ask", "params": {"text": "скажи привет", "provider": "rhvoice-rest"}}
+        {"method": "tts", "params": {"text": "привет", "provider": "google"}}
         """
         self._base_says(cmd, data)
 

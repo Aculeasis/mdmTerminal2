@@ -62,6 +62,9 @@ class SubscriptionsWorker(threading.Thread):
         self._subscribes.difference_update(data)
         return self.own.unsubscribe(list(data), self._new_message)
 
+    def events_list(self) -> list:
+        return _send_list_adapter(self.own.events_list()) if self.work else []
+
 
 def _sanitize_subscribe_list(data: list) -> set:
     if not data or not isinstance(data, list) or any(True for el in data if not isinstance(el, str) or el == ''):
@@ -74,6 +77,8 @@ _ADAPTER_SEND_MAP = {
     'stop_talking': ('talking', False),
     'start_record': ('record', True),
     'stop_record': ('record', False),
+    'start_stt_event': ('stt_event', True),
+    'stop_stt_event': ('stt_event', False),
 }
 
 _ADAPTER_RECEIVE_MAP = {}
@@ -95,6 +100,10 @@ def _receive_adapter(subscriptions: set) -> set:
             subscriptions.discard(key)
             subscriptions.update(_ADAPTER_RECEIVE_MAP[key])
     return subscriptions
+
+
+def _send_list_adapter(events: list) -> list:
+    return list({_ADAPTER_SEND_MAP.get(key, (key,))[0] for key in events})
 
 
 def _send_adapter(name, args, kwargs) -> tuple:

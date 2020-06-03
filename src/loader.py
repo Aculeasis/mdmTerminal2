@@ -162,6 +162,9 @@ class Loader(Owner):
     def has_subscribers(self, event: str, channel='default') -> bool:
         return self._pub.has_subscribers(event, channel)
 
+    def events_list(self, channel='default') -> list:
+        return self._pub.events_list(channel)
+
     def send_notify(self, event: str, *args, **kwargs):
         return self._pub.sub_call('default', event, *args, **kwargs)
 

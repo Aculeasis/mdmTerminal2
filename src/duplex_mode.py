@@ -162,6 +162,10 @@ class DuplexInstance(API):
     def _api_unsubscribe(self, _, data: list):
         return self._notify_worker.unsubscribe(data)
 
+    @api_commands('events_list', pure_json=True)
+    def _api_events_list(self, *_):
+        return self._notify_worker.events_list()
+
     def do_ws_allow(self, *args, **kwargs):
         return False
 
