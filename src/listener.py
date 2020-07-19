@@ -23,10 +23,10 @@ class Listener:
             self.log(msg, logger.CRIT)
 
     def recognition_forever(self, interrupt_check: callable, callback: callable):
-        if not self.cfg.detector:
+        if not self.cfg.detector.NAME:
             self.log('Wake word detection don\'t work on this system: {}'.format(self.cfg.platform), logger.WARN)
         elif self.cfg.path['models_list'] and self.own.max_mic_index != -2:
-            if ModuleLoader().is_loaded(self.cfg.detector):
+            if ModuleLoader().is_loaded(self.cfg.detector.NAME):
                 return lambda: self._smart_listen(interrupt_check, callback)
             else:
                 self._print_loading_errors()
@@ -179,7 +179,7 @@ class Listener:
 
     def _get_hw_detector(self, width, rate, another_detector=None):
         cfg = self._detector_cfg(width=width, rate=rate, another=another_detector)
-        return get_hot_word_detector(self.cfg.detector, **cfg)
+        return get_hot_word_detector(self.cfg.detector.NAME, **cfg)
 
     def _detector_cfg(self, **kwargs) -> dict:
         kwargs.update({
@@ -195,7 +195,8 @@ class Listener:
             return ModuleLoader().is_loaded(vad_mode)
 
         vad_mode = vad_mode if vad_mode is not None else self.cfg.gt('listener', 'vad_mode')
-        if vad_mode == 'snowboy' and self.cfg.path['models_list'] and self.cfg.detector == 'snowboy' and is_loaded():
+        if vad_mode == 'snowboy' and self.cfg.path['models_list'] and self.cfg.detector.NAME == 'snowboy' and\
+                is_loaded():
             vad = SnowboyHWD
         elif vad_mode == 'webrtc' and is_loaded():
             vad = WebRTCVAD

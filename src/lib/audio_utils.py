@@ -7,7 +7,8 @@ from functools import lru_cache
 
 from speech_recognition import Microphone, AudioData
 
-from utils import singleton, is_int, porcupine_lib
+from lib.detectors import porcupine_lib
+from utils import singleton, is_int
 
 
 # VAD

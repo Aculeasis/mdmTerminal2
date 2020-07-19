@@ -10,7 +10,7 @@ import languages
 import logger
 import utils
 from languages import F, LANG_CODE
-from lib import volume
+from lib import volume, detectors
 from lib.audio_utils import APMSettings
 from lib.ip_storage import make_interface_storage
 from lib.keys_utils import Keystore
@@ -48,7 +48,7 @@ class ConfigHandler(utils.HashableDict):
         self._plugins_api = cfg['system'].pop('PLUGINS_API', 0)
         self._version_info = cfg['system'].pop('VERSION', (0, 0, 0))
         self.platform = platform.system().capitalize()
-        self.detector = 'snowboy' if self.platform == 'Linux' else None
+        self.detector = None
         self._save_me_later = False
         self._allow_addresses = []
         self.update(cfg)
@@ -163,22 +163,18 @@ class ConfigHandler(utils.HashableDict):
             self._lost_file(self.path[file])
 
     def _select_hw_detector(self):
-        self._porcupine_switcher()
-        msg_lvl = logger.INFO if self.detector else logger.WARN
-        self.log('Hotword detection: {}'.format(str(self.detector).capitalize()), msg_lvl)
+        name = 'snowboy' if self.platform == 'Linux' else None
+        name = 'porcupine' if self._porcupine_allow() else name
+        self.detector = detectors.detector(name)
+        msg_lvl = logger.INFO if self.detector.NAME in detectors.DETECTORS else logger.WARN
+        self.log('Hotword detection: {}'.format(self.detector), msg_lvl)
 
-    def _porcupine_switcher(self):
+    def _porcupine_allow(self) -> bool:
         try:
-            if not utils.porcupine_check(self.path['home']):
-                return
+            return detectors.porcupine_select_auto(self.path['home'])
         except RuntimeError as e:
             self.log('Porcupine broken: {}'.format(e), logger.WARN)
-            return
-
-        self.path['model_ext'] = '.ppn'
-        self.path['model_supports'].clear()
-        self.path['model_supports'].append(self.path['model_ext'])
-        self.detector = 'porcupine'
+        return False
 
     def allow_connect(self, ip: str) -> bool:
         if ip not in self._allow_addresses:
@@ -191,10 +187,6 @@ class ConfigHandler(utils.HashableDict):
         if self.gts('last_love') and ip != self['smarthome'].get('ip'):
             return False
         return True
-
-    def is_model_name(self, filename: str) -> bool:
-        return utils.is_valid_base_filename(filename) and \
-               os.path.splitext(filename)[1].lower() in self.path['model_supports']
 
     def is_testfile_name(self, filename: str) -> bool:
         return utils.is_valid_base_filename(filename) and \
@@ -292,7 +284,7 @@ class ConfigHandler(utils.HashableDict):
         return utils.str_to_list(self.gt('models', 'allow'))
 
     def get_all_models(self) -> list:
-        return [file for file in os.listdir(self.path['models']) if self.is_model_name(file)]
+        return [file for file in os.listdir(self.path['models']) if self.detector.is_model_name(file)]
 
     def get_all_testfile(self) -> list:
         if not os.path.isdir(self.path['test']):

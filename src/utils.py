@@ -372,25 +372,6 @@ def str_to_list(string: str, sep=',') -> list:
     return result
 
 
-def porcupine_lib() -> str:
-    ext = {'windows': 'dll', 'linux': 'so', 'darwin': 'dylib'}
-    return 'libpv_porcupine.{}'.format(ext.get(platform.system().lower(), 'linux'))
-
-
-def porcupine_check(home: str) -> bool:
-    home = os.path.join(home, 'porcupine')
-    model_file = 'porcupine_params.pv'
-    library = porcupine_lib()
-
-    if not os.path.isdir(home):
-        return False
-    if not os.path.isfile(os.path.join(home, library)):
-        raise RuntimeError('library missing: {}'.format(library))
-    if not os.path.isfile(os.path.join(home, model_file)):
-        raise RuntimeError('model file missing: {}'.format(model_file))
-    return True
-
-
 def dict_from_file(file_path: str) -> dict:
     ext = os.path.splitext(file_path)[1]
     try:

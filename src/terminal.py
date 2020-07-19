@@ -47,14 +47,13 @@ class MDTerminal(threading.Thread):
             'rec': self._sw.rec_rec,
             'play': self._sw.rec_play,
             'del': self._sw.rec_del,
+            'compile': self._sw.rec_compile,
             'send_model': self._sw.send_model,
             'test.record': self._sw.test_record,
             'test.play': self._sw.test_play,
             'test.delete': self._sw.test_delete,
             'test.test': self._sw.test_test,
         }
-        if self.cfg.detector != 'porcupine':
-            self.ARGS_CALL['compile'] = self._sw.rec_compile
 
     def join(self, timeout=30):
         self._wait.set()
@@ -292,27 +291,33 @@ class _SampleWorker:
 
     def rec_rec(self, model, sample):
         # Записываем образец sample для модели model
+        if not self.cfg.detector.ALLOW_RECORD:
+            msg = F('{} не поддерживает запись образцов.', self.cfg.detector)
+            self.log(msg, logger.WARN)
+            self.own.say(msg)
+            return
+
         self._send_notify('sample_record', True)
         rec_nums = {'1': F('первого'), '2': F('второго'), '3': F('третьего')}
-        if sample not in rec_nums:
+        if not self.cfg.detector.good_sample(sample):
             self.log('{}: {}'.format(F('Ошибка записи - недопустимый параметр'), sample), logger.ERROR)
             self.own.say(F('Ошибка записи - недопустимый параметр'))
             return self._send_notify('sample_record', False)
-        pmdl_name = ''.join(['model', model, self.cfg.path['model_ext']])
-        if not self.cfg.is_model_name(pmdl_name):
+        pmdl_name = self.cfg.detector.gen_name('model', model)
+        if not self.cfg.detector.is_model_name(pmdl_name):
             self.log('Wrong model filename: {}'.format(repr(pmdl_name)), logger.ERROR)
             return self._send_notify('sample_record', False)
 
-        hello = F('Запись {} образца на 5 секунд начнется после звукового сигнала', rec_nums[sample])
+        hello = F('Запись {} образца на 5 секунд начнется после звукового сигнала', rec_nums.get(sample, sample))
         save_to = self.cfg.path_to_sample(model, sample)
         self.log(hello, logger.INFO)
         err = self.own.voice_record(hello=hello, save_to=save_to, convert_rate=16000, convert_width=2)
         if err is None:
-            bye = F('Запись {} образца завершена. Вы можете прослушать свою запись.', rec_nums[sample])
+            bye = F('Запись {} образца завершена. Вы можете прослушать свою запись.', rec_nums.get(sample, sample))
             self.own.say(bye)
             self.log(bye, logger.INFO)
         else:
-            err = F('Ошибка сохранения образца {}: {}', rec_nums[sample], err)
+            err = F('Ошибка сохранения образца {}: {}', rec_nums.get(sample, sample), err)
             self.log(err, logger.ERROR)
             self.own.say(err)
         self._send_notify('sample_record', False)
@@ -326,25 +331,39 @@ class _SampleWorker:
             self.log(F('Файл {} не найден.', file), logger.WARN)
 
     def rec_compile(self, model, username):
+        if not self.cfg.detector.ALLOW_TRAINING:
+            msg = F('{} не поддерживает тренировку моделей.', self.cfg.detector)
+            self.own.say(msg)
+            self.log(msg, logger.WARN)
+            return
+
         self._send_notify('model_compile', True)
         samples = []
-        for num in ('1', '2', '3'):
+        samples_miss = []
+        for num in range(1, self.cfg.detector.SAMPLES_COUNT + 1):
             sample_path = self.cfg.path_to_sample(model, num)
             if not os.path.isfile(sample_path):
-                self.log(F('Ошибка компиляции - файл {} не найден.', sample_path), logger.ERROR)
-                self.own.say(F('Ошибка компиляции - файл {} не найден.', os.path.basename(sample_path)))
+                samples_miss.append('{}.wav'.format(num))
             else:
                 samples.append(sample_path)
-        if len(samples) == 3:
+        if len(samples) >= self.cfg.detector.SAMPLES_TRAINING:
             username = username if len(username) > 1 else None
             self._compile_model(model, samples, username)
+        else:
+            split, more = 4, ''
+            if len(samples_miss) > 4:
+                split, more = 3, F(' и еще {}', len(samples_miss) - 3)
+            path = os.path.join(self.cfg.path['samples'], model)
+            samples_miss = '{}{}'.format(', '.join(samples_miss[:split]), more)
+            self.log(F('Ошибка компиляции - файлы {} не найдены в {}.', samples_miss, path), logger.ERROR)
+            self.own.say(F('Ошибка компиляции - файлы не найдены.'))
         self._send_notify('model_compile', False)
 
     def rec_del(self, model, _):
         is_del = False
-        pmdl_name = ''.join(['model', model, self.cfg.path['model_ext']])
+        pmdl_name = self.cfg.detector.gen_name('model', model)
         pmdl_path = os.path.join(self.cfg.path['models'], pmdl_name)
-        if not self.cfg.is_model_name(pmdl_name):
+        if not self.cfg.detector.is_model_name(pmdl_name):
             self.log('Wrong model filename: {}'.format(repr(pmdl_name)), logger.ERROR)
             return
 
@@ -500,9 +519,9 @@ class _SampleWorker:
 
     def _compile_model(self, model, samples, username):
         phrase, match_count = self.own.phrase_from_files(samples)
-        pmdl_name = ''.join(['model', model, self.cfg.path['model_ext']])
+        pmdl_name = self.cfg.detector.gen_name('model', model)
         pmdl_path = os.path.join(self.cfg.path['models'], pmdl_name)
-        if not self.cfg.is_model_name(pmdl_name):
+        if not self.cfg.detector.is_model_name(pmdl_name):
             self.log('Wrong model filename: {}'.format(repr(pmdl_name)), logger.ERROR)
             return
 

@@ -20,10 +20,6 @@ def get_cfg():
 def get_path(home) -> dict:
     path = {
         'home': home,
-        # Расширение моделей
-        'model_ext': '.pmdl',
-        # Поддерживаемые модели
-        'model_supports': ['.pmdl', '.umdl'],
         # Временные файлы
         'tmp': tempfile.gettempdir(),
         # ~/settings.ini

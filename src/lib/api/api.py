@@ -219,7 +219,7 @@ class API(SocketAPIHandler):
         """
         data = json_parser(data, keys=('filename', 'data'))
         # Недопустимое имя модели?
-        if not self.cfg.is_model_name(data['filename']):
+        if not self.cfg.detector.is_model_name(data['filename']):
             raise InternalException(6, 'Wrong model name: {}'.format(data['filename']))
         # И значения на корректность
         for key in ('username', 'phrase'):
@@ -246,7 +246,7 @@ class API(SocketAPIHandler):
         phrase: ключевая фраза модели, если есть.
         username: пользователь модели, если есть.
         """
-        if not self.cfg.is_model_name(pmdl_name):
+        if not self.cfg.detector.is_model_name(pmdl_name):
             raise InternalException(msg='Wrong model name: {}'.format(pmdl_name))
 
         pmdl_path = os.path.join(self.cfg.path['models'], pmdl_name)
