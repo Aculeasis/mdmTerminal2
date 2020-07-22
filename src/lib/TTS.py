@@ -8,7 +8,7 @@ from shlex import quote
 import requests
 
 from utils import REQUEST_ERRORS, RuntimeErrorTrace, yandex_speed_normalization, url_builder_cached
-from .gtts_wrapper import Google, gTTSError
+from .gtts_monkey_patching import Google, gTTSError
 from .polly_boto3 import AWSBoto3
 from .polly_signing import signing as polly_signing
 from .proxy import proxies

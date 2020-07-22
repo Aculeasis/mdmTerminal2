@@ -86,7 +86,7 @@ gtts.tts.gtts_token.Token._get_token_key = _get_token_key
 
 
 # part of https://github.com/pndurette/gTTS/blob/master/gtts/tts.py#L165
-def write_to_fp(self, fp):
+def write_to_fp_203(self, fp):
     """Do the TTS API request and write bytes to a file-like object.
 
     Args:
@@ -160,7 +160,62 @@ def write_to_fp(self, fp):
                 str(e))
 
 
-gtts.gTTS.write_to_fp = write_to_fp
+def write_to_fp211(self, fp):
+    """Do the TTS API request(s) and write bytes to a file-like object.
+    Args:
+        fp (file object): Any file-like object to write the ``mp3`` to.
+    Raises:
+        :class:`gTTSError`: When there's an error with the API request.
+        TypeError: When ``fp`` is not a file-like object that takes bytes.
+    """
+    # When disabling ssl verify in requests (for proxies and firewalls),
+    # urllib3 prints an insecure warning on stdout. We disable that.
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+    prepared_requests = self._prepare_requests()
+    for idx, pr in enumerate(prepared_requests):
+        try:
+            with requests.Session() as s:
+                # Send request
+                r = s.send(request=pr,
+                           # proxies=urllib.request.getproxies(),
+                           proxies=proxies('tts_google'),
+                           verify=False)
+
+            log.debug("headers-%i: %s", idx, r.request.headers)
+            log.debug("url-%i: %s", idx, r.request.url)
+            log.debug("status-%i: %s", idx, r.status_code)
+
+            r.raise_for_status()
+        except requests.exceptions.HTTPError as e:  # pragma: no cover
+            # Request successful, bad response
+            log.debug(str(e))
+            raise gTTSError(tts=self, response=r)
+        except requests.exceptions.RequestException as e:  # pragma: no cover
+            # Request failed
+            log.debug(str(e))
+            raise gTTSError(tts=self)
+
+        try:
+            # Write
+            # for chunk in r.iter_content(chunk_size=1024):
+            for chunk in r.iter_content(chunk_size=self._buff_size):
+                fp.write(chunk)
+            log.debug("part-%i written to %s", idx, fp)
+        except (AttributeError, TypeError) as e:
+            raise TypeError(
+                "'fp' is not a file-like object or it does not take bytes: %s" %
+                str(e))
+
+
+def gtts_version() -> tuple:
+    try:
+        return tuple(int(x) for x in gtts.__version__.split('.'))
+    except (TypeError, ValueError):
+        return 0, 0, 0
+
+
+gtts.gTTS.write_to_fp = write_to_fp_203 if gtts_version() < (2, 1, 1) else write_to_fp211
 
 
 class FPBranching:
@@ -174,7 +229,7 @@ class FPBranching:
 
 class Google(gtts.gTTS):
     def __init__(self, text, buff_size, lang='en', slow=False, *_, **__):
-        super().__init__(text, lang, slow, lang_check=False)
+        super().__init__(text=text, lang=lang, slow=slow, lang_check=False)
         self._buff_size = buff_size
 
     def stream_to_fps(self, fps):
