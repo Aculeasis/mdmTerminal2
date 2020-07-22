@@ -162,12 +162,20 @@ class ConfigHandler(utils.HashableDict):
         for file in ('ding', 'dong', 'bimp'):
             self._lost_file(self.path[file])
 
-    def _select_hw_detector(self):
-        name = 'snowboy' if self.platform == 'Linux' else None
-        name = 'porcupine' if self._porcupine_allow() else name
+    def select_hw_detector(self):
+        if not self['listener']['detector']:
+            name = 'snowboy' if self.platform == 'Linux' else None
+            name = 'porcupine' if self._porcupine_allow() else name
+        else:
+            name = self['listener']['detector'].lower()
         self.detector = detectors.detector(name)
-        msg_lvl = logger.INFO if self.detector.NAME in detectors.DETECTORS else logger.WARN
-        self.log('Hotword detection: {}'.format(self.detector), msg_lvl)
+        is_broken = self.detector.NAME not in detectors.DETECTORS
+        if is_broken:
+            msg = 'Unrecognized hotword detector \'{}\', terminal won\'t work correctly!'.format(name)
+            self.log(msg, logger.ERROR)
+        else:
+            self.log('Hotword detection: {}'.format(self.detector), logger.INFO)
+        self.models_load()
 
     def _porcupine_allow(self) -> bool:
         try:
@@ -213,9 +221,8 @@ class ConfigHandler(utils.HashableDict):
 
         self.proxies_init()
         self.apm_configure()
-        self._select_hw_detector()
+        self.select_hw_detector()
 
-        self.models_load()
         self.allow_addresses_init()
         self._say_ip()
 

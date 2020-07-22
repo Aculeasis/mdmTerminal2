@@ -7,6 +7,7 @@ import time
 import traceback
 from functools import lru_cache
 
+from lib.audio_utils import reset_vad_caches, reset_detector_caches
 import lib.snowboy_training as training_service
 import lib.sr_wrapper as sr
 import logger
@@ -127,7 +128,14 @@ class MDTerminal(threading.Thread):
         listen.stop(10)
         return not listen.is_alive()
 
-    def _reload(self, *_):
+    def _reload(self, cache_clear=None, *_):
+        if cache_clear:
+            detector_reconfigure, vad_reconfigure = cache_clear
+            if vad_reconfigure:
+                reset_vad_caches()
+            if detector_reconfigure:
+                reset_detector_caches()
+                self.cfg.select_hw_detector()
         if self.listening:
             self._snowboy = self.own.recognition_forever(self._interrupt_check, self._detected_parse)
         else:

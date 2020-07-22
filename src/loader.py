@@ -445,6 +445,8 @@ class Loader(Owner):
         with self._lock:
             diff = self._cfg.update_from_external(cfg)
             reload_terminal = False
+            detector_reconfigure = False
+            vad_reconfigure = False
             if diff is None:
                 self._cfg.print_cfg_no_change()
                 return {}
@@ -495,9 +497,14 @@ class Loader(Owner):
                 # reconfigure APM. Reload terminal - later
                 self._cfg.apm_configure()
                 reload_terminal = True
-            if is_sub_dict('settings', diff) or is_sub_dict('listener', diff) or reload_terminal:
+            if is_sub_dict('listener', diff):
+                reload_terminal = True
+                detector_reconfigure = 'detector' in diff['listener']
+                vad_reconfigure = bool([key for key in ('vad_mode', 'vad_chrome') if key in diff['listener']])
+            if is_sub_dict('settings', diff) or reload_terminal:
                 # reload terminal
-                self.terminal_call('reload', save_time=False)
+                # noinspection PyTypeChecker
+                self.terminal_call('reload', (detector_reconfigure, vad_reconfigure), save_time=False)
 
             # restore lang's
             if lang is not None:

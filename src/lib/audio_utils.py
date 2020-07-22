@@ -72,6 +72,12 @@ class ModuleLoader:
         self._error_msg = list()
         self._lock = threading.Lock()
 
+    def clear(self):
+        with self._lock:
+            self._loaded.clear()
+            self._try.clear()
+            self._error_msg.clear()
+
     def is_loaded(self, name: str) -> bool:
         if name not in self._try:
             with self._lock:
@@ -280,6 +286,15 @@ class Detector:
         else:
             self._resampler = self._audio_resampler
 
+    @classmethod
+    def reset(cls):
+        cls._constructor.cache_clear()
+
+    @classmethod
+    @lru_cache(maxsize=None)
+    def _constructor(cls, *args, **kwargs):
+        raise NotImplementedError
+
     def is_speech(self, data: bytes) -> bool:
         if self._rms:
             self._rms.measure(data)
@@ -349,10 +364,6 @@ class SnowboyHWD(Detector):
         return self._current_state
 
     @classmethod
-    def reset(cls):
-        cls._constructor.cache_clear()
-
-    @classmethod
     @lru_cache(maxsize=1)
     def _constructor(cls, resource_path, sensitivity, audio_gain, apply_frontend, *hot_word_files):
         sn = ModuleLoader().get('snowboy')(
@@ -402,10 +413,6 @@ class PorcupineHWD(Detector):
         return self._current_state
 
     @classmethod
-    def reset(cls):
-        cls._constructor.cache_clear()
-
-    @classmethod
     @lru_cache(maxsize=1)
     def _constructor(cls, home, sensitivity, *hot_word_files):
         home = os.path.join(home, 'porcupine')
@@ -453,6 +460,18 @@ class APMVAD(Detector):
         apm = ModuleLoader().get('apm')(enable_vad=True)
         apm.set_vad_level(lvl)
         return apm
+
+
+def reset_detector_caches():
+    ModuleLoader().clear()
+    SnowboyHWD.reset()
+    PorcupineHWD.reset()
+
+
+def reset_vad_caches():
+    ModuleLoader().clear()
+    WebRTCVAD.reset()
+    APMVAD.reset()
 
 
 class StreamRecognition(threading.Thread):
