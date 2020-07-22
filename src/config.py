@@ -348,6 +348,14 @@ class ConfigHandler(utils.HashableDict):
         self.own.say_info(F('Конфигурация сохранена!'))
 
     def models_load(self):
+        def lower_warning():
+            l_name_ = file.lower()
+            if l_name_ != file:
+                msg_ = 'Please, rename {} to {} in {} for stability!'.format(
+                    repr(file), repr(l_name_), self.path['models']
+                )
+                self.log(msg_, logger.WARN)
+
         self.path['models_list'] = []
         if not os.path.isdir(self.path['models']):
             msg = F('Директория с моделями не найдена {}', self.path['models'])
@@ -360,6 +368,7 @@ class ConfigHandler(utils.HashableDict):
         for file in self.get_all_models():
             full_path = os.path.join(self.path['models'], file)
             if os.path.isfile(full_path):
+                lower_warning()
                 if not allow or file in allow:
                     self.path['models_list'].append(full_path)
                     count += 1
