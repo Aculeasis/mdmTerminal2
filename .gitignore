@@ -17,4 +17,7 @@ src/plugins/*
 src/porcupine/
 src/mdmterminal.log
 src/lib/_snowboydetect.so
+src/detectors/snowboy/_snowboydetect.so
+src/detectors/*
+!src/detectors/snowboy
 src/test

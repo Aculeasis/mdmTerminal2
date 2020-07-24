@@ -22,7 +22,7 @@ install:
 #  - cd ..
 
 before_test:
-  - cp -f bin/_snowboydetect.so.appveyor src/lib/_snowboydetect.so
+  - cp -f bin/_snowboydetect.so.appveyor src/detectors/snowboy/_snowboydetect.so
   # - chmod +x scripts/snowboy_build.sh
   # - ./scripts/snowboy_build.sh
 

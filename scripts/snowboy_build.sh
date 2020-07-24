@@ -44,8 +44,8 @@ fi
 cd swig/Python3
 echo 'Собираю....'
 make
-cp -f _snowboydetect.so "${repo_path}/src/lib/"
+cp -f _snowboydetect.so "${repo_path}/src/detectors/snowboy/"
 cd "${repo_path}"
 rm -rf "${repo_path}/snow_boy"
-echo "Установлено успешно $repo_path/src/lib/_snowboydetect.so"
+echo "Установлено успешно $repo_path/src/detectors/snowboy/_snowboydetect.so"
 

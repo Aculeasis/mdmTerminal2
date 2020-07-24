@@ -4,40 +4,57 @@
 # Do not make changes to this file unless you know what you are doing--modify
 # the SWIG interface file instead.
 
+import builtins as __builtin__
+import os
 
-from sys import version_info as _swig_python_version_info
-if _swig_python_version_info >= (2, 7, 0):
-    def swig_import_helper():
-        import importlib
-        def adding_module_import(main_path, err):
-            for path in ('armv7',):
-                module_path = '.'.join((main_path, path, '_snowboydetect')).lstrip('.')
-                try:
-                    return importlib.import_module(module_path)
-                except ImportError:
-                    pass
-            raise ImportError(err)
-        pkg = __name__.rpartition('.')[0]
-        mname = '.'.join((pkg, '_snowboydetect')).lstrip('.')
-        try:
-            return importlib.import_module(mname)
-        except ImportError:
+_snowboydetect = None
+SnowboyDetect_swigregister = None
+
+
+def _load_module(main_path):
+    import importlib.util
+
+    name = '_snowboydetect.so'
+
+    def load(target_):
+        spec = importlib.util.spec_from_file_location('_snowboydetect', target_)
+        foo = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(foo)
+        return foo
+
+    target = os.path.join(main_path, name)
+    if not os.path.isfile(target):
+        # legacy
+        old_target = os.path.join(os.path.dirname(os.path.abspath(__file__)), name)
+        target = old_target if os.path.isfile(old_target) else target
+    try:
+        return load(target)
+    except ImportError as err:
+        for binary in ('armv7',):
             try:
-                return importlib.import_module('_snowboydetect')
-            except ImportError as e:
-                return adding_module_import(pkg, e)
-    _snowboydetect = swig_import_helper()
-    del swig_import_helper
-del _swig_python_version_info
+                return load(os.path.join(main_path, binary, name))
+            except ImportError:
+                pass
+        raise ImportError(err)
+
+
+def _init(main_path):
+    global _snowboydetect
+    if _snowboydetect:
+        return
+    global SnowboyDetect_swigregister, _load_module
+    _snowboydetect = _load_module(main_path)
+    del _load_module
+    SnowboyDetect.__swig_destroy__ = _snowboydetect.delete_SnowboyDetect
+    SnowboyDetect_swigregister = _snowboydetect.SnowboyDetect_swigregister
+    SnowboyDetect_swigregister(SnowboyDetect)
+
+
 try:
     _swig_property = property
 except NameError:
     pass  # Python < 2.2 doesn't have 'property'.
 
-try:
-    import builtins as __builtin__
-except ImportError:
-    import __builtin__
 
 def _swig_setattr_nondynamic(self, class_type, name, value, static=1):
     if name == "thisown":
@@ -78,6 +95,7 @@ def _swig_repr(self):
         strthis = ""
     return "<%s.%s; %s >" % (self.__class__.__module__, self.__class__.__name__, strthis,)
 
+
 try:
     _object = object
     _newclass = 1
@@ -86,6 +104,7 @@ except __builtin__.Exception:
         pass
     _newclass = 0
 
+
 class SnowboyDetect(_object):
     __swig_setmethods__ = {}
     __setattr__ = lambda self, name, value: _swig_setattr(self, SnowboyDetect, name, value)
@@ -93,12 +112,19 @@ class SnowboyDetect(_object):
     __getattr__ = lambda self, name: _swig_getattr(self, SnowboyDetect, name)
     __repr__ = _swig_repr
 
-    def __init__(self, resource_filename, model_str):
-        this = _snowboydetect.new_SnowboyDetect(resource_filename, model_str)
+    def __init__(self,
+                 home: str, hot_word_files: list, sensitivity: float, audio_gain: float, apply_frontend: bool
+                 ):
+        _init(home)
+        resource_filename = os.path.join(home, 'common.res').encode()
+        this = _snowboydetect.new_SnowboyDetect(resource_filename, ','.join(hot_word_files).encode())
         try:
             self.this.append(this)
         except __builtin__.Exception:
             self.this = this
+        self.SetAudioGain(audio_gain)
+        self.SetSensitivity(','.join([str(sensitivity)] * self.NumHotwords()).encode())
+        self.ApplyFrontend(apply_frontend)
 
     def Reset(self):
         return _snowboydetect.SnowboyDetect_Reset(self)
@@ -132,10 +158,7 @@ class SnowboyDetect(_object):
 
     def BitsPerSample(self):
         return _snowboydetect.SnowboyDetect_BitsPerSample(self)
-    __swig_destroy__ = _snowboydetect.delete_SnowboyDetect
     __del__ = lambda self: None
-SnowboyDetect_swigregister = _snowboydetect.SnowboyDetect_swigregister
-SnowboyDetect_swigregister(SnowboyDetect)
 
 # This file is compatible with both classic and new-style classes.
 

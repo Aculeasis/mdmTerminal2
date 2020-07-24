@@ -329,10 +329,10 @@ class Detector:
 
 
 class SnowboyHWD(Detector):
-    def __init__(self, resource_path, hot_word_files, sensitivity,
+    def __init__(self, home, hot_word_files, sensitivity,
                  audio_gain, width, rate, another, apply_frontend, rms, **_):
         self._snowboy = SnowboyHWD._constructor(
-            resource_path, sensitivity, audio_gain, apply_frontend, *hot_word_files)
+            home, sensitivity, audio_gain, apply_frontend, *hot_word_files)
         super().__init__(150, width, rate, self._snowboy.SampleRate(), rms and not another)
         self._another = another
         self._current_state = -2
@@ -365,21 +365,17 @@ class SnowboyHWD(Detector):
 
     @classmethod
     @lru_cache(maxsize=1)
-    def _constructor(cls, resource_path, sensitivity, audio_gain, apply_frontend, *hot_word_files):
-        sn = ModuleLoader().get('snowboy')(
-            resource_filename=os.path.join(resource_path, 'resources', 'common.res').encode(),
-            model_str=",".join(hot_word_files).encode()
+    def _constructor(cls, home, sensitivity, audio_gain, apply_frontend, *hot_word_files):
+        return ModuleLoader().get('snowboy')(
+            home=home, sensitivity=sensitivity, audio_gain=audio_gain,
+            apply_frontend=apply_frontend, hot_word_files=hot_word_files,
         )
-        sn.SetAudioGain(audio_gain)
-        sn.SetSensitivity(','.join([str(sensitivity)] * sn.NumHotwords()).encode())
-        sn.ApplyFrontend(apply_frontend)
-        return sn
 
 
 class PorcupineHWD(Detector):
-    def __init__(self, resource_path, hot_word_files, sensitivity,
+    def __init__(self, home, hot_word_files, sensitivity,
                  width, rate, another, rms, **_):
-        self._porcupine = PorcupineHWD._constructor(resource_path, sensitivity, *hot_word_files)
+        self._porcupine = PorcupineHWD._constructor(home, sensitivity, *hot_word_files)
         super().__init__(1, width, rate, self._porcupine.sample_rate, rms and not another)
         self._sample_size = width * self._porcupine.frame_length
         self._another = another
@@ -415,7 +411,6 @@ class PorcupineHWD(Detector):
     @classmethod
     @lru_cache(maxsize=1)
     def _constructor(cls, home, sensitivity, *hot_word_files):
-        home = os.path.join(home, 'porcupine')
         sensitivities = [sensitivity] * len(hot_word_files)
         library_path = os.path.join(home, porcupine_lib())
         model_file_path = os.path.join(home, 'porcupine_params.pv')

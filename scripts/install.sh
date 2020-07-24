@@ -48,7 +48,7 @@ chmod +x ${install_path}/src/main.py
 chmod +x ${install_path}/scripts/snowboy_build.sh
 chmod +x ${install_path}/scripts/systemd_install.sh
 
-if [ ! -f ${install_path}/src/lib/_snowboydetect.so ]; then
+if [ ! -f ${install_path}/src/detectors/snowboy/_snowboydetect.so ]; then
     echo ""
     SWIG_VERSION="$(swig -version | grep -i Version | \
 	sed "s/^.* //g" | sed -e "s/\.\([0-9][0-9]\)/\1/g" -e "s/\.\([0-9]\)/0\1/g" -e "s/^[0-9]\{3,4\}$$/&00/")"

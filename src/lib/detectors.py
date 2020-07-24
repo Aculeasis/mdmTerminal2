@@ -20,6 +20,9 @@ class Detector:
     # Разрешить создание новых моделей
     ALLOW_TRAINING = False
 
+    def __init__(self, home: str):
+        self.path = str(pathlib.Path(home, 'detectors', str(self.NAME)))
+
     @property
     def SAMPLES_TRAINING(self):
         return self._SAMPLES_TRAINING or self.SAMPLES_COUNT
@@ -61,14 +64,11 @@ class DetectorPorcupine(Detector):
     ALLOW_TRAINING = False
 
 
-DETECTORS = {
-    DetectorSnowboy.NAME: DetectorSnowboy,
-    DetectorPorcupine.NAME: DetectorPorcupine,
-}
+DETECTORS = {target.NAME: target for target in Detector.__subclasses__()}
 
 
-def detector(name=None) -> Detector:
-    return DETECTORS.get(name, Detector)()
+def detector(name, home: str) -> Detector:
+    return DETECTORS.get(name, Detector)(home)
 
 
 def porcupine_lib() -> str:
@@ -77,7 +77,7 @@ def porcupine_lib() -> str:
 
 
 def porcupine_select_auto(home: str) -> bool:
-    home = pathlib.Path(home, 'porcupine')
+    home = pathlib.Path(detector('porcupine', home).path)
     model_file = 'porcupine_params.pv'
     library = porcupine_lib()
 

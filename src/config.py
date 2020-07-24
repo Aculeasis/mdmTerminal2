@@ -168,7 +168,7 @@ class ConfigHandler(utils.HashableDict):
             name = 'porcupine' if self._porcupine_allow() else name
         else:
             name = self['listener']['detector'].lower()
-        self.detector = detectors.detector(name)
+        self.detector = detectors.detector(name, self.path['home'])
         is_broken = self.detector.NAME not in detectors.DETECTORS
         if is_broken:
             msg = 'Unrecognized hotword detector \'{}\', terminal won\'t work correctly!'.format(name)

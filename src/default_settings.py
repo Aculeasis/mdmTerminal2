@@ -170,6 +170,6 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'ini_version': 49,
         'ws_token': 'token_is_unset',
         'PLUGINS_API': 3,
-        'VERSION': (0, 15, 16),
+        'VERSION': (0, 15, 17),
     }
 }
