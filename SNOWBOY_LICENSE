@@ -1,11 +1,10 @@
 This license refers to the snowboy components:
-  - src/lib/snowboydecoder.py
   - src/lib/snowboydetect.py
-  - src/resources/common.res
+  - src/detectors/snowboy/common.res
   - src/resources/ding.wav
   - src/resources/dong.wav
   - bin/_snowboydetect.so.appveyor
-  - src/lib/armv7/_snowboydetect.so
+  - src/detectors/snowboy/armv7/_snowboydetect.so
 
 Source code was modified by Aculeasis, 2018
 
