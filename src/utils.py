@@ -5,7 +5,6 @@ import errno
 import functools
 import json
 import os
-import platform
 import queue
 import signal
 import socket

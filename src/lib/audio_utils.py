@@ -31,29 +31,18 @@ def _loader_snowboy():
 
 def _loader_porcupine():
     import struct
-    import ctypes
     from lib.porcupine import Porcupine as Porcupine_
 
     class Porcupine(Porcupine_):
         def process(self, pcm: bytes) -> int:
-            pcm_len = len(pcm) // 2
-            pcm = struct.unpack('H' * pcm_len, pcm)
-
-            result = ctypes.c_int()
-            # noinspection PyCallingNonCallable
-            # noinspection PyTypeChecker
-            status = self.process_func(self._handle, (ctypes.c_short * pcm_len)(*pcm), ctypes.byref(result))
-            if status is not self.PicovoiceStatuses.SUCCESS:
-                raise self._PICOVOICE_STATUS_TO_EXCEPTION[status]('Processing failed')
-
-            keyword_index = result.value + 1
-            if keyword_index:
-                return keyword_index
-            else:
-                return -2
+            result = super().process(struct.unpack('H' * (len(pcm) // 2), pcm))
+            if self._num_keywords == 1:
+                result = int(result) - 1
+            return -2 if result < 0 else result + 1
 
         def __del__(self):
-            self.delete()
+            if hasattr(self, '_delete_func'):
+                self.delete()
     return Porcupine
 
 
