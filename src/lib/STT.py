@@ -251,7 +251,7 @@ class VoskServer(BaseSTT):
     # https://alphacephei.com/vosk/server
     # https://github.com/alphacep/vosk-server/blob/master/websocket/asr_server.py
     def __init__(self, audio_data: AudioData, url='', **_):
-        self.rate = 16000
+        self.rate = audio_data.sample_rate if audio_data.sample_rate < 16000 else 16000
         url = url_builder_cached(url or '127.0.0.1', def_port=2700)
         super().__init__(url, audio_data, 'wav', convert_rate=self.rate, convert_width=2, proxy_key='stt_vosk-rest')
 
