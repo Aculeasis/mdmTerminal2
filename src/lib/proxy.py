@@ -84,8 +84,8 @@ class _Proxies:
                 socks.set_default_proxy()
                 socket.socket = self._back_up
 
-    def __call__(self, key, quiet=False):
-        (data, to_log) = self._proxies(key)
+    def __call__(self, key, quiet=False, raw=False):
+        (data, to_log) = self._proxies(key, raw)
         if not data:
             return
         if not quiet:
@@ -125,10 +125,12 @@ class _Proxies:
         return data, to_log
 
     @lru_cache()
-    def _proxies(self, key):
+    def _proxies(self, key, raw=False):
         data = self._get_proxy_by_args(PROXIES[key])
         if not data:
             return None, None
+        if raw:
+            return data
         (data, to_log) = data
         auth = ''
         if 'username' in data:

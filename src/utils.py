@@ -21,9 +21,11 @@ from functools import lru_cache
 import requests
 import socks  # install socks-proxy dependencies - pip install requests[socks]
 import urllib3
+from websocket import WebSocketException
 
 REQUEST_ERRORS = (
-    requests.exceptions.RequestException, urllib3.exceptions.NewConnectionError, socks.ProxyError, ssl.CertificateError
+    requests.exceptions.RequestException, urllib3.exceptions.NewConnectionError, socks.ProxyError, ssl.CertificateError,
+    WebSocketException,
 )
 
 
@@ -414,7 +416,7 @@ def url_builder_cached(url_ip: str, def_port='', def_proto='http', def_path='') 
 
 
 def url_builder(url_ip: str, def_port='', def_proto='http', def_path='') -> str:
-    if not url_ip.startswith(('http://', 'https://')):
+    if not url_ip.startswith(('http://', 'https://', 'ws://')):
         # url:ip, url:ip/path
         url_ip = '{}://{}'.format(def_proto, url_ip)
     url = urllib.parse.urlparse(url_ip)

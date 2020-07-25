@@ -5,6 +5,7 @@ import time
 from io import BytesIO
 
 import requests
+from websocket import create_connection, ABNF
 
 import lib.streaming_converter as streaming_converter
 from utils import REQUEST_ERRORS, RuntimeErrorTrace, url_builder_cached
@@ -246,6 +247,63 @@ class Azure(BaseSTT):
         self._text = text
 
 
+class VoskServer(BaseSTT):
+    # https://alphacephei.com/vosk/server
+    # https://github.com/alphacep/vosk-server/blob/master/websocket/asr_server.py
+    def __init__(self, audio_data: AudioData, url='', **_):
+        self.rate = 16000
+        url = url_builder_cached(url or '127.0.0.1', def_port=2700)
+        super().__init__(url, audio_data, 'wav', convert_rate=self.rate, convert_width=2, proxy_key='stt_vosk-rest')
+
+    def _send(self, proxy_key):
+        proxy = proxies(proxy_key, raw=True)
+        http_proxy_host, http_proxy_port, http_proxy_auth = None, 0, None
+        if proxy:
+            if 'username' in proxy:
+                http_proxy_auth = (proxy['username'], proxy['password'])
+            http_proxy_host = '{}://{}'.format(proxy['proxy_type'], proxy['addr'])
+            http_proxy_port = proxy['port']
+
+        try:
+            self._rq = create_connection(
+                self._url,
+                timeout=60,
+                http_proxy_host=http_proxy_host,
+                http_proxy_port=http_proxy_port,
+                http_proxy_auth=http_proxy_auth
+            )
+            self._rq.send(json.dumps({'config': {'sample_rate': self.rate}}))
+            for chunk in self._chunks():
+                self._rq.send(chunk, opcode=ABNF.OPCODE_BINARY)
+            self._rq.send('{"eof" : 1}')
+        except REQUEST_ERRORS as e:
+            self._close()
+            raise RuntimeErrorTrace(e)
+
+    def _reply_check(self):
+        try:
+            while True:
+                recv = json.loads(self._rq.recv())
+                if 'partial' in recv:
+                    self._text = recv['partial']
+                elif 'text' in recv:
+                    self._text = recv['text']
+                    break
+        except REQUEST_ERRORS as e:
+            if not self._text:
+                raise RuntimeError(e)
+        finally:
+            self._close()
+
+    def _close(self):
+        if self._rq:
+            # noinspection PyBroadException
+            try:
+                self._rq.close()
+            except Exception:
+                pass
+
+
 class BaseMySTT(BaseSTT):
     def _parse_response(self):
         try:
@@ -295,8 +353,13 @@ def yandex(yandex_api, grpc, **kwargs):
         return Yandex(**kwargs)
 
 
+def vosk_rest(url: str, **kwargs):
+    class_ = VoskServer if url.startswith('ws://') else VoskREST
+    return class_(url=url, **kwargs)
+
+
 PROVIDERS = {
-    'google': Google, 'yandex': yandex, 'pocketsphinx-rest': PocketSphinxREST, 'vosk-rest': VoskREST, 'wit.ai': WitAI,
+    'google': Google, 'yandex': yandex, 'pocketsphinx-rest': PocketSphinxREST, 'vosk-rest': vosk_rest, 'wit.ai': WitAI,
     'microsoft': Microsoft, 'azure': Azure
 }
 
