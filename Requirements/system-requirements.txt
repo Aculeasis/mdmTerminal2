@@ -1,7 +1,6 @@
 libxml2-dev
 libxslt-dev
 libatlas-base-dev
-python-dev
 portaudio19-dev
 libffi-dev
 libssl-dev
@@ -15,9 +14,9 @@ mpd
 opus-tools
 flac
 sox
-python-pip
 swig
 lame
 git
 libtool
+alsa-utils
 zlib1g

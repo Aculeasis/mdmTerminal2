@@ -25,11 +25,11 @@ RUN_AS="$(ls -ld "$scripts_dir" | awk 'NR==1 {print $3}')"
 if [ "$USER" != "$RUN_AS" ]
 then
     echo "This script must run as $RUN_AS, trying to change user..."
-    exec sudo -u ${RUN_AS} $0
+    exec sudo -u "${RUN_AS}" "$0"
 fi
 
 sudo apt-get update -y
-sed 's/#.*//' "$install_path"/Requirements/system-requirements.txt | xargs sudo apt-get install -y
+sed 's/#.*//' "${install_path}/Requirements/system-requirements.txt" | xargs sudo apt-get install -y --no-install-recommends
 
 
 if ! [ -d ~/tmp ]; then
@@ -37,22 +37,22 @@ if ! [ -d ~/tmp ]; then
 fi
 
 python3 -m venv env
-env/bin/python -m pip install --upgrade pip setuptools wheel
 source env/bin/activate
 export TMPDIR=~/tmp
-pip install -r "$install_path"/Requirements/pip-requirements.txt
+pip install --upgrade pip setuptools wheel
+pip install -r "${install_path}/Requirements/pip-requirements.txt"
 
 rm -R ~/tmp
 
-chmod +x ${install_path}/src/main.py
-chmod +x ${install_path}/scripts/snowboy_build.sh
-chmod +x ${install_path}/scripts/systemd_install.sh
+chmod +x "${install_path}/src/main.py"
+chmod +x "${install_path}/scripts/snowboy_build.sh"
+chmod +x "${install_path}/scripts/systemd_install.sh"
 
-if [ ! -f ${install_path}/src/detectors/snowboy/_snowboydetect.so ]; then
+if [ ! -f "${install_path}/src/detectors/snowboy/_snowboydetect.so" ]; then
     echo ""
     SWIG_VERSION="$(swig -version | grep -i Version | \
 	sed "s/^.* //g" | sed -e "s/\.\([0-9][0-9]\)/\1/g" -e "s/\.\([0-9]\)/0\1/g" -e "s/^[0-9]\{3,4\}$$/&00/")"
-    if [ ! $SWIG_VERSION -ge 30010 ]; then
+    if [ ! "$SWIG_VERSION" -ge 30010 ]; then
         echo "#################################################################"
         echo "  Внимание! Для сборки snowboy нужен swig не ниже 3.0.10,"
         echo "  Установлен $(swig -version | grep -i Version)"
@@ -62,7 +62,7 @@ if [ ! -f ${install_path}/src/detectors/snowboy/_snowboydetect.so ]; then
         echo ""
         exit 0
     fi
-    ${install_path}/scripts/snowboy_build.sh
+    "${install_path}/scripts/snowboy_build.sh"
 fi
 
 echo "Установка завершена"
