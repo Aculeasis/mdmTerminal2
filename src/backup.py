@@ -203,8 +203,7 @@ class Backup(threading.Thread):
         more = len(result) - max_count + 1
         if more < 1:
             return []
-        result.sort(key=lambda x: x[1])
-        return result[:more]
+        return result[-more:]
 
     def _remove_candidates(self, files: list):
         for file in files:
