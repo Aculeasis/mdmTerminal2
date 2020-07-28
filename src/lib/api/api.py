@@ -419,7 +419,7 @@ class API(SocketAPIHandler):
         if not files:
             raise InternalException(3, 'No backups')
         if data == 'last':
-            filename, timestamp = files[-1]
+            filename, timestamp = files[0]
         else:
             filename, timestamp = next((item for item in files if item[0] == data), (None, None))
             if not filename:

@@ -230,6 +230,7 @@ class Backup(threading.Thread):
                         os.remove(path)
                     except IOError:
                         pass
+        result.sort(key=lambda x: x[1], reverse=True)
         return result
 
     def _get_zip_timestamp(self, file_path) -> float:
