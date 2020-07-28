@@ -111,9 +111,8 @@ class Client:
             print('Ошибка декодирования: {}'.format(e))
             return -1
         if 'result' in data and data.get('id') == 'upgrade duplex':
-            self._send(
-                json.dumps({'method': 'subscribe', 'params': ['cmd', 'talking', 'record']}, ensure_ascii=False).encode()
-            )
+            params = ['cmd', 'talking', 'record', 'updater', 'backup', 'manual_backup']
+            self._send(json.dumps({'method': 'subscribe', 'params': params}, ensure_ascii=False).encode())
             return 0
         return stage
 
@@ -367,6 +366,20 @@ class TestShell(cmd__.Cmd):
             return print('Duplex must be active!')
         self._send_true_json('events_list', data=[])
 
+    def do_backup(self, _):
+        """Создать бэкап"""
+        self._send_json('backup.manual')
+
+    def do_restore(self, filename):
+        """Восстановить из бэкапа: filename"""
+        if not filename:
+            return print('Empty filename')
+        self._send_json('backup.restore', filename)
+
+    def do_backup_list(self, _):
+        """Список бэкапов"""
+        self._send_json('backup.list')
+
 
 def str_to_list(line) -> list:
     return [el.strip() for el in line.split(',')]
@@ -497,9 +510,12 @@ def parse_json(data: str, api):
     else:
         result = data if data is not None else 'null'
     if result is not None:
-        line = 'Ответ на {}: {}'.format(repr(cmd), result)
+        line = None
         if cmd == 'ping':
-            line = parse_ping(result) or line
+            line = parse_ping(result)
+        elif cmd == 'backup.list' and isinstance(result, list):
+            line = parse_backup_list(result)
+        line = line or 'Ответ на {}: {}'.format(repr(cmd), result)
         print(line)
 
 
@@ -510,6 +526,22 @@ def parse_ping(data):
         return None
     else:
         return 'ping {} ms'.format(int(diff * 1000))
+
+
+def parse_backup_list(data: list):
+    try:
+        data = [[time.strftime('%Y.%m.%d %H:%M:%S', time.localtime(e['timestamp'])), e['filename']] for e in data]
+    except (ValueError, KeyError, TypeError) as e:
+        print('\nError parsing {}: {}\n'.format(data, e))
+        return None
+    result = [
+                 '\nbackup_list:',
+                 'Timestamp:{} Filename:'.format(' ' * 12)
+             ] + [' {}   {}'.format(a, b) for (a, b) in data]
+    if len(result) > 2:
+        result[2] = '{} (last)'.format(result[2])
+    result.append('')
+    return '\n'.join(result)
 
 
 if __name__ == '__main__':
