@@ -6,7 +6,7 @@ import sys
 import tempfile
 from copy import deepcopy
 
-from default_settings import CFG
+import default_settings as _ds
 from loader import Loader
 from utils import SignalHandler
 
@@ -14,7 +14,11 @@ HOME = os.path.abspath(sys.path[0])
 
 
 def get_cfg():
-    return deepcopy(CFG)
+    return deepcopy(_ds.CFG)
+
+
+def get_state():
+    return deepcopy(_ds.STATE)
 
 
 def get_path(home) -> dict:
@@ -24,6 +28,8 @@ def get_path(home) -> dict:
         'tmp': tempfile.gettempdir(),
         # ~/settings.ini
         'settings': os.path.join(home, 'settings.ini'),
+        # ~/.state.json
+        'state': os.path.join(home, '.state.json'),
         # ~/resources/
         'resources': os.path.join(home, 'resources'),
         # ~/data/
@@ -49,7 +55,7 @@ def get_path(home) -> dict:
 def main():
     print('MAIN: Start...')
     sig = SignalHandler((signal.SIGINT, signal.SIGTERM))
-    loader = Loader(init_cfg=get_cfg(), path=get_path(HOME), sig=sig)
+    loader = Loader(init_cfg=get_cfg(), init_state=get_state(), path=get_path(HOME), sig=sig)
     try:
         loader.start_all_systems()
     except RuntimeError:

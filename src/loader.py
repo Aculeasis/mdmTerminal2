@@ -33,7 +33,7 @@ def is_sub_dict(key, data: dict):
 
 
 class Loader(Owner):
-    def __init__(self, init_cfg: dict, path: dict, sig: SignalHandlerDummy):
+    def __init__(self, init_cfg: dict, init_state: dict, path: dict, sig: SignalHandlerDummy):
         self._sig = sig
         self.reload = False
         self._restore_filename = None
@@ -46,7 +46,8 @@ class Loader(Owner):
 
         self._logger = logger.Logger(self)
         proxies.add_logger(self._logger.add('Proxy'))
-        self._cfg = ConfigHandler(cfg=init_cfg, path=path, log=self._logger.add('CFG'), owner=self)
+
+        self._cfg = ConfigHandler(cfg=init_cfg, state=init_state, path=path, log=self._logger.add('CFG'), owner=self)
         self._logger.init(cfg=self._cfg, owner=self)
         self._log = self._logger.add('SYSTEM')
 

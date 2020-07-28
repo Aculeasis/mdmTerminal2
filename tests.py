@@ -38,19 +38,20 @@ def tests_mono():
     home = main.HOME
     path = main.get_path(home)
     cfg = main.get_cfg()
+    state = main.get_state()
     # Меняем настройки
-    test_settings = '{}.test'.format(path['settings'])
-    path['settings'] = test_settings
+    path['settings'] = '{}.test'.format(path['settings'])
+    path['state'] = '{}.test.json'.format(path['state'])
     test_log_file = os.path.join(home, 'mdmt2.log.test')
-    cfg['log'].update({'file_lvl': 'warn', 'print_lvl': 'warn', 'file': test_log_file})
+    cfg['log'].update({'file_lvl': 'warn', 'print_lvl': 'warn', 'file': os.path.join(home, 'mdmt2.log.test')})
     try:
-        loader = Loader(init_cfg=cfg, path=path, sig=SignalHandlerDummy())
+        loader = Loader(init_cfg=cfg, init_state=state, path=path, sig=SignalHandlerDummy())
         loader.start_all_systems()
         time.sleep(10)
         loader.stop_all_systems()
-        err = check_log(test_log_file)
+        err = check_log(cfg['log']['file'])
     finally:
-        for target in [test_settings, test_log_file]:
+        for target in [path['settings'], path['state'], cfg['log']['file']]:
             if os.path.isfile(target):
                 os.remove(target)
     return err

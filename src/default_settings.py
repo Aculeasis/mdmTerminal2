@@ -167,9 +167,15 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'blacklist_on_failure': False,
     },
     'system': {
-        'ini_version': 50,
         'ws_token': 'token_is_unset',
+    }
+}
+
+STATE = {
+    'system': {
+        'ini_version': 50,
+        'merge': 1,
         'PLUGINS_API': 3,
-        'VERSION': (0, 15, 19),
+        'VERSION': (0, 15, 20),
     }
 }

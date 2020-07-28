@@ -19,7 +19,7 @@ class WikiParser:
         self.log = log
 
     def get(self) -> dict:
-        return self._get(self.cfg.gt('system', 'ini_version', 0))
+        return self._get(self.cfg.ini_version)
 
     @lru_cache(maxsize=1)
     def _get(self, ini: int) -> dict:

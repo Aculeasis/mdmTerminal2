@@ -16,6 +16,7 @@ from lib.ip_storage import make_interface_storage
 from lib.keys_utils import Keystore
 from lib.map_settings.wiki_parser import WikiParser
 from lib.proxy import proxies
+from lib.state_helper import state_helper
 from lib.tools.config_updater import ConfigUpdater
 from owner import Owner
 
@@ -42,11 +43,12 @@ class DummyOwner:
 
 
 class ConfigHandler(utils.HashableDict):
-    def __init__(self, cfg: dict, path: dict, log, owner: Owner):
+    def __init__(self, cfg: dict, state: dict, path: dict, log, owner: Owner):
         super().__init__()
         self._start_time = time.time()
-        self._plugins_api = cfg['system'].pop('PLUGINS_API', 0)
-        self._version_info = cfg['system'].pop('VERSION', (0, 0, 0))
+        self._plugins_api = state['system'].pop('PLUGINS_API', 0)
+        self._version_info = state['system'].pop('VERSION', (0, 0, 0))
+        self.state, save_ini, save_state = state_helper(state, path, log.add('SH'))
         self.platform = platform.system().capitalize()
         self.detector = None
         self._save_me_later = False
@@ -57,7 +59,9 @@ class ConfigHandler(utils.HashableDict):
         self.own = DummyOwner()  # Пока player нет храним фразы тут.
         self.log = log
         languages.set_lang.set_logger(self.log.add('Localization'))
-        self._config_init()
+        self._config_init(save_ini)
+        if save_state:
+            self.save_state()
 
     @property
     def uptime(self) -> int:
@@ -70,6 +74,10 @@ class ConfigHandler(utils.HashableDict):
     @property
     def version_info(self) -> tuple:
         return self._version_info
+
+    @property
+    def ini_version(self) -> int:
+        return self.state['system']['ini_version']
 
     @property
     def version_str(self) -> str:
@@ -214,8 +222,8 @@ class ConfigHandler(utils.HashableDict):
         except Exception as e:
             raise RuntimeError(e)
 
-    def _config_init(self):
-        self._cfg_check(self.config_load())
+    def _config_init(self, save_ini):
+        self._cfg_check(self.config_load() or save_ini)
         self._path_check()
         self.tts_cache_check()
 
@@ -317,6 +325,11 @@ class ConfigHandler(utils.HashableDict):
         except RuntimeError as e:
             self.log(F('Ошибка загрузки {}: {}', file_path, str(e)), logger.ERROR)
             return None
+
+    def save_state(self):
+        wtime = time.time()
+        utils.dict_to_file(self.path['state'], self.state, True)
+        self.log('Save state in {}'.format(utils.pretty_time(time.time() - wtime)))
 
     def start(self):
         self.own, dummy = self.__owner, self.own

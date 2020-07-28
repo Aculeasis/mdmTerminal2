@@ -12,13 +12,12 @@ from owner import Owner
 class Backup(threading.Thread):
     NAME = 'backup'
     TIMESTAMP_FILE = 'timestamp'
-    ALLOW_ONLY = ('settings', 'data', 'models')
+    ALLOW_ONLY = ('settings', 'state', 'data', 'models')
 
     def __init__(self, cfg, log, owner: Owner):
         super().__init__(name=self.NAME.capitalize())
         self.cfg, self.log, self.own = cfg, log, owner
 
-        self._last_save = None
         self.work = False
         self._action = None
         self._sleep = threading.Event()
@@ -48,7 +47,7 @@ class Backup(threading.Thread):
             self._sleep.wait(3600)
             return 0
         interval *= 24 * 3600
-        diff = time.time() - self._last_save
+        diff = time.time() - self._last_backup
         if diff >= interval:
             return 10
         if diff < 0:
@@ -58,7 +57,7 @@ class Backup(threading.Thread):
 
     def run(self):
         self._sleep.wait(12)
-        self._last_save = self._load_cfg()
+        self._verify_cfg()
         while self.work:
             to_sleep = self._to_sleep()
             self._sleep.wait(to_sleep)
@@ -106,11 +105,18 @@ class Backup(threading.Thread):
             return F('Архив поврежден: {}: {}', filename, e), None
         return None, path
 
-    def _save_cfg(self):
-        self.cfg.save_dict(self.NAME, {'last_backup': self._last_save})
+    @property
+    def _last_backup(self) -> float:
+        return self.cfg.state[self.NAME]['last_backup']
 
-    def _load_cfg(self) -> float:
-        return (self.cfg.load_dict(self.NAME) or {}).get('last_backup', 0)
+    @_last_backup.setter
+    def _last_backup(self, value: float):
+        self.cfg.state[self.NAME]['last_backup'] = value
+
+    def _verify_cfg(self):
+        if self.NAME not in self.cfg.state:
+            self.cfg.state[self.NAME] = {}
+        self.cfg.state[self.NAME]['last_backup'] = self.cfg.state[self.NAME].get('last_backup', 0)
 
     def _backup(self, manual=False, remove_old=True) -> bool:
         def manual_notify(state: bool):
@@ -130,8 +136,8 @@ class Backup(threading.Thread):
 
         timestamp = time.time()
         if not manual:
-            self._last_save = timestamp
-            self._save_cfg()
+            self._last_backup = timestamp
+            self.cfg.save_state()
         filename = time.strftime('%Y.%m.%d-%H.%M.%S.zip', time.localtime(timestamp))
         file_path = os.path.join(self.cfg.path['backups'], filename)
         fail_msg = F('Ошибка создания бэкапа')

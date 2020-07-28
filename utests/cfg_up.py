@@ -1,6 +1,5 @@
 import json
 import unittest
-from copy import deepcopy
 
 import main
 from lib.tools import config_updater
@@ -15,7 +14,7 @@ def new_updater():
 
 
 def CFG():
-    return deepcopy(main.CFG)
+    return main.get_cfg()
 
 
 class ConfigUpdater(unittest.TestCase):

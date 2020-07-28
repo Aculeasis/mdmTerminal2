@@ -61,19 +61,6 @@ class ConfigUpdater:
         self._updated_count = 0
         self._save_me = False
 
-    def _ini_version_updated(self, data: dict) -> tuple:
-        try:
-            file_ver = int(data['system'].pop('ini_version'))
-        except (ValueError, TypeError, KeyError):
-            file_ver = 0
-        try:
-            cfg_ver = int(self._cfg['system'].get('ini_version'))
-        except (ValueError, TypeError, KeyError):
-            pass
-        else:
-            update = cfg_ver > file_ver
-            return update, data
-
     def _ini_to_cfg(self, path: str):
         cfg = configparser.ConfigParser()
         try:
@@ -81,8 +68,6 @@ class ConfigUpdater:
         except UnicodeDecodeError as e:
             self._log('Config file {} has broken: {}'.format(path, e), logger.CRIT)
         data = {sec.lower(): dict(cfg[sec]) for sec in cfg.sections()}
-        save_me, data = self._ini_version_updated(data)
-        self._save_me |= save_me
         self._parser(data)
 
     def _json_to_cfg(self, data: str):

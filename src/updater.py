@@ -12,25 +12,25 @@ from utils import Popen
 
 
 class Updater(threading.Thread):
-    CFG = 'update'
+    NAME = 'updater'
 
     def __init__(self, cfg, log, owner: Owner):
-        super().__init__(name='Updater')
-        self._cfg = cfg
+        super().__init__(name=self.NAME.capitalize())
+        self.cfg = cfg
         self.log = log
         self.own = owner
 
         self._old_hash = None
-        self._last = self._load_cfg()
+
         self.work = False
         self._sleep = threading.Event()
         self._action = None
 
-        self._notify_update = self.own.registration('updater')
+        self._notify_update = self.own.registration(self.NAME)
 
     def start(self):
-        if self._cfg.platform != 'Linux':
-            self.log('don\'t support this system: {}'.format(self._cfg.platform), logger.WARN)
+        if self.cfg.platform != 'Linux':
+            self.log('don\'t support this system: {}'.format(self.cfg.platform), logger.WARN)
             return
         self.work = True
         super().start()
@@ -59,6 +59,7 @@ class Updater(threading.Thread):
         self.own.terminal_call('tts', msg)
 
     def run(self):
+        self._verify_cfg()
         while self.work:
             to_sleep = self._to_sleep()
             self._sleep.wait(to_sleep)
@@ -75,7 +76,7 @@ class Updater(threading.Thread):
                 self._check_update(False)
 
     def _to_sleep(self):
-        interval = self._cfg.gt('update', 'interval')
+        interval = self.cfg.gt('update', 'interval')
         if interval <= 0:
             self._sleep.wait(3600)
             return 0
@@ -94,16 +95,19 @@ class Updater(threading.Thread):
         if not manual:
             self._last['check'] = int(time.time())
         self._last['hash'] = self._old_hash or self._last['hash']
-        self._save_cfg()
+        self.cfg.save_state()
         if msg and manual:
             self.own.terminal_call('tts', msg)
 
-    def _save_cfg(self):
-        self._cfg.save_dict(self.CFG, self._last)
+    @property
+    def _last(self) -> dict:
+        return self.cfg.state[self.NAME]
 
-    def _load_cfg(self) -> dict:
-        cfg = self._cfg.load_dict(self.CFG) or {}
-        return {'hash': cfg.get('hash'), 'check': cfg.get('check', 0)}
+    def _verify_cfg(self):
+        if self.NAME not in self.cfg.state:
+            self.cfg.state[self.NAME] = {}
+        self.cfg.state[self.NAME]['hash'] = self.cfg.state[self.NAME].get('hash')
+        self.cfg.state[self.NAME]['check'] = self.cfg.state[self.NAME].get('check', 0)
 
     def _update(self):
         up = self._new_worker()
@@ -151,17 +155,17 @@ class Updater(threading.Thread):
         return msg
 
     def _may_restart(self):
-        if self._cfg.gt('update', 'turnoff') < 0:
+        if self.cfg.gt('update', 'turnoff') < 0:
             if not sys.stdin.isatty():
                 return True
-        elif self._cfg.gt('update', 'turnoff'):
+        elif self.cfg.gt('update', 'turnoff'):
             return True
         return False
 
     def _auto_fallback(self, up, error):
         msg = F('Во время обработки обновления или установки зависимостей возникла ошибка')
         self.log('{}: {}'.format(msg, error), logger.ERROR)
-        if self._cfg.gt('update', 'fallback'):
+        if self.cfg.gt('update', 'fallback'):
             return '{}. {}'.format(msg, self._fallback(up))
         return '{}.'.format(msg)
 
@@ -181,7 +185,7 @@ class Updater(threading.Thread):
             return F('Выполнен откат.')
 
     def _up_dependency(self, name: str, updater):
-        to_update = self._cfg.gt('update', name)
+        to_update = self.cfg.gt('update', name)
         packages = updater(to_update)
         if packages:
             msg = F('Зависимости {} {}обновлены: {}').format(name, '' if to_update else F('не '), packages)
@@ -190,7 +194,7 @@ class Updater(threading.Thread):
             self.log(msg, logger.DEBUG if to_update else logger.WARN)
 
     def _new_worker(self):
-        return Worker(os.path.split(self._cfg.path['home'])[0], sys.executable)
+        return Worker(os.path.split(self.cfg.path['home'])[0], sys.executable)
 
 
 def l_split(path: str) -> list:
