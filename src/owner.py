@@ -381,6 +381,10 @@ class Owner:
         """
         raise NotImplementedError
 
+    def settings_from_inside(self, cfg: dict) -> bool:
+        """Ничего не перезагружает, в отличие от settings_from_srv"""
+        raise NotImplementedError
+
     def settings_from_srv(self, cfg: str or dict) -> dict:
         # Reload modules if their settings could be changes
         raise NotImplementedError

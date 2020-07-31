@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import os
+import queue
 import sys
 import threading
 
@@ -18,65 +19,91 @@ TERMINAL_VER_MIN = 'TERMINAL_VER_MIN'
 TERMINAL_VER_MAX = 'TERMINAL_VER_MAX'
 
 
-class Plugins:
+class Plugins(threading.Thread):
     def __init__(self, cfg, log, owner):
-        self.cfg = cfg
-        self.log = log
-        self.own = owner
-        self._lock = threading.Lock()
-        self._target = None
-        self._to_blacklist, self._blacklist, self._whitelist = None, None, None
-        self._blacklist_on_failure = False
-        self._init = {}
-        self.modules = {}
-        self._reloads = {}
+        super().__init__(name='Plugins')
+        self.cfg, self.log, self.own = cfg, log, owner
+        self._queue = queue.Queue()
+        self._target, self._lists,  self._ignore = None, None, None
+        self._init, self.modules, self._reloads = {}, {}, {}
         self._status = {
             'all': {},
             'deprecated': {},
             'broken': {}
         }
 
-    def start(self):
-        with self._lock:
-            if self.cfg.gt('plugins', 'enable'):
-                self.log('start.', logger.INFO)
-                self._to_blacklist = set()
-                self._blacklist = set(utils.str_to_list(self.cfg.gt('plugins', 'blacklist')))
-                self._whitelist = set(utils.str_to_list(self.cfg.gt('plugins', 'whitelist')))
-                self._blacklist_on_failure = self.cfg.gt('plugins', 'blacklist_on_failure')
+    @property
+    def work(self):
+        return self.is_alive()
 
-                self._init_all()
-                self._start_all()
-                self._update_blacklist()
+    @work.setter
+    def work(self, value):
+        if not value:
+            self._queue.put_nowait(None)
 
-                self._to_blacklist, self._blacklist, self._whitelist = None, None, None
+    def run(self):
+        if not self.cfg.gt('plugins', 'enable'):
+            return
+        self.log('start.', logger.INFO)
+        self.__start()
 
-    def stop(self):
-        with self._lock:
-            self._stop_all()
-            if self.cfg.gt('plugins', 'enable') or self.modules:
-                self.log('stop.', logger.INFO)
-            self._status['broken'].clear(), self._status['deprecated'].clear(), self._status['all'].clear()
-            self.modules, self._reloads = {}, {}
+        while self.modules:
+            cmd = self._queue.get()
+            if cmd is None:
+                break
+            else:
+                self._reload_all(cmd)
+
+        self.__stop()
+
+    def join(self, timeout=60):
+        self.work = False
+        super().join(timeout=timeout)
 
     def reload(self, diff: dict):
-        with self._lock:
-            self._reload_all(diff)
+        if diff and self._reloads:
+            self._queue.put_nowait(diff)
 
     def status(self, state: str) -> dict:
         return self._status.get(state, {})
 
+    def __start(self):
+        self._lists = {
+            'to_black': set(),
+            'black': set(utils.str_to_list(self.cfg.gt('plugins', 'blacklist'))),
+            'white': set(utils.str_to_list(self.cfg.gt('plugins', 'whitelist'))),
+            'on_failure': self.cfg.gt('plugins', 'blacklist_on_failure'),
+        }
+        self._ignore = {
+            'black': set(),
+            'white': set(),
+        }
+
+        self._init_all()
+        self._start_all()
+        self._update_blacklist()
+
+        self._init.clear()
+        self._target, self._lists, self._ignore = None, None, None
+
+    def __stop(self):
+        self._stop_all()
+        for section in self._status.values():
+            section.clear()
+        self.modules.clear()
+        self._reloads.clear()
+
     def _update_blacklist(self):
-        self._to_blacklist -= self._blacklist
-        if not self._to_blacklist:
+        self._lists['to_black'] -= self._lists['black']
+        if not self._lists['to_black']:
             return
-        to_blacklist = list(self._to_blacklist)
+        to_blacklist = list(self._lists['to_black'])
         to_blacklist.sort()
         to_blacklist = ','.join(to_blacklist)
         blacklist = self.cfg.gt('plugins', 'blacklist')
         blacklist = '{},{}'.format(blacklist, to_blacklist) if blacklist else to_blacklist
         self.log('Add to blacklist: {}'.format(to_blacklist), logger.INFO)
-        self.cfg.update_from_dict({'plugins': {'blacklist': blacklist}})
+        self.own.settings_from_inside({'plugins': {'blacklist': blacklist}})
 
     def _get_log(self, name: str):
         return self.log.add(name.capitalize())
@@ -85,12 +112,14 @@ class Plugins:
         self.log.module(name.capitalize(), msg, lvl)
 
     def _init_all(self):
+        oll = 0
         for plugin in os.listdir(self.cfg.path['plugins']):
             plugin_dir = os.path.join(self.cfg.path['plugins'], plugin)
             plugin_path = os.path.join(plugin_dir, PLUG_FILE)
             module_name = 'plugins.{}'.format(plugin)
             if not os.path.isfile(plugin_path):
                 continue
+            oll += 1
             self._target = None
             try:
                 self._init_plugin(plugin_path, plugin_dir, module_name)
@@ -99,12 +128,18 @@ class Plugins:
                 if self._target is not None:
                     if not (self._target in self._status['broken'] or self._target in self._status['deprecated']):
                         self._status['broken'][self._target] = plugin_dir
-                    if self._blacklist_on_failure:
-                        self._to_blacklist.add(self._target)
+                    if self._lists['on_failure']:
+                        self._lists['to_black'].add(self._target)
             if self._target is not None and self._target not in self._status['all']:
                 self._status['all'][self._target] = plugin_dir
+
+        for key, tail in (('white', 'not whitelisted'), ('black', 'blacklisted')):
+            if self._ignore[key]:
+                count = ' ' if len(self._ignore[key]) < 2 else ' [{}] '.format(len(self._ignore[key]))
+                list_ = '\', \''.join(sorted(self._ignore[key]))
+                self.log('Ignore{}\'{}\': {}'.format(count, list_, tail))
         if self._init:
-            self.log('Init {}'.format(', '.join(key for key in self._init)))
+            self.log('Init [{}/{}]: {}'.format(len(self._init), oll, ', '.join(key for key in self._init)))
 
     def _init_plugin(self, path: str, plugin_dir: str, module_name: str):
         module = import_module(path, module_name)
@@ -128,7 +163,11 @@ class Plugins:
         if name in self._init:
             raise RuntimeError('Plugin named \'{}\' already initialized'.format(name))
 
-        if not self._allow_by_name(name):
+        if self._lists['white'] and name not in self._lists['white']:
+            self._ignore['white'].add(name)
+            return
+        if name in self._lists['black']:
+            self._ignore['black'].add(name)
             return
         self._target = name
 
@@ -159,7 +198,8 @@ class Plugins:
             self._start_plugin(name, module, reload)
         if plugin_updater:
             self._start_plugin('plugin-updater', plugin_updater[0], plugin_updater[1])
-        self._init = {}
+        if self.modules:
+            self.log('Load {} plugins.'.format(len(self.modules)))
 
     def _start_plugin(self, name: str, module, reload):
         if getattr(module, DISABLE_2, None):
@@ -172,8 +212,8 @@ class Plugins:
             self.log('Error start \'{}\': {}'.format(name, e), logger.ERROR)
             if name in self._status['all']:
                 self._status['broken'][name] = self._status['all'][name]
-            if self._blacklist_on_failure:
-                self._to_blacklist.add(name)
+            if self._lists['on_failure']:
+                self._lists['to_black'].add(self._target)
             return
         self.modules[name] = module
         if reload and getattr(module, 'reload', None):
@@ -209,15 +249,6 @@ class Plugins:
     def _reload(self, name: str):
         self.modules[name].reload()
         self._log(name, 'reload.', logger.INFO)
-
-    def _allow_by_name(self, name: str) -> bool:
-        if self._whitelist and name not in self._whitelist:
-            self.log('Ignore \'{}\': not whitelisted'.format(name), logger.DEBUG)
-            return False
-        if self._blacklist and name in self._blacklist:
-            self.log('Ignore \'{}\': blacklisted'.format(name), logger.DEBUG)
-            return False
-        return True
 
     def _version_check(self, module, name : str) -> bool:
         def str_ver(_ver: tuple) -> str:

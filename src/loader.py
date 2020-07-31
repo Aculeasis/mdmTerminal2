@@ -88,7 +88,7 @@ class Loader(Owner):
 
     def stop_all_systems(self):
         self._cfg.config_save(final=True)
-        self._plugins.stop()
+        self.join_thread(self._plugins)
         self._mm.stop()
         self.join_thread(self._discovery)
         self.join_thread(self._server)
@@ -440,6 +440,10 @@ class Loader(Owner):
             return volume_.set_volume(vol, control, card)
         except RuntimeError:
             return -1
+
+    def settings_from_inside(self, cfg: dict) -> bool:
+        with self._lock:
+            return self._cfg.update_from_dict(cfg)
 
     def settings_from_srv(self, cfg: str or dict) -> dict:
         # Reload modules if their settings could be changes

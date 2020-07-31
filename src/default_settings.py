@@ -176,6 +176,6 @@ STATE = {
         'ini_version': 50,
         'merge': 1,
         'PLUGINS_API': 3,
-        'VERSION': (0, 15, 21),
+        'VERSION': (0, 15, 22),
     }
 }

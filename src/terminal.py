@@ -577,6 +577,6 @@ class _SampleWorker:
         model_data = {'models': {pmdl_name: phrase}}
         if username:
             model_data['persons'] = {pmdl_name: username}
-        self.cfg.update_from_dict(model_data)
+        self.own.settings_from_inside(model_data)
         self.cfg.models_load()
         self._reload_cb()
