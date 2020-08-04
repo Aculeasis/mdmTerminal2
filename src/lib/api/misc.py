@@ -9,7 +9,8 @@ SELF_AUTH_CHANNEL = 'net.self.auth'
 
 
 class Null:
-    def __repr__(self):
+    @classmethod
+    def __repr__(cls):
         return 'null'
 
 
@@ -33,7 +34,7 @@ class InternalException(Exception):
 
     @property
     def data(self):
-        return {'error': self.error, 'id': self.id if not isinstance(self.id, Null) else None}
+        return {'error': self.error, 'id': None if self.id is Null else self.id}
 
     def __str__(self):
         return '{} {code}: {message}'.format(self.method, **self.error)
@@ -82,15 +83,16 @@ class SelfAuthInstance:
                 self._owners.clear()
 
 
-def api_commands(*commands, true_json=None, true_legacy=None, pure_json=None):
+def api_commands(*commands, true_json=None, true_legacy=None, pure_json=None, allow_response=None):
     """
     Враппер для связывания команд с методом.
     :param commands: Список команд.
     :param true_json: Список команд, при обработке которых в data, будет исходный params а не строка,
-    для старых команд будет ['<str>']. True - эквивалентно commands.
+    для старых команд будет ['<str>']. True - эквивалентно commands (тут и далее).
     :param true_legacy: Если обработчик вернет dict, передаст только его в строке ('key:val', 'key:val;key2:val2')
-    или строку из 'cmd:result' без преобразования в json если result простой тип. True - эквивалентно commands.
-    :param pure_json: Список команд, которые доступны только в JSON-RPC. True - эквивалентно commands.
+    или строку из 'cmd:result' без преобразования в json если result простой тип.
+    :param pure_json: Список команд, которые доступны только в JSON-RPC.
+    :param allow_response: Может обработать ответ, примитивно только если команда совпала с id.
     :return: Исходный метод.
     """
     def _commands(_flags):
@@ -108,6 +110,7 @@ def api_commands(*commands, true_json=None, true_legacy=None, pure_json=None):
         filling(f, 'true_json', _commands(true_json))
         filling(f, 'true_legacy', _commands(true_legacy))
         filling(f, 'pure_json', _commands(pure_json))
+        filling(f, 'allow_response', _commands(allow_response))
         return f
     return wrapper
 

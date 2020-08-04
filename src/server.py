@@ -5,22 +5,25 @@ import socket
 import logger as logger_
 from languages import F
 from lib.api.misc import api_commands, upgrade_duplex, InternalException
-from lib.api.api import API
+from lib.api.socket_api_handler import SocketAPIHandler, APIHandler
 from owner import Owner
 
 
-class MDTServer(API):
-    def __init__(self, cfg, log, owner: Owner):
-        super().__init__(cfg, log, owner, name='MDTServer')
-        self._local = ('', 7999)
-        self._socket = socket.socket()
-
+class _APIHandler(APIHandler):
     @api_commands('upgrade duplex', true_json=True)
     def _upgrade_duplex(self, *_):
         try:
-            upgrade_duplex(self.own, self._conn, self.id)
+            upgrade_duplex(self.own, self.get('conn'), self.id)
         except RuntimeError as e:
             raise InternalException(msg=str(e))
+
+
+class MDTServer(SocketAPIHandler):
+    def __init__(self, cfg, log, owner: Owner):
+        super().__init__(cfg, log, owner, name='MDTServer', api_handler=_APIHandler)
+        self.api.getters_up({'conn': lambda : self._conn})
+        self._local = ('', 7999)
+        self._socket = socket.socket()
 
     def do_ws_allow(self, ip, port, token):
         ws_token = self.cfg.gt('system', 'ws_token')

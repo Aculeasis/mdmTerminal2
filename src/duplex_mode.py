@@ -7,8 +7,8 @@ from collections import OrderedDict
 from uuid import uuid4
 
 import logger
-from lib.api.api import API
 from lib.api.misc import api_commands
+from lib.api.socket_api_handler import SocketAPIHandler, APIHandler
 from lib.socket_wrapper import Connect
 from lib.subscriptions_worker import SubscriptionsWorker
 from owner import Owner
@@ -137,9 +137,24 @@ def _make_dict_reply(cmd: str or None) -> dict:
         return {'method': 'ping', 'params': [str(time.time())], 'id': 'pong'}
 
 
-class DuplexInstance(API):
+class _APIHandler(APIHandler):
+    @api_commands('subscribe', pure_json=True)
+    def _api_subscribe(self, _, data: list):
+        return self.get('notify_worker').subscribe(data)
+
+    @api_commands('unsubscribe', pure_json=True)
+    def _api_unsubscribe(self, _, data: list):
+        return self.get('notify_worker').unsubscribe(data)
+
+    @api_commands('events_list', pure_json=True)
+    def _api_events_list(self, *_):
+        return self.get('notify_worker').events_list()
+
+
+class DuplexInstance(SocketAPIHandler):
     def __init__(self, cfg, log, owner: Owner, name: str, conn: Connect, cmd: str or None, close_callback):
-        super().__init__(cfg, log, owner, name=name)
+        super().__init__(cfg, log, owner, name, _APIHandler)
+        self.api.getters_up({'notify_worker': lambda : self._notify_worker})
         self._conn = conn
         self.__cmd = cmd
         self.__close_callback = close_callback
@@ -153,18 +168,6 @@ class DuplexInstance(API):
     def join(self, timeout=10):
         self._notify_worker.join()
         super().join(timeout=timeout)
-
-    @api_commands('subscribe', pure_json=True)
-    def _api_subscribe(self, _, data: list):
-        return self._notify_worker.subscribe(data)
-
-    @api_commands('unsubscribe', pure_json=True)
-    def _api_unsubscribe(self, _, data: list):
-        return self._notify_worker.unsubscribe(data)
-
-    @api_commands('events_list', pure_json=True)
-    def _api_events_list(self, *_):
-        return self._notify_worker.events_list()
 
     def do_ws_allow(self, *args, **kwargs):
         return False

@@ -1,16 +1,15 @@
 import base64
-import hashlib
 import json
 import os
 import time
 
 import logger
-from lib.api.misc import InternalException, api_commands, dict_key_checker, json_parser, dict_list_to_list_in_tuple
-from lib.api.socket_api_handler import SocketAPIHandler
+from lib.api.misc import (
+    InternalException, api_commands, dict_key_checker, json_parser, dict_list_to_list_in_tuple, Null
+)
 from lib.map_settings.map_settings import make_map_settings
-from lib.totp_salt import check_token_with_totp
 from owner import Owner
-from utils import file_to_base64, pretty_time, TextBox, is_valid_base_filename, deprecated
+from utils import file_to_base64, pretty_time, TextBox, is_valid_base_filename
 
 # old -> new
 OLD_CMD = {
@@ -20,99 +19,75 @@ OLD_CMD = {
 }
 
 
-class API(SocketAPIHandler):
-    def __init__(self, cfg, log, owner: Owner, name):
-        super().__init__(log, owner, name)
-        self.cfg = cfg
+class API:
+    def __init__(self, cfg, log, owner: Owner):
+        self.cfg, self.log, self.own = cfg, log, owner
         # Команды API не требующие авторизации
-        self.NON_AUTH.update({
-            'authorization', 'self.authorization', 'authorization.self', 'authorization.totp',
+        self.NON_AUTH = {
             'hi', 'voice', 'play', 'pause', 'tts', 'ask',
-            'settings', 'rec', 'remote_log', 'listener', 'volume',
+            'settings', 'rec', 'remote_log', 'listener', 'volume', 'info',
             'nvolume', 'mvolume', 'nvolume_say', 'mvolume_say', 'get',
-        })
+        }
+        # Для подключения коллбэков
+        self._getters, self._setters = {'auth': lambda : False}, {}
+        self.API, self.API_CODE = {}, {}
+        self.TRUE_JSON, self.TRUE_LEGACY, self.PURE_JSON, self.ALLOW_RESPONSE = set(), set(), set(), set()
+        self._collector()
 
-    def _base_authorization(self, cmd, equal, sub_msg='') -> str:
-        # compare(token) -> bool
-        if not self._conn.auth:
-            token = self.cfg.gt('smarthome', 'token')
-            if token:
-                if not equal(token):
-                    raise InternalException(msg='forbidden: wrong hash{}'.format(sub_msg))
-            self._conn.auth = True
-            msg = 'authorized'
-            self.log('API.{} {}{}'.format(cmd, msg, sub_msg), logger.INFO)
-            return msg
-        return 'already'
+    @staticmethod
+    def _up(dict_: dict, name: str or dict, callback):
+        for name_, callback_ in ({name: callback} if isinstance(name, str) else name).items():
+            if not name_:
+                raise RuntimeError('Empty name')
+            if not callback_:
+                if name_ == '*':
+                    dict_.clear()
+                else:
+                    dict_.pop(name_, None)
+            else:
+                dict_[name_] = callback_
 
-    @api_commands('authorization')
-    def _api_authorization(self, cmd, remote_hash):
-        """Авторизация, повышает привилегии текущего подключения."""
-        return self._base_authorization(cmd, lambda token: hashlib.sha512(token.encode()).hexdigest() == remote_hash)
+    def getters_up(self, name: str or dict, callback=None):
+        self._up(self._getters, name, callback)
 
-    @api_commands('authorization.totp', pure_json=True)
-    def _api_authorization_totp(self, cmd, data):
-        """
-        Перед хешированием токена добавляет к нему "соль" - Unix time поделенный на 2 и округленный до целого.
-        Хеш будет постоянно меняться, но требует чтобы время на терминале и подключаемом устройстве точно совпадало.
-        Также можно передать timestamp, он не участвует в хешировании но позволит узнать временную разницу:
+    def setters_up(self, name: str or dict, callback=None):
+        self._up(self._setters, name, callback)
 
-        {"method":"authorization.totp","params":{"hash":"3a2af9d519e51c5bff2e283f2a3d384c6ey0721cb1d715ef356508c57bf1544c498328c59f5670e4aeb6bda135497f4e310960a77f88a046d2bb4185498d941f","timestamp":1582885520.931},"id":"8a5559310b336bad7e139550b7f648ad"}
-        """
-        time_ = time.time()
-        dict_key_checker(data, ('hash',))
-        remote_hash = data['hash']
-        if not isinstance(remote_hash, str):
-            raise InternalException(2, 'hash must be str, not {}'.format(type(remote_hash)))
-        if 'timestamp' in data:
-            timestamp = data['timestamp']
-            if not isinstance(timestamp, float):
-                raise InternalException(2, 'timestamp must be float, not {}'.format(type(timestamp)))
-        else:
-            timestamp = None
-        time_diff = '; diff: {}'.format(pretty_time(time_ - timestamp)) if timestamp else ''
-        return self._base_authorization(cmd, lambda token: check_token_with_totp(token, remote_hash, time_), time_diff)
+    def get(self, name, *args, **kwargs):
+        return self._getters[name](*args, **kwargs)
 
-    @api_commands('self.authorization', pure_json=True)
-    @deprecated
-    def _api_self_authorization(self, cmd, data: dict):
-        return self._api_authorization_self(cmd, data)
+    def set(self, name, *args, **kwargs):
+        return self._setters[name](*args, **kwargs)
 
-    @api_commands('authorization.self', pure_json=True)
-    def _api_authorization_self(self, cmd, data: dict):
-        """
-        Альтернативный способ авторизации, для внутренних нужд:
+    def _collector(self):
+        def filling(target: set, name_):
+            sets = getattr(obj, name_, None)
+            if not (sets and isinstance(sets, tuple)):
+                return
+            for set_ in sets:
+                if set_ in target:
+                    raise RuntimeError('command {} already marked as {}'.format(set_, name_))
+                target.add(set_)
 
-        {"method": "authorization.self", "params": {"token": "token", "owner": "owner"}}
-        """
-        keys = ('token', 'owner')
-        dict_key_checker(data, keys)
-        for key in keys:
-            if not isinstance(data[key], str):
-                raise InternalException(msg='Value in {} must be str, not {}.'.format(key, type(data[key])))
-            if not data[key]:
-                raise InternalException(2, 'Empty key - {}.'.format(key))
-        if not self._conn.auth:
-            fun = self._get_owner_callback(data['owner'])
-            if not fun:
-                raise InternalException(3, 'Unknown owner - {}'.format(data['owner']))
-            if not fun(data['token'], self._conn.ip, self._conn.port):
-                raise InternalException(4, 'forbidden: rejected')
-            self._conn.auth = True
-            msg = 'authorized'
-            self.log('API.{} {} from {}'.format(cmd, msg, repr(data['owner'])), logger.INFO)
-            return msg
-        return 'already'
-
-    @api_commands('deauthorization')
-    def _api_deauthorization(self, cmd, _):
-        """Отменяет авторизацию для текущего подключения."""
-        if self._conn.auth:
-            self._conn.auth = False
-            msg = 'deauthorized'
-            self.log('API.{} {}'.format(cmd, msg), logger.INFO)
-            return msg
-        return 'already'
+        for attr in dir(self):
+            if attr.startswith('__'):
+                continue
+            obj = getattr(self, attr)
+            commands = getattr(obj, 'api_commands', None)
+            if not (commands and isinstance(commands, tuple)):
+                continue
+            for command in commands:
+                if command in self.API:
+                    raise RuntimeError('command {} already linked to {}'.format(command, self.API[command]))
+                self.API[command] = obj
+            filling(self.TRUE_JSON, 'true_json')
+            filling(self.TRUE_LEGACY, 'true_legacy')
+            filling(self.PURE_JSON, 'pure_json')
+            filling(self.ALLOW_RESPONSE, 'allow_response')
+            # pure_json поддерживает только чистый json
+            self.TRUE_JSON -= self.PURE_JSON
+            self.TRUE_LEGACY -= self.PURE_JSON
+        self.API_CODE = {name: index for index, name in enumerate(self.API.keys(), 1)}
 
     @api_commands('get', true_json=('get',), true_legacy=('get',))
     def _api_get(self, _, data):
@@ -189,9 +164,9 @@ class API(SocketAPIHandler):
         param = cmd.split('_')  # должно быть вида rec_1_1, play_2_1, compile_5_1
         if len([1 for x in param if len(x)]) != 3:
             raise InternalException(msg='Error parsing parameters for \'rec\': {}'.format(repr(param)[:1500]))
-        # a = param[0]  # rec, play или compile
-        # b = param[1]  # 1-6
-        # c = param[2]  # 1-3
+        # a = param[0] # rec, play или compile
+        # b = param[1] # 1-6
+        # c = param[2] # 1-3
         if param[0] in ('play', 'rec', 'compile', 'del'):
             self.own.terminal_call(param[0], param[1:])
         elif param[0] == 'save':
@@ -279,7 +254,7 @@ class API(SocketAPIHandler):
 
     @api_commands('test.record', pure_json=True)
     def _api_test_recoder(self, _, data):
-        # file: str, limit: [int, float]
+        """file: str, limit: [int, float]"""
         dict_key_checker(data, ('file',))
         file, limit = data['file'], data.get('limit', 8)
         if not isinstance(limit, (int, float)):
@@ -294,12 +269,12 @@ class API(SocketAPIHandler):
 
     @api_commands('test.play', 'test.delete', pure_json=True)
     def _api_test_play_delete(self, cmd, data):
-        # files: list[str]
+        """files: list[str]"""
         self.own.terminal_call(cmd, dict_list_to_list_in_tuple(data, ('files',)))
 
     @api_commands('test.test', pure_json=True)
     def _api_test_test(self, _, data):
-        # providers: list[str], files: list[str]
+        """providers: list[str], files: list[str]"""
         self.own.terminal_call('test.test', dict_list_to_list_in_tuple(data, ('providers', 'files')))
 
     @api_commands('test.list', pure_json=True)
@@ -315,10 +290,10 @@ class API(SocketAPIHandler):
         """
         return data if data else str(time.time())
 
-    @api_commands('pong')
+    @api_commands('pong', allow_response=True)
     def _api_pong(self, _, data: str):
+        """Считает пинг"""
         if data:
-            # Считаем пинг
             try:
                 data = time.time() - float(data)
             except (ValueError, TypeError):
@@ -332,17 +307,22 @@ class API(SocketAPIHandler):
         Возвращает справку по команде из __doc__ или список доступных команд если команда не задана.
         Учитывает только команды представленные в API, подписчики не проверяются.
         """
+        def allow(cmd_):
+            return self.get('auth') or cmd_ in self.NON_AUTH
+
         result = {'cmd': cmd, 'msg': ''}
         if not cmd:
-            result.update(cmd=[x for x in self.API], msg='Available commands')
-        elif cmd not in self.API:
+            result.update(cmd=[x for x in self.API if allow(x)], msg='Available commands')
+        elif not (cmd in self.API and allow(cmd)):
             raise InternalException(msg='Unknown command: {}'.format(cmd))
         else:
             if self.API[cmd].__doc__:
                 result['msg'] = self.API[cmd].__doc__.strip('\n').rstrip()
             result['msg'] = result['msg'] or 'Undocumented'
             flags = [k for k, s in (
-                ('TRUE_JSON', self.TRUE_JSON), ('TRUE_LEGACY', self.TRUE_LEGACY), ('PURE_JSON', self.PURE_JSON)
+                ('TRUE_JSON', self.TRUE_JSON), ('TRUE_LEGACY', self.TRUE_LEGACY),
+                ('PURE_JSON', self.PURE_JSON), ('ALLOW_RESPONSE', self.ALLOW_RESPONSE),
+                ('NON_AUTH', self.NON_AUTH),
             ) if cmd in s]
             if flags:
                 result['flags'] = flags
@@ -430,6 +410,130 @@ class API(SocketAPIHandler):
     @api_commands('backup.list')
     def _api_backup_list(self, *_) -> list:
         return [{'filename': filename, 'timestamp': timestamp} for filename, timestamp in self.own.backup_list()]
+
+
+class BaseAPIHandler(API):
+    def __init__(self, cfg, log, owner: Owner):
+        super().__init__(cfg, log, owner)
+        self.is_jsonrpc = False
+        self.id = None
+
+    def call(self, data: dict) -> dict or None:
+        if data['type'] == 'cmd':
+            return self.call_api(data)
+        elif data['type'] == 'result':
+            return self.call_result(data)
+        elif data['type'] == 'error':
+            return self.has_error(data)
+        raise RuntimeError
+
+    def call_api(self, data: dict) -> dict or None:
+        if data['cmd'] not in self.API:
+            cmd = repr(data['cmd'])[1:-1]
+            msg = 'Unknown command: \'{}\''.format(cmd[:100])
+            raise InternalException(code=-32601, msg=msg, id_=data['id'])
+
+        self.id = data['id']
+        result = self.API[data['cmd']](data['cmd'], data['params'])
+        return {'result': result, 'id': data['id']} if data['id'] is not None else None
+
+    def call_result(self, data: dict) -> None:
+        if data['id'] in self.ALLOW_RESPONSE:
+            self.API[data['id']](data['id'], data['result'])
+        else:
+            data = {k: repr(v) for k, v in data.items()}
+            self.log('Response message received. result: {result}, id: {id}, JSON_RPC: {jsonrpc}'.format(
+                **data, jsonrpc=self.is_jsonrpc
+            ), logger.INFO)
+        return None
+
+    def has_error(self, data: dict) -> None:
+        data = {k: repr(v) for k, v in data.items()}
+        self.log('Error message received. code: {code}, msg: {message}, id: {id}'.format(**data), logger.WARN)
+        return None
+
+    def extract(self, line: str or dict) -> dict:
+        return self._extract_json(line) if self.is_jsonrpc else self._extract_str(line)
+
+    def prepare(self, line: str, is_json=None) -> str or dict or list:
+        self.is_jsonrpc = is_json if is_json is not None else (line.startswith('{') or line.startswith('['))
+        if self.is_jsonrpc:
+            try:
+                line = json.loads(line)
+                if not isinstance(line, (dict, list)):
+                    raise InternalException(code=-32700, msg='must be a dict or list type', id_=Null)
+            except (json.decoder.JSONDecodeError, TypeError) as e:
+                raise InternalException(code=-32700, msg=str(e), id_=Null)
+        return line
+
+    def _extract_json(self, line: dict) -> dict:
+        def get_id():
+            return None if id_ is Null else id_
+
+        if not isinstance(line, dict):
+            raise InternalException(code=-32600, msg='must be a dict type', id_=Null)
+
+        # Хак для ошибок парсинга, null != None
+        id_ = line['id'] if line.get('id') is not None else Null
+
+        # Получили ответ с ошибкой.
+        if 'error' in line:
+            if isinstance(line['error'], dict):
+                return {
+                    'type': 'error',
+                    'code': line['error'].get('code'),
+                    'message': line['error'].get('message'),
+                    'id': get_id()
+                }
+        # Получили ответ с результатом.
+        elif 'result' in line:
+            return {'type': 'result', 'result': line['result'], 'id': get_id()}
+
+        # Запрос.
+        method = line.get('method')
+        if not method:
+            raise InternalException(code=-32600, msg='method missing', id_=id_)
+        if not isinstance(method, str):
+            raise InternalException(code=-32600, msg='method must be a str', id_=id_)
+        if not self.get('auth') and method not in self.NON_AUTH:
+            raise InternalException(
+                code=self.API_CODE.get('authorization', 1000),
+                msg='forbidden: authorization is necessary',
+                id_=get_id(),
+                method=method
+            )
+
+        params = line.get('params')
+        if method in self.PURE_JSON:
+            if params is not None and not isinstance(params, (dict, list)):
+                raise InternalException(code=-32600, msg='params must be a dict or list', id_=id_, method=method)
+        elif method in self.TRUE_JSON and isinstance(params, (dict, list)):
+            pass
+        elif params:
+            # FIXME: legacy
+            if isinstance(params, list) and len(params) == 1 and isinstance(params[0], str):
+                params = params[0]
+            elif isinstance(params, (dict, list)):
+                # Обратно в строку - костыль.
+                params = json.dumps(params)
+            else:
+                raise InternalException(
+                    code=-32602, msg='legacy, params must be a list[str]', id_=id_, method=method
+                )
+        else:
+            params = ''
+        return {'type': 'cmd', 'cmd': method, 'params': params, 'id': get_id()}
+
+    def _extract_str(self, line: str) -> dict:
+        line = line.split(':', 1)
+        if len(line) != 2:
+            line.append('')
+        # id = cmd
+        cmd = line[0]
+        if cmd in self.PURE_JSON:
+            InternalException(code=-32700, msg='Allow only in JSON-RPC', id_=cmd, method=cmd)
+        data = [line[1]] if cmd in self.TRUE_JSON else line[1]
+        return {'type': 'cmd', 'cmd': cmd, 'params': data, 'id': cmd}
 
 
 def _rpc_data_extractor(data: str) -> tuple:

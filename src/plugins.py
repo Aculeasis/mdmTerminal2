@@ -24,7 +24,7 @@ class Plugins(threading.Thread):
         super().__init__(name='Plugins')
         self.cfg, self.log, self.own = cfg, log, owner
         self._queue = queue.Queue()
-        self._target, self._lists,  self._ignore = None, None, None
+        self._target, self._lists, self._ignore = None, None, None
         self._init, self.modules, self._reloads = {}, {}, {}
         self._status = {
             'all': {},
