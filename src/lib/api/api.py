@@ -413,6 +413,11 @@ class API:
 
 
 class BaseAPIHandler(API):
+    IS_METHOD = 'method'
+    IS_RESULT = 'result'
+    IS_ERROR = 'error'
+    ALL_TYPES = (IS_METHOD, IS_RESULT, IS_ERROR)
+
     def __init__(self, cfg, log, owner: Owner):
         super().__init__(cfg, log, owner)
         self.is_jsonrpc = False
@@ -476,37 +481,39 @@ class BaseAPIHandler(API):
         # Хак для ошибок парсинга, null != None
         id_ = line['id'] if line.get('id') is not None else Null
 
+        found = [key for key in self.ALL_TYPES if key in line]
+        if len(found) != 1:
+            msg = 'Only one key of {} may present, found: {}'.format(self.ALL_TYPES, tuple(found) if found else '')
+            raise InternalException(code=-32600, msg=msg, id_=id_)
+        found = found[0]
+
         # Получили ответ с ошибкой.
-        if 'error' in line:
-            if isinstance(line['error'], dict):
+        if found == self.IS_ERROR:
+            if isinstance(line[self.IS_ERROR], dict):
                 return {
                     'type': 'error',
-                    'code': line['error'].get('code'),
-                    'message': line['error'].get('message'),
+                    'code': line[self.IS_ERROR].get('code'),
+                    'message': line[self.IS_ERROR].get('message'),
                     'id': get_id()
                 }
+            raise InternalException(code=-32600, msg='{} myst be a dict'.format(self.IS_ERROR), id_=id_)
         # Получили ответ с результатом.
-        elif 'result' in line:
-            return {'type': 'result', 'result': line['result'], 'id': get_id()}
+        if found == self.IS_RESULT:
+            _id = get_id()
+            if _id and _id in self.ALLOW_RESPONSE:
+                self._check_auth(_id, None)
+            return {'type': 'result', 'result': line[self.IS_RESULT], 'id': _id}
 
         # Запрос.
-        method = line.get('method')
-        if not method:
-            raise InternalException(code=-32600, msg='method missing', id_=id_)
+        method = line[self.IS_METHOD]
         if not isinstance(method, str):
-            raise InternalException(code=-32600, msg='method must be a str', id_=id_)
-        if not self.get('auth') and method not in self.NON_AUTH:
-            raise InternalException(
-                code=self.API_CODE.get('authorization', 1000),
-                msg='forbidden: authorization is necessary',
-                id_=get_id(),
-                method=method
-            )
+            raise InternalException(code=-32600, msg='{} must be a str'.format(self.IS_METHOD), id_=id_)
+        self._check_auth(method, get_id())
 
         params = line.get('params')
         if method in self.PURE_JSON:
             if params is not None and not isinstance(params, (dict, list)):
-                raise InternalException(code=-32600, msg='params must be a dict or list', id_=id_, method=method)
+                raise InternalException(code=-32600, msg='params must be a dict, list or null', id_=id_, method=method)
         elif method in self.TRUE_JSON and isinstance(params, (dict, list)):
             pass
         elif params:
@@ -530,10 +537,20 @@ class BaseAPIHandler(API):
             line.append('')
         # id = cmd
         cmd = line[0]
+        self._check_auth(cmd, cmd)
         if cmd in self.PURE_JSON:
             InternalException(code=-32700, msg='Allow only in JSON-RPC', id_=cmd, method=cmd)
         data = [line[1]] if cmd in self.TRUE_JSON else line[1]
         return {'type': 'cmd', 'cmd': cmd, 'params': data, 'id': cmd}
+
+    def _check_auth(self, method, id_):
+        if not self.get('auth') and method not in self.NON_AUTH:
+            raise InternalException(
+                code=self.API_CODE.get('authorization', 1000),
+                msg='forbidden: authorization is necessary',
+                id_=id_,
+                method=method
+            )
 
 
 def _rpc_data_extractor(data: str) -> tuple:
