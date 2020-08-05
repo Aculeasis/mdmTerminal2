@@ -151,14 +151,14 @@ class SocketAPIHandler(threading.Thread):
         except InternalException as e:
             e.id = data.get('id')
             return self._handle_exception(e, cmd())
-        except RuntimeError as e:
-            self.log('API.{} RuntimeError: {} '.format(cmd(), e), logger.ERROR)
         except Exception as e:
             try:
                 name = e.__class__.__name__
             except AttributeError:
                 name = ''
-            self.log('API.{} {}: {} '.format(cmd(), name or 'Exception', e), logger.CRIT)
+            name = name or 'Exception'
+            level = logger.ERROR if isinstance(e, RuntimeError) else logger.CRIT
+            self.log('API.{} {}[{}]: {} '.format(cmd(), name, data['type'], e), level)
         return None
 
     def __processing(self, data: dict or str) -> dict or None:
@@ -169,8 +169,6 @@ class SocketAPIHandler(threading.Thread):
             data = self.api.extract(data)
         except InternalException as e:
             return self._handle_exception(e, e.method)
-        if data['type'] == 'error':
-            return self.api.has_error(data)
 
         if data['type'] == 'cmd':
             if self.own.has_subscribers(data['cmd'], self.NET):

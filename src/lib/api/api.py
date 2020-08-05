@@ -487,8 +487,37 @@ class BaseAPIHandler(API):
             raise InternalException(code=-32600, msg=msg, id_=id_)
         found = found[0]
 
-        # Получили ответ с ошибкой.
-        if found == self.IS_ERROR:
+        if found == self.IS_METHOD:
+            # Запрос.
+            method = line[self.IS_METHOD]
+            if not isinstance(method, str):
+                raise InternalException(code=-32600, msg='{} must be a str'.format(self.IS_METHOD), id_=id_)
+            self._check_auth(method, get_id())
+
+            params = line.get('params')
+            if method in self.PURE_JSON:
+                if params is not None and not isinstance(params, (dict, list)):
+                    raise InternalException(
+                        code=-32600, msg='params must be a dict, list or null', id_=id_, method=method
+                    )
+            elif method in self.TRUE_JSON and isinstance(params, (dict, list)):
+                pass
+            elif params:
+                # FIXME: legacy
+                if isinstance(params, list) and len(params) == 1 and isinstance(params[0], str):
+                    params = params[0]
+                elif isinstance(params, (dict, list)):
+                    # Обратно в строку - костыль.
+                    params = json.dumps(params)
+                else:
+                    raise InternalException(
+                        code=-32602, msg='legacy, params must be a list[str]', id_=id_, method=method
+                    )
+            else:
+                params = ''
+            return {'type': 'cmd', 'cmd': method, 'params': params, 'id': get_id()}
+        elif found == self.IS_ERROR:
+            # Получили ответ с ошибкой.
             if isinstance(line[self.IS_ERROR], dict):
                 return {
                     'type': 'error',
@@ -497,39 +526,13 @@ class BaseAPIHandler(API):
                     'id': get_id()
                 }
             raise InternalException(code=-32600, msg='{} myst be a dict'.format(self.IS_ERROR))
-        # Получили ответ с результатом.
-        if found == self.IS_RESULT:
+        elif found == self.IS_RESULT:
+            # Получили ответ с результатом.
             _id = get_id()
             if _id and _id in self.ALLOW_RESPONSE:
                 self._check_auth(_id, None)
             return {'type': 'result', 'result': line[self.IS_RESULT], 'id': _id}
-
-        # Запрос.
-        method = line[self.IS_METHOD]
-        if not isinstance(method, str):
-            raise InternalException(code=-32600, msg='{} must be a str'.format(self.IS_METHOD), id_=id_)
-        self._check_auth(method, get_id())
-
-        params = line.get('params')
-        if method in self.PURE_JSON:
-            if params is not None and not isinstance(params, (dict, list)):
-                raise InternalException(code=-32600, msg='params must be a dict, list or null', id_=id_, method=method)
-        elif method in self.TRUE_JSON and isinstance(params, (dict, list)):
-            pass
-        elif params:
-            # FIXME: legacy
-            if isinstance(params, list) and len(params) == 1 and isinstance(params[0], str):
-                params = params[0]
-            elif isinstance(params, (dict, list)):
-                # Обратно в строку - костыль.
-                params = json.dumps(params)
-            else:
-                raise InternalException(
-                    code=-32602, msg='legacy, params must be a list[str]', id_=id_, method=method
-                )
-        else:
-            params = ''
-        return {'type': 'cmd', 'cmd': method, 'params': params, 'id': get_id()}
+        raise RuntimeError
 
     def _extract_str(self, line: str) -> dict:
         line = line.split(':', 1)
