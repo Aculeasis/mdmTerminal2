@@ -496,7 +496,7 @@ class BaseAPIHandler(API):
                     'message': line[self.IS_ERROR].get('message'),
                     'id': get_id()
                 }
-            raise InternalException(code=-32600, msg='{} myst be a dict'.format(self.IS_ERROR), id_=id_)
+            raise InternalException(code=-32600, msg='{} myst be a dict'.format(self.IS_ERROR))
         # Получили ответ с результатом.
         if found == self.IS_RESULT:
             _id = get_id()
