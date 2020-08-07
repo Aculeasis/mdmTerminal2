@@ -143,7 +143,7 @@ class API:
         self._base_says(cmd, data)
 
     def _base_says(self, cmd, data):
-        data = data if isinstance(data, dict) else {'text': data[0]}
+        data = data if isinstance(data, dict) else {'text': data[0] if isinstance(data, list) and data else data}
         dict_key_checker(data, keys=('text',))
         self.own.terminal_call(cmd, TextBox(data['text'], data.get('provider')))
 
@@ -310,9 +310,14 @@ class API:
         def allow(cmd_):
             return self.get('auth') or cmd_ in self.NON_AUTH
 
+        def flags2(cmd_):
+            return [cmd_ in x for x in (self.TRUE_JSON, self.PURE_JSON)]
+
         result = {'cmd': cmd, 'msg': ''}
         if not cmd:
             result.update(cmd=[x for x in self.API if allow(x)], msg='Available commands')
+        elif cmd == '*':
+            result.update(cmd={x: flags2(x) for x in self.API if allow(x)}, msg='Flags: TRUE_JSON, PURE_JSON')
         elif not (cmd in self.API and allow(cmd)):
             raise InternalException(msg='Unknown command: {}'.format(cmd))
         else:
