@@ -24,6 +24,8 @@ class Client:
         self.token = token
         self.thread = Thread(target=self._run) if threading else None
         self._lock = Lock()
+        self.api_list = dict()
+        self._results = dict()
         try:
             self.client.connect(address)
         except ERRORS as err:
@@ -96,7 +98,7 @@ class Client:
                     continue
                 if line.startswith('{') and line.endswith('}'):
                     # json? json!
-                    result = parse_json(line, self.api)
+                    result = self.parse_json(line)
                     if result:
                         self._send(result.encode())
                     continue
@@ -113,6 +115,10 @@ class Client:
         if 'result' in data and data.get('id') == 'upgrade duplex':
             params = ['cmd', 'talking', 'record', 'updater', 'backup', 'manual_backup']
             self._send(json.dumps({'method': 'subscribe', 'params': params}, ensure_ascii=False).encode())
+
+            id_ = hashlib.sha256(str(time.time()).encode()).hexdigest()
+            self._send(json.dumps({'method': 'info', 'params': ['*'], 'id': id_}, ensure_ascii=False).encode())
+            self._results[id_] = self.api_list
             return 0
         return stage
 
@@ -123,6 +129,63 @@ class Client:
             self.client.shutdown(socket.SHUT_RD)
             self.client.close()
             self.thread.join(10)
+
+    def parse_json(self, data: str):
+        try:
+            data = json.loads(data)
+            if not isinstance(data, dict):
+                raise TypeError('Data must be dict type')
+        except (json.decoder.JSONDecodeError, TypeError) as e:
+            return print('Ошибка декодирования: {}'.format(e))
+
+        if 'error' in data:
+            result = (data.get('id', 'null'), data['error'].get('code'), data['error'].get('message'))
+            print('Терминал сообщил об ошибке {} [{}]: {}'.format(*result))
+            if result[0] != 'null':
+                self._results.pop(result[0], None)
+            return
+        if 'method' in data:
+            if isinstance(data['method'], str) and data['method'].startswith('notify.') and self.api:
+                notify = data['method'].split('.', 1)[1]
+                info = data.get('params')
+                if isinstance(info, dict):
+                    args = info.get('args')
+                    kwargs = info.get('kwargs')
+                    if isinstance(args, list) and len(args) == 1 and not kwargs:
+                        info = args[0]
+                        if isinstance(info, bool):
+                            info = 'ON' if info else 'OFF'
+                    elif isinstance(kwargs, dict) and not args:
+                        info = kwargs
+                print('Уведомление: {}: {}'.format(notify, info))
+                if notify == 'cmd':
+                    tts = data.get('params', {}).get('kwargs', {}).get('qry', '')
+                    if tts:
+                        return json.dumps({'method': 'tts', 'params': {'text': tts}}, ensure_ascii=False)
+            return
+        cmd = data.get('id')
+        data = data.get('result')
+        if isinstance(data, dict):
+            result = parse_dict(cmd, data)
+        elif isinstance(data, str):
+            result = parse_str(cmd, data)
+        else:
+            result = data if data is not None else 'null'
+        if result is not None:
+            line = None
+            if cmd == 'ping':
+                line = parse_ping(result)
+            elif cmd == 'backup.list' and isinstance(result, list):
+                line = parse_backup_list(result)
+            elif cmd in self._results:
+                ok = isinstance(result[1], dict) and isinstance(result[1].get('cmd'), dict)
+                if ok:
+                    self._results[cmd].clear()
+                    self._results[cmd].update(result[1]['cmd'])
+                if ok:
+                    return None
+            line = line or 'Ответ на {}: {}'.format(repr(cmd), result)
+            print(line)
 
 
 class TestShell(cmd__.Cmd):
@@ -164,7 +227,7 @@ class TestShell(cmd__.Cmd):
             print('Stop duplex')
 
     def _duplex(self):
-        if self._client:
+        if self._client and self._client.work:
             self._duplex_off()
         else:
             print('Start duplex')
@@ -380,6 +443,60 @@ class TestShell(cmd__.Cmd):
         """Список бэкапов"""
         self._send_json('backup.list')
 
+    def do_r2(self, line):
+        """
+        Улучшенный raw: method [params] [<]
+        params - dict или строка.
+        < - терминал не пришлет ответ.
+        """
+        if not self._is_duplex():
+            return print('Duplex must be active!')
+
+        try:
+            result = self._r2_parser(line)
+        except Exception as e:
+            print(e)
+        else:
+            self._send(json.dumps(result, ensure_ascii=False))
+
+    def _r2_parser(self, line: str):
+        if not line:
+            raise RuntimeError('Empty line')
+        line = line.split(' ', 1)
+        method, line = line[0], line[1:]
+        if method not in self._client.api_list:
+            raise RuntimeError('Wrong method {}, allow: {}'.format(method, ', '.join(self._client.api_list.keys())))
+        if not line:
+            return {'method': method, 'id': method}
+        line = line[0]
+        id_ = None
+
+        if line.endswith(' <') :
+            line = line[:-2]
+        elif line == '<' or line.endswith('}<'):
+            line = line[:-1]
+        else:
+            id_ = method
+
+        if not line:
+            return {'method': method, 'id': id_}
+
+        if line.startswith('{') and line.endswith('}'):
+            line = eval(line)
+
+        if not isinstance(line, (dict, str)):
+            raise RuntimeError('params must be dict or str')
+
+        if isinstance(line, str) and self._client.api_list[method][1]:
+            raise RuntimeError('{} accept only JSON-RPC'.format(method))
+
+        if not (self._client.api_list[method][0] or self._client.api_list[method][1]) and isinstance(line, dict):
+            raise RuntimeError('{} accept only string params'.format(method))
+
+        line = [line] if isinstance(line, str) else line
+
+        return {'method': method, 'params': line, 'id': id_}
+
 
 def str_to_list(line) -> list:
     return [el.strip() for el in line.split(',')]
@@ -468,55 +585,6 @@ def parse_str(cmd, data):
             print('ping {} ms'.format(int(diff * 1000)))
             return
     return cmd, data
-
-
-def parse_json(data: str, api):
-    try:
-        data = json.loads(data)
-        if not isinstance(data, dict):
-            raise TypeError('Data must be dict type')
-    except (json.decoder.JSONDecodeError, TypeError) as e:
-        return print('Ошибка декодирования: {}'.format(e))
-
-    if 'error' in data:
-        result = (data.get('id', 'null'), data['error'].get('code'), data['error'].get('message'))
-        print('Терминал сообщил об ошибке {} [{}]: {}'.format(*result))
-        return
-    if 'method' in data:
-        if isinstance(data['method'], str) and data['method'].startswith('notify.') and api:
-            notify = data['method'].split('.', 1)[1]
-            info = data.get('params')
-            if isinstance(info, dict):
-                args = info.get('args')
-                kwargs = info.get('kwargs')
-                if isinstance(args, list) and len(args) == 1 and not kwargs:
-                    info = args[0]
-                    if isinstance(info, bool):
-                        info = 'ON' if info else 'OFF'
-                elif isinstance(kwargs, dict) and not args:
-                    info = kwargs
-            print('Уведомление: {}: {}'.format(notify, info))
-            if notify == 'cmd':
-                tts = data.get('params', {}).get('kwargs', {}).get('qry', '')
-                if tts:
-                    return json.dumps({'method': 'tts', 'params': {'text': tts}}, ensure_ascii=False)
-        return
-    cmd = data.get('id')
-    data = data.get('result')
-    if isinstance(data, dict):
-        result = parse_dict(cmd, data)
-    elif isinstance(data, str):
-        result = parse_str(cmd, data)
-    else:
-        result = data if data is not None else 'null'
-    if result is not None:
-        line = None
-        if cmd == 'ping':
-            line = parse_ping(result)
-        elif cmd == 'backup.list' and isinstance(result, list):
-            line = parse_backup_list(result)
-        line = line or 'Ответ на {}: {}'.format(repr(cmd), result)
-        print(line)
 
 
 def parse_ping(data):
