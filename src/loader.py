@@ -189,13 +189,12 @@ class Loader(Owner):
                 return True
             return False
 
-    def remove_stt_provider(self, name: str) -> bool:
+    def remove_stt_provider(self, name: str):
         with self._stts_lock:
             try:
-                del STT.PROVIDERS[name]
+                return STT.PROVIDERS.pop(name)
             except KeyError:
-                return False
-            return True
+                return None
 
     def add_tts_provider(self, name: str, entrypoint) -> bool:
         with self._stts_lock:
@@ -204,13 +203,12 @@ class Loader(Owner):
                 return True
             return False
 
-    def remove_tts_provider(self, name: str) -> bool:
+    def remove_tts_provider(self, name: str):
         with self._stts_lock:
             try:
-                del TTS.PROVIDERS[name]
+                return TTS.PROVIDERS.pop(name)
             except KeyError:
-                return False
-            return True
+                return None
 
     def tts_providers(self) -> list:
         with self._stts_lock:

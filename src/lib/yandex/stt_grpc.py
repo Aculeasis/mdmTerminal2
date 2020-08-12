@@ -4,7 +4,7 @@ from functools import lru_cache
 @lru_cache()
 def _wrapper():
     try:
-        from lib.yandex_stt_service_interface import stt
+        from lib.yandex.stt_service_interface import stt
         return stt
     except ImportError as e:
         raise RuntimeError(e)

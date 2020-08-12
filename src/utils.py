@@ -10,6 +10,7 @@ import signal
 import socket
 import ssl
 import subprocess
+import sys
 import threading
 import time
 import traceback
@@ -58,6 +59,17 @@ class HashableDict(dict):
 class RuntimeErrorTrace(RuntimeError):
     def __init__(self, *args):
         super().__init__('{},  Traceback: \n{}'.format(args, traceback.format_exc()))
+
+
+class PrettyException(RuntimeError):
+    def __init__(self, error: Exception):
+        _, value, tb = sys.exc_info()
+        frame = traceback.TracebackException(type(value), value, tb).stack[-1]
+        path = frame.filename.split('src', 1)
+        frame.filename = ''.join(('/src', path[1])) if len(path) == 2 and path[1] else frame.filename
+        target = '{}#L{}'.format(frame.filename, frame.lineno)
+        target = '{} in {}'.format(target, frame.name) if frame.name and frame.name != '<module>' else target
+        super().__init__('{}: "{}" -> {}'.format(error.__class__.__name__, error, target))
 
 
 class SignalHandlerDummy:
@@ -305,6 +317,21 @@ def bool_cast(value) -> bool:
 
 def yandex_speed_normalization(speed):
     return min(3.0, max(0.1, speed))
+
+
+def yandex_cloud_reply_check(rq: requests.Response):
+    if not rq.ok:
+        try:
+            data = rq.json()
+        except ValueError:
+            data = {}
+        if 'error_code' in data:
+            msg = '[{}]{}: {}'.format(rq.status_code, data.get('error_code'), data.get('error_message'))
+        elif 'error' in data:
+            msg = '[{}]: {}'.format(rq.status_code, data['error'])
+        else:
+            msg = '{}: {}'.format(rq.status_code, rq.reason)
+        raise RuntimeError(msg)
 
 
 def singleton(cls):

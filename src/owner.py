@@ -118,7 +118,7 @@ class Owner:
         """
         Удаляет speech-to-text провайдера.
         :param name: имя провайдера.
-        :return: успешность операции.
+        :return: ссылка на провайдера или None.
         """
         raise NotImplementedError
 
@@ -135,7 +135,7 @@ class Owner:
         """
         Удаляет text-to-speech провайдера.
         :param name: имя провайдера.
-        :return: успешность операции.
+        :return: ссылка на провайдера или None.
         """
         raise NotImplementedError
 

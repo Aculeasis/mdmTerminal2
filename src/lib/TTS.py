@@ -7,8 +7,11 @@ from shlex import quote
 
 import requests
 
-from utils import REQUEST_ERRORS, RuntimeErrorTrace, yandex_speed_normalization, url_builder_cached
+from utils import (
+    REQUEST_ERRORS, RuntimeErrorTrace, yandex_speed_normalization, url_builder_cached, yandex_cloud_reply_check
+)
 from .gtts_monkey_patching import Google, gTTSError
+from .keys_utils import YandexSessionStorage
 from .polly_boto3 import AWSBoto3
 from .polly_signing import signing as polly_signing
 from .proxy import proxies
@@ -112,16 +115,43 @@ class YandexCloud(BaseTTS):
         self._data = self._rq.iter_content
 
     def _reply_check(self):
-        if not self._rq.ok:
-            try:
-                data = self._rq.json()
-            except ValueError:
-                data = {}
-            if 'error_code' in data:
-                msg = '[{}]{}: {}'.format(self._rq.status_code, data.get('error_code'), data.get('error_message'))
-            else:
-                msg = '{}: {}'.format(self._rq.status_code, self._rq.reason)
-            raise RuntimeError(msg)
+        yandex_cloud_reply_check(self._rq)
+
+
+class YandexCloudDemo(BaseTTS):
+    URL = 'https://cloud.yandex.ru/api/speechkit/tts'
+    MAX_CHARS = 5000
+
+    def __init__(self, text, buff_size, speaker, emotion, lang, speed, *_, **__):
+        self.session = YandexSessionStorage()
+        super().__init__(self.URL, 'tts_yandex', buff_size=buff_size, text=text, voice=speaker,
+                         format='oggopus', lang=lang, emotion=emotion, speed=yandex_speed_normalization(speed))
+
+    def _request(self, proxy_key):
+        self.session.update()
+
+        self._params['message'] = self._params.pop('text')
+        try:
+            self._rq = requests.post(
+                self._url,
+                json=self._params,
+                cookies=self.session.cookies,
+                headers=self.session.headers,
+                stream=True,
+                timeout=30,
+                proxies=proxies(proxy_key)
+            )
+        except REQUEST_ERRORS as e:
+            raise RuntimeErrorTrace(e)
+        self._data = self._rq.iter_content
+
+    def _reply_check(self):
+        yandex_cloud_reply_check(self._rq)
+        # noinspection PyBroadException
+        try:
+            self.session.update(self._rq)
+        except Exception:
+            pass
 
 
 class AWS(BaseTTS):
@@ -287,7 +317,12 @@ def aws(key, **kwargs):
 
 
 def yandex(yandex_api, **kwargs):
-    return YandexCloud(**kwargs) if yandex_api == 2 else Yandex(**kwargs)
+    if yandex_api == 2:
+        return YandexCloud(**kwargs)
+    elif yandex_api == 3:
+        return YandexCloudDemo(**kwargs)
+    else:
+        return Yandex(**kwargs)
 
 
 def rhvoice_rest(**kwargs):
@@ -305,6 +340,7 @@ def support(name):
 
 def GetTTS(name, **kwargs):
     try:
-        return PROVIDERS[name](**kwargs)
+        tts = PROVIDERS[name]
     except KeyError:
         raise RuntimeError('TTS {} not found'.format(name))
+    return tts(**kwargs)

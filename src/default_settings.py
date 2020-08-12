@@ -173,9 +173,9 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
 
 STATE = {
     'system': {
-        'ini_version': 50,
+        'ini_version': 51,
         'merge': 1,
         'PLUGINS_API': 3,
-        'VERSION': (0, 15, 26),
+        'VERSION': (0, 15, 27),
     }
 }

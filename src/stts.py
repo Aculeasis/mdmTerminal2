@@ -70,7 +70,7 @@ class _TTSWorker(threading.Thread):
 
     def _generating(self):
         sha1 = hashlib.sha1(self._msg.encode()).hexdigest()
-        ext = 'mp3' if self.cfg.yandex_api(self._provider) != 2 else 'opus'
+        ext = 'opus' if self.cfg.yandex_api(self._provider) in (2, 3) else 'mp3'
         find_part = ''.join(('_', sha1, '.'))
         rname = find_part + ext
         use_cache = self.cfg.gt('cache', 'tts_size', 50) > 0
@@ -155,7 +155,7 @@ class _TTSWorker(threading.Thread):
                 slow=self.cfg.gt(self._provider, 'slow'),
                 yandex_api=self.cfg.yandex_api(self._provider)
             )
-        except(RuntimeError, TTS.gTTSError, ValueError, AssertionError) as e:
+        except Exception as e:
             self._synthesis_error(key, e)
             self._file_path = self.cfg.path['tts_error']
             return
@@ -168,12 +168,14 @@ class _TTSWorker(threading.Thread):
         self._unlock()
         try:
             tts.stream_to_fps(write_to)
-        except (RuntimeError, TTS.gTTSError, ValueError) as e:
+        except Exception as e:
             self._synthesis_error(key, e)
         for fp in write_to:
             fp.close()
 
     def _synthesis_error(self, key, e):
+        if not isinstance(e, RuntimeError):
+            e = utils.PrettyException(e)
         self.log(F('Ошибка синтеза речи от {}, ключ \'{}\'. ({})', self._provider, utils.mask_off(key), e), logger.CRIT)
 
 
@@ -425,9 +427,11 @@ class SpeechToText:
             ).text()
         except STT.UnknownValueError:
             command = ''
-        except (STT.RequestError, RuntimeError, AssertionError) as e:
+        except Exception as e:
             say(F('Произошла ошибка распознавания'))
             msg = 'Ошибка распознавания речи от {}, ключ \'{}\'. ({})'
+            if not isinstance(e, RuntimeError):
+                e = utils.PrettyException(e)
             self.log(F(msg, prov, utils.mask_off(key), e), logger.ERROR)
             return utils.TextBox('', prov)
         if fusion:

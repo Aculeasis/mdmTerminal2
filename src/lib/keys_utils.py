@@ -2,14 +2,71 @@
 
 import threading
 import time
-
+import urllib.parse
 import requests
 
-from utils import REQUEST_ERRORS, RuntimeErrorTrace, singleton, mask_off
+from utils import REQUEST_ERRORS, RuntimeErrorTrace, singleton, mask_off, PrettyException, yandex_cloud_reply_check
 from .proxy import proxies
 from .sr_wrapper import UnknownValueError
 
 AZURE_ACCESS_ENDPOINT = 'https://{}.api.cognitive.microsoft.com/sts/v1.0/issueToken'
+
+
+@singleton
+class YandexSessionStorage:
+    URL = 'https://cloud.yandex.ru/services/speechkit'
+    XSRF = 'XSRF-TOKEN'
+    CSRF = 'x-csrf-token'
+    MAX_AGE = 86400
+
+    def __init__(self):
+        self._cookies, self._csrf_token, self._time = None, None, 0
+        self._lock = threading.Lock()
+
+    @property
+    def cookies(self):
+        with self._lock:
+            if not self._cookies:
+                raise RuntimeError('cookies is a None')
+            return self._cookies
+
+    @property
+    def headers(self):
+        with self._lock:
+            if not self._csrf_token:
+                raise RuntimeError('{} is a None'.format(self.CSRF))
+            return {'Referer': self.URL, 'x-csrf-token': self._csrf_token}
+
+    def clear(self):
+        with self._lock:
+            self._cookies, self._csrf_token, self._time = None, None, 0
+
+    def update(self, rq=None):
+        with self._lock:
+            time_ = time.time()
+            get = rq is None
+            try:
+                if rq is None and (time_ - self._time) >= self.MAX_AGE:
+                    rq = requests.get(self.URL)
+                if rq:
+                    self._update(rq, time_)
+            except Exception as e:
+                self.clear()
+                msg = 'Session get error: {}' if get else 'Session update error: {}'
+                raise RuntimeError(msg.format(PrettyException(e)))
+
+    def _update(self, rq, time_):
+        yandex_cloud_reply_check(rq)
+        try:
+            self._cookies = rq.cookies
+            token = self._cookies.get(self.XSRF)
+            if not token:
+                raise RuntimeError('{} not found in cookies'.format(self.XSRF))
+            token = urllib.parse.unquote(token, errors='strict')
+            self._csrf_token = token
+        except Exception as e:
+            raise RuntimeError(e)
+        self._time = time_
 
 
 @singleton

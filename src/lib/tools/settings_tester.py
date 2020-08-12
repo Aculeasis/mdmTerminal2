@@ -22,7 +22,7 @@ SETTINGS_TESTER = {
         'method': lambda x: min_max(x, 0, 3),
     },
     'yandex': {
-        'api': lambda x: min_max(x, 1, 2),
+        'api': lambda x: min_max(x, 1, 3),
     },
 }
 

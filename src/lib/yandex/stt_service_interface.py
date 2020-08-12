@@ -4,21 +4,20 @@ from functools import lru_cache
 
 import grpc
 
-from lib import yandex_stt_service_pb2
-from lib import yandex_stt_service_pb2_grpc
+from lib.yandex import stt_service_pb2, stt_service_pb2_grpc
 
 
 @lru_cache()
 def get_stub():
     cred = grpc.ssl_channel_credentials()
     channel = grpc.secure_channel('stt.api.cloud.yandex.net:443', cred)
-    stub = yandex_stt_service_pb2_grpc.SttServiceStub(channel)
+    stub = stt_service_pb2_grpc.SttServiceStub(channel)
     return stub
 
 
 def gen(language_code, chunks):
     # Задаем настройки распознавания.
-    specification = yandex_stt_service_pb2.RecognitionSpec(
+    specification = stt_service_pb2.RecognitionSpec(
         language_code=language_code,
         profanity_filter=False,
         model='general',
@@ -26,15 +25,15 @@ def gen(language_code, chunks):
         audio_encoding='LINEAR16_PCM',
         sample_rate_hertz=16000
     )
-    streaming_config = yandex_stt_service_pb2.RecognitionConfig(specification=specification)
+    streaming_config = stt_service_pb2.RecognitionConfig(specification=specification)
 
     # Отправляем сообщение с настройками распознавания.
-    yield yandex_stt_service_pb2.StreamingRecognitionRequest(config=streaming_config)
+    yield stt_service_pb2.StreamingRecognitionRequest(config=streaming_config)
 
     for data in chunks:
         if not data:
             break
-        yield yandex_stt_service_pb2.StreamingRecognitionRequest(audio_content=data)
+        yield stt_service_pb2.StreamingRecognitionRequest(audio_content=data)
 
 
 def stt(api_key: str, language_code: str, chunks) -> str:
