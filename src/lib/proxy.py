@@ -84,11 +84,9 @@ class _Proxies:
                 socks.set_default_proxy()
                 socket.socket = self._back_up
 
-    def __call__(self, key, quiet=False, raw=False):
-        (data, to_log) = self._proxies(key, raw)
-        if not data:
-            return
-        if not quiet:
+    def __call__(self, key, quiet=False, ws_format=False):
+        (data, to_log) = self._proxies(key, ws_format)
+        if data and not quiet:
             self._logger('\'{}\' use {}'.format(key, to_log))
         return data
 
@@ -125,18 +123,27 @@ class _Proxies:
         return data, to_log
 
     @lru_cache()
-    def _proxies(self, key, raw=False):
+    def _proxies(self, key, ws_format=False):
         data = self._get_proxy_by_args(PROXIES[key])
         if not data:
-            return None, None
-        if raw:
-            return data
+            return {} if ws_format else None, None
         (data, to_log) = data
-        auth = ''
-        if 'username' in data:
-            auth = '{}:{}@'.format(data['username'], data['password'])
+        return self._make_ws_proxy(data) if ws_format else self._make_requests_proxy(data), to_log
+
+    @staticmethod
+    def _make_requests_proxy(data: dict) -> dict:
+        auth = '{}:{}@'.format(data['username'], data['password']) if 'username' in data else ''
         proxy = '{}://{}{}:{}'.format(data['proxy_type'], auth, data['addr'], data['port'])
-        return {'http': proxy, 'https': proxy}, to_log
+        return {'http': proxy, 'https': proxy}
+
+    @staticmethod
+    def _make_ws_proxy(data: dict) -> dict:
+        return {
+            'proxy_type': data['proxy_type'],
+            'http_proxy_host': data['addr'],
+            'http_proxy_port': data['port'],
+            'http_proxy_auth': (data['username'], data['password']) if 'username' in data else None,
+        }
 
     def _get_proxy_index(self, args):
         index = None

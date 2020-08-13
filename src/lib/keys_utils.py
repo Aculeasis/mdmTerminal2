@@ -47,7 +47,7 @@ class YandexSessionStorage:
             get = rq is None
             try:
                 if rq is None and (time_ - self._time) >= self.MAX_AGE:
-                    rq = requests.get(self.URL)
+                    rq = requests.get(self.URL, proxies=proxies('key_yandex'))
                 if rq:
                     self._update(rq, time_)
             except Exception as e:
@@ -62,8 +62,7 @@ class YandexSessionStorage:
             token = self._cookies.get(self.XSRF)
             if not token:
                 raise RuntimeError('{} not found in cookies'.format(self.XSRF))
-            token = urllib.parse.unquote(token, errors='strict')
-            self._csrf_token = token
+            self._csrf_token = urllib.parse.unquote(token, errors='strict')
         except Exception as e:
             raise RuntimeError(e)
         self._time = time_

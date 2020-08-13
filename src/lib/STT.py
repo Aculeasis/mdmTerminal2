@@ -192,23 +192,12 @@ class YandexCloudDemo(BaseSTT, threading.Thread):
         )
 
     def _send(self, proxy_key):
-        proxy = proxies(proxy_key, raw=True)
-        http_proxy_host, http_proxy_port, http_proxy_auth = None, 0, None
-        if proxy:
-            if 'username' in proxy:
-                http_proxy_auth = (proxy['username'], proxy['password'])
-            http_proxy_host = '{}://{}'.format(proxy['proxy_type'], proxy['addr'])
-            http_proxy_port = proxy['port']
-
-        # self._ws = websocket.WebSocket()
         try:
             self._ws = create_connection(
                 self.URL,
                 timeout=20,
                 origin=self.ORIGIN,
-                http_proxy_host=http_proxy_host,
-                http_proxy_port=http_proxy_port,
-                http_proxy_auth=http_proxy_auth,
+                **proxies(proxy_key, ws_format=True),
             )
             self._ws.send(json.dumps(self._params))
             self.start()
@@ -341,21 +330,11 @@ class VoskServer(BaseSTT):
         super().__init__(url, audio_data, 'wav', convert_rate=self.rate, convert_width=2, proxy_key='stt_vosk-rest')
 
     def _send(self, proxy_key):
-        proxy = proxies(proxy_key, raw=True)
-        http_proxy_host, http_proxy_port, http_proxy_auth = None, 0, None
-        if proxy:
-            if 'username' in proxy:
-                http_proxy_auth = (proxy['username'], proxy['password'])
-            http_proxy_host = '{}://{}'.format(proxy['proxy_type'], proxy['addr'])
-            http_proxy_port = proxy['port']
-
         try:
             self._rq = create_connection(
                 self._url,
                 timeout=60,
-                http_proxy_host=http_proxy_host,
-                http_proxy_port=http_proxy_port,
-                http_proxy_auth=http_proxy_auth
+                **proxies(proxy_key, ws_format=True),
             )
             self._rq.send(json.dumps({'config': {'sample_rate': self.rate}}))
             for chunk in self._chunks():
