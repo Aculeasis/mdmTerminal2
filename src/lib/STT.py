@@ -200,6 +200,7 @@ class YandexCloudDemo(BaseSTT, threading.Thread):
                 **proxies(proxy_key, ws_format=True),
             )
             self._ws.send(json.dumps(self._params))
+            self._ws.recv()  # wait {'type': 'connect', 'data': 'Done'}
             self.start()
             for chunk in self._chunks():
                 if not self.work:
@@ -238,7 +239,7 @@ class YandexCloudDemo(BaseSTT, threading.Thread):
             # noinspection PyBroadException
             try:
                 data = json.loads(self._ws.recv())
-            except (json.JSONDecodeError, TypeError):
+            except (json.JSONDecodeError, TypeError, BlockingIOError):
                 continue
             except Exception:
                 break
