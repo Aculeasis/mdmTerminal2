@@ -1,7 +1,6 @@
 
 import hashlib
 import json
-import threading
 import time
 from io import BytesIO
 
@@ -178,78 +177,73 @@ class YandexCloudGRPC(BaseSTT):
         pass
 
 
-class YandexCloudDemo(BaseSTT, threading.Thread):
+class YandexCloudDemo(BaseSTT):
+    # TODO: Узнать как финализировать передачу без вызова ошибки и добавления задержки.
+    MIN_SEND_TIME = 1.2
     URL = 'wss://cloud.yandex.ru/api/speechkit/recognition'
     ORIGIN = 'https://cloud.yandex.ru'
 
     def __init__(self, audio_data, lang='ru-RU', **_):
-        threading.Thread.__init__(self)
         ext, rate, width = 'pcm', 16000, 2
-        self.work, self._ws, self._data = False, None, None
-        BaseSTT.__init__(
-            self, self.URL, audio_data, ext, convert_rate=rate, convert_width=width,
+        super().__init__(
+            self.URL, audio_data, ext, convert_rate=rate, convert_width=width,
             proxy_key='stt_yandex', language=lang, format=ext, sampleRate=rate,
         )
 
     def _send(self, proxy_key):
+        time_stamp = 0
         try:
-            self._ws = create_connection(
+            self._rq = create_connection(
                 self.URL,
                 timeout=20,
                 origin=self.ORIGIN,
                 **proxies(proxy_key, ws_format=True),
             )
-            self._ws.send(json.dumps(self._params))
-            self._ws.recv()  # wait {'type': 'connect', 'data': 'Done'}
-            self.start()
+            self._rq.send(json.dumps(self._params))
+            self._rq.recv()  # wait {'type': 'connect', 'data': 'Done'}
             for chunk in self._chunks():
-                if not self.work:
-                    break
-                self._ws.send_binary(chunk)
-            self.join()
+                if chunk:
+                    if not time_stamp:
+                        time_stamp = time.time()
+                    self._rq.send_binary(chunk)
+            wait = self.MIN_SEND_TIME - (time.time() - time_stamp)
+            if wait > 0:
+                time.sleep(wait)
+            self._rq.send_binary(b'')
         except Exception as e:
             self.close()
             raise RuntimeErrorTrace(e)
 
     def _reply_check(self):
-        if isinstance(self._data, dict):
-            try:
-                self._text = self._data['chunks'][0]['alternatives'][0]['text']
-            except (KeyError, TypeError, IndexError):
-                pass
+        try:
+            while True:
+                try:
+                    data = json.loads(self._rq.recv())
+                except (json.JSONDecodeError, TypeError, BlockingIOError):
+                    continue
+                except Exception as e:
+                    if not self._text:
+                        raise RuntimeErrorTrace(e)
+                    break
+                if isinstance(data, dict) and 'type' in data:
+                    if data['type'] == 'data':
+                        try:
+                            self._text = data['data']['chunks'][0]['alternatives'][0]['text']
+                        except (KeyError, TypeError, IndexError):
+                            pass
+                    elif data['type'] in ('end', 'error'):
+                        if not self._text:
+                            raise RuntimeError('{}: {}'.format(data['type'].upper(), data.get('data')))
+                        break
+        finally:
+            self.close()
 
     def close(self):
         # noinspection PyBroadException
         try:
-            self._ws.close()
+            self._rq.close()
         except Exception:
             pass
-
-    def start(self):
-        self.work = True
-        super().start()
-
-    def join(self, timeout=3):
-        self.work = False
-        self.close()
-        super().join(timeout)
-
-    def run(self):
-        while self.work:
-            # noinspection PyBroadException
-            try:
-                data = json.loads(self._ws.recv())
-            except (json.JSONDecodeError, TypeError, BlockingIOError):
-                continue
-            except Exception:
-                break
-            if isinstance(data, dict) and 'type' in data:
-                if data['type'] == 'data':
-                    if 'data' in data and data['data']:
-                        self._data = data['data']
-                elif data['type'] in ('end', 'error'):
-                    break
-        self.work = False
 
 
 class WitAI(BaseSTT):
