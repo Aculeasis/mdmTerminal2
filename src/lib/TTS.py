@@ -135,11 +135,10 @@ class YandexCloudDemo(BaseTTS):
             self._rq = requests.post(
                 self._url,
                 json=self._params,
-                cookies=self.session.cookies,
-                headers=self.session.headers,
                 stream=True,
                 timeout=30,
-                proxies=proxies(proxy_key)
+                proxies=proxies(proxy_key),
+                **self.session.requests_options,
             )
         except REQUEST_ERRORS as e:
             raise RuntimeErrorTrace(e)

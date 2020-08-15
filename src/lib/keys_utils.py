@@ -24,22 +24,16 @@ class YandexSessionStorage:
         self._lock = threading.Lock()
 
     @property
-    def cookies(self):
+    def requests_options(self) -> dict:
         with self._lock:
             if not self._cookies:
                 raise RuntimeError('cookies is a None')
-            return self._cookies
-
-    @property
-    def headers(self):
-        with self._lock:
             if not self._csrf_token:
                 raise RuntimeError('{} is a None'.format(self.CSRF))
-            return {'Referer': self.URL, 'x-csrf-token': self._csrf_token}
-
-    def clear(self):
-        with self._lock:
-            self._cookies, self._csrf_token, self._time = None, None, 0
+            return {
+                'cookies': self._cookies,
+                'headers': {'Referer': self.URL, 'x-csrf-token': self._csrf_token},
+            }
 
     def update(self, rq=None):
         with self._lock:
@@ -51,7 +45,7 @@ class YandexSessionStorage:
                 if rq:
                     self._update(rq, time_)
             except Exception as e:
-                self.clear()
+                self._clear()
                 msg = 'Session get error: {}' if get else 'Session update error: {}'
                 raise RuntimeError(msg.format(PrettyException(e)))
 
@@ -66,6 +60,9 @@ class YandexSessionStorage:
         except Exception as e:
             raise RuntimeError(e)
         self._time = time_
+
+    def _clear(self):
+        self._cookies, self._csrf_token, self._time = None, None, 0
 
 
 @singleton
