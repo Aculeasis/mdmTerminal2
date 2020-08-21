@@ -21,11 +21,11 @@ def state_helper(def_state: dict, path: dict, log) -> tuple:
             state = def_state
         else:
             state['system'] = def_state['system']
-            state_save = False
     else:
         state = def_state
 
     m = _Merge(merge, state, path, log)
+    state_save = ini_version != m.state['system']['ini_version']
 
     return m.state, m.state['system']['ini_version'] > ini_version, state_save or m.state_save
 
