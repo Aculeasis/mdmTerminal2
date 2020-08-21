@@ -1,6 +1,8 @@
 # mdmTerminal 2
 [![Build status](https://ci.appveyor.com/api/projects/status/v98bcj9mr2s1g13a/branch/master?svg=true)](https://ci.appveyor.com/project/Aculeasis/mdmterminal2)
 
+### **Важно!** [Использование snowboy после 31.12.20](https://github.com/Aculeasis/mdmTerminal2/wiki/snowboy-die)
+
 Голосовой терминал для домашней автоматизации, форк [mdmPiTerminal](https://github.com/devoff/mdmPiTerminal).
 
 **Возможности**
