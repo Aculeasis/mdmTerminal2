@@ -89,41 +89,25 @@ def this_nothing(*_):
 @mod.phrase([F('сосчитай'), F('считай'), F('посчитай')])
 def counter(_, __, cmd):
     max_count = 20
-    data = cmd.lower().split()
+    minus = F('минус') + ' '
+    plus = F('плюс') + ' '
+    data = cmd.lower().replace(minus, '-').replace(plus, '').split()
 
-    if len(data) == 2 and data[0] == F('до') and utils.is_int(data[1]) and int(data[1]) > 1:
-        all_num = int(data[1])
-        from_ = 1
+    if len(data) == 2 and data[0] == F('до') and utils.is_int(data[1]) and abs(int(data[1])) > 1:
         to_ = int(data[1])
-        inc_ = 1
+        from_ = 1 if to_ > 0 else -1
     elif len(data) == 4 and utils.is_int(data[1]) and utils.is_int(data[3]) \
             and data[0] == F('от') and data[2] == F('до') and abs(int(data[3]) - int(data[1])) > 0:
-        all_num = abs(int(data[3]) - int(data[1]))
-        from_ = int(data[1])
-        to_ = int(data[3])
-        inc_ = 1 if from_ < to_ else -1
+        to_, from_ = int(data[3]), int(data[1])
     else:
         return Next
 
-    if all_num > 500:
-        return Say(F('Это слишком много для меня - считать {} чисел.', all_num))
+    if abs(to_ - from_) + 1 > 500:
+        return Say(F('Это слишком много для меня - считать {} чисел.', abs(to_ - from_) + 1))
 
-    numbers = []
-    count = 0
-    say = []
-    while True:
-        numbers.append(str(from_))
-        count += 1
-        if count == max_count:
-            say.append(', '.join(numbers))
-            count = 0
-            numbers = []
-        if from_ == to_:
-            break
-        from_ += inc_
-
-    if len(numbers):
-        say.append(', '.join(numbers))
+    inc_ = 1 if from_ < to_ else -1
+    say = [str(x) for x in range(from_, to_ + inc_, inc_)]
+    say = [', '.join(say[x: x+max_count]) for x in range(0, len(say), max_count)]
     say.append(F('Я всё сосчитала'))
     return SayLow(phrases=say)
 

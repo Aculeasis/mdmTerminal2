@@ -414,7 +414,7 @@ def cli():
         'files': 'Save only file names in comments',
         'nope': 'Don\'t add comments',
     }
-    c_default = 'lines'
+    c_default = 'files'
     c_help = 'Add comments for _LNG in generated file (default: {}):'.format(c_default) + LF
     c_help = '{}{}'.format(c_help, LF.join('{:5} -  {}'.format(k, v) for k, v in c_mode.items()))
 

@@ -155,6 +155,8 @@ _LNG = {  # google translate - it's a good idea!
     'Скажи': 'Tell me',
     'Произнесение фразы': 'Pronouncing Phrases',
     'Ничего': 'Nothing',
+    'минус': 'minus',
+    'плюс': 'a plus',
     'до': 'before',
     'от': 'from',
     'Это слишком много для меня - считать {} чисел.': "It's too much for me to count {} numbers.",

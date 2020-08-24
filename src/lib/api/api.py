@@ -418,52 +418,46 @@ class API:
 
 
 class BaseAPIHandler(API):
-    IS_METHOD = 'method'
-    IS_RESULT = 'result'
-    IS_ERROR = 'error'
-    ALL_TYPES = (IS_METHOD, IS_RESULT, IS_ERROR)
+    METHOD = 'method'
+    RESULT = 'result'
+    ERROR = 'error'
+    ALL_TYPES = (METHOD, RESULT, ERROR)
 
     def __init__(self, cfg, log, owner: Owner):
         super().__init__(cfg, log, owner)
         self.is_jsonrpc = False
         self.id = None
+        self._call_map = {self.METHOD: self.call_api, self.RESULT: self.call_result, self.ERROR: self.has_error}
 
-    def call(self, data: dict) -> dict or None:
-        if data['type'] == 'cmd':
-            return self.call_api(data)
-        elif data['type'] == 'result':
-            return self.call_result(data)
-        elif data['type'] == 'error':
-            return self.has_error(data)
-        raise RuntimeError
+    def call(self, msg: dict) -> dict or None:
+        return self._call_map[msg['type']](msg)
 
-    def call_api(self, data: dict) -> dict or None:
-        if data['cmd'] not in self.API:
-            cmd = repr(data['cmd'])[1:-1]
-            msg = 'Unknown command: \'{}\''.format(cmd[:100])
-            raise InternalException(code=-32601, msg=msg, id_=data['id'])
+    def call_api(self, msg: dict) -> dict or None:
+        if msg[self.METHOD] not in self.API:
+            cmd = repr(msg[msg[self.METHOD]])[1:-1]
+            raise InternalException(code=-32601, msg='Unknown command: \'{}\''.format(cmd[:100]), id_=msg['id'])
 
-        self.id = data['id']
-        result = self.API[data['cmd']](data['cmd'], data['params'])
-        return {'result': result, 'id': data['id']} if data['id'] is not None else None
+        self.id = msg['id']
+        result = self.API[msg[self.METHOD]](msg[self.METHOD], msg['params'])
+        return {'result': result, 'id': msg['id']} if msg['id'] is not None else None
 
-    def call_result(self, data: dict) -> None:
-        if data['id'] in self.ALLOW_RESPONSE:
-            self.API[data['id']](data['id'], data['result'])
+    def call_result(self, msg: dict) -> None:
+        if msg['id'] in self.ALLOW_RESPONSE:
+            self.API[msg['id']](msg['id'], msg[self.RESULT])
         else:
-            data = {k: repr(v) for k, v in data.items()}
+            msg = {k: repr(v) for k, v in msg.items()}
             self.log('Response message received. result: {result}, id: {id}, JSON_RPC: {jsonrpc}'.format(
-                **data, jsonrpc=self.is_jsonrpc
+                **msg, jsonrpc=self.is_jsonrpc
             ), logger.INFO)
         return None
 
-    def has_error(self, data: dict) -> None:
-        data = {k: repr(v) for k, v in data.items()}
-        self.log('Error message received. code: {code}, msg: {message}, id: {id}'.format(**data), logger.WARN)
+    def has_error(self, msg: dict) -> None:
+        msg = {k: repr(v) for k, v in msg.items()}
+        self.log('Error message received. code: {code}, msg: {message}, id: {id}'.format(**msg), logger.WARN)
         return None
 
     def extract(self, line: str or dict) -> dict:
-        return self._extract_json(line) if self.is_jsonrpc else self._extract_str(line)
+        return self.check_access(self._extract_json(line) if self.is_jsonrpc else self._extract_str(line))
 
     def prepare(self, line: str, is_json=None) -> str or dict or list:
         self.is_jsonrpc = is_json if is_json is not None else (line.startswith('{') or line.startswith('['))
@@ -492,12 +486,11 @@ class BaseAPIHandler(API):
             raise InternalException(code=-32600, msg=msg, id_=id_)
         found = found[0]
 
-        if found == self.IS_METHOD:
+        if found == self.METHOD:
             # Запрос.
-            method = line[self.IS_METHOD]
+            method = line[self.METHOD]
             if not isinstance(method, str):
-                raise InternalException(code=-32600, msg='{} must be a str'.format(self.IS_METHOD), id_=id_)
-            self._check_auth(method, get_id())
+                raise InternalException(code=-32600, msg='{} must be a str'.format(self.METHOD), id_=id_)
 
             params = line.get('params')
             if method in self.PURE_JSON:
@@ -520,23 +513,20 @@ class BaseAPIHandler(API):
                     )
             else:
                 params = ''
-            return {'type': 'cmd', 'cmd': method, 'params': params, 'id': get_id()}
-        elif found == self.IS_ERROR:
+            return {'type': self.METHOD, self.METHOD: method, 'params': params, 'id': get_id()}
+        elif found == self.ERROR:
             # Получили ответ с ошибкой.
-            if isinstance(line[self.IS_ERROR], dict):
+            if isinstance(line[self.ERROR], dict):
                 return {
-                    'type': 'error',
-                    'code': line[self.IS_ERROR].get('code'),
-                    'message': line[self.IS_ERROR].get('message'),
+                    'type': self.ERROR,
+                    'code': line[self.ERROR].get('code'),
+                    'message': line[self.ERROR].get('message'),
                     'id': get_id()
                 }
-            raise InternalException(code=-32600, msg='{} myst be a dict'.format(self.IS_ERROR))
-        elif found == self.IS_RESULT:
+            raise InternalException(code=-32600, msg='{} myst be a dict'.format(self.ERROR))
+        elif found == self.RESULT:
             # Получили ответ с результатом.
-            _id = get_id()
-            if _id and _id in self.ALLOW_RESPONSE:
-                self._check_auth(_id, None)
-            return {'type': 'result', 'result': line[self.IS_RESULT], 'id': _id}
+            return {'type': self.RESULT, self.RESULT: line[self.RESULT], 'id': get_id()}
         raise RuntimeError
 
     def _extract_str(self, line: str) -> dict:
@@ -544,12 +534,11 @@ class BaseAPIHandler(API):
         if len(line) != 2:
             line.append('')
         # id = cmd
-        cmd = line[0]
-        self._check_auth(cmd, cmd)
-        if cmd in self.PURE_JSON:
-            InternalException(code=-32700, msg='Allow only in JSON-RPC', id_=cmd, method=cmd)
-        data = [line[1]] if cmd in self.TRUE_JSON else line[1]
-        return {'type': 'cmd', 'cmd': cmd, 'params': data, 'id': cmd}
+        method = line[0]
+        if method in self.PURE_JSON:
+            InternalException(code=-32700, msg='Allow only in JSON-RPC', id_=method, method=method)
+        data = [line[1]] if method in self.TRUE_JSON else line[1]
+        return {'type': self.METHOD, self.METHOD: method, 'params': data, 'id': method}
 
     def _check_auth(self, method, id_):
         if not self.get('auth') and method not in self.NON_AUTH:
@@ -559,6 +548,14 @@ class BaseAPIHandler(API):
                 id_=id_,
                 method=method
             )
+
+    def check_access(self, msg: dict) -> dict:
+        if msg['type'] == self.RESULT:
+            if msg['id'] and msg['id'] in self.ALLOW_RESPONSE:
+                self._check_auth(msg['id'], None)
+        elif msg['type'] == self.METHOD:
+            self._check_auth(msg[self.METHOD], msg['id'])
+        return msg
 
 
 def _rpc_data_extractor(data: str) -> tuple:

@@ -144,7 +144,7 @@ class SocketAPIHandler(threading.Thread):
 
     def _call_api(self, data: dict) -> dict or None:
         def cmd():
-            return data['cmd'] if data['type'] == 'cmd' else data.get('id')
+            return data[BaseAPIHandler.METHOD] if data['type'] == BaseAPIHandler.METHOD else data.get('id')
 
         try:
             return self.api.call(data)
@@ -161,30 +161,30 @@ class SocketAPIHandler(threading.Thread):
             self.log('API.{} {}[{}]: {} '.format(cmd(), name, data['type'], e), level)
         return None
 
-    def __processing(self, data: dict or str) -> dict or None:
+    def __processing(self, msg: dict or str) -> dict or None:
         def none():
-            return {'result': None, 'id': data['id']} if data['id'] is not None else None
+            return {'result': None, 'id': msg['id']} if msg['id'] is not None else None
 
         try:
-            data = self.api.extract(data)
+            msg = self.api.extract(msg)
         except InternalException as e:
             return self._handle_exception(e, e.method)
 
-        if data['type'] == 'cmd':
-            if self.own.has_subscribers(data['cmd'], self.NET):
-                self.log('Command {} intercepted'.format(repr(data['cmd'])))
-                self.own.sub_call(self.NET, data['cmd'], data['params'])
+        if msg['type'] == BaseAPIHandler.METHOD:
+            if self.own.has_subscribers(msg[BaseAPIHandler.METHOD], self.NET):
+                self.log('Command {} intercepted'.format(repr(msg[BaseAPIHandler.METHOD])))
+                self.own.sub_call(self.NET, msg[BaseAPIHandler.METHOD], msg['params'])
                 return none()
-            if self.own.has_subscribers(data['cmd'], self.NET_BLOCK):
-                self.log('Command {} intercepted in blocking mode'.format(repr(data['cmd'])))
+            if self.own.has_subscribers(msg[BaseAPIHandler.METHOD], self.NET_BLOCK):
+                self.log('Command {} intercepted in blocking mode'.format(repr(msg[BaseAPIHandler.METHOD])))
                 self._lock.clear()
-                self.own.sub_call(self.NET_BLOCK, data['cmd'], data['params'], self._lock, self._conn)
+                self.own.sub_call(self.NET_BLOCK, msg[BaseAPIHandler.METHOD], msg['params'], self._lock, self._conn)
                 # Приостанавливаем выполнение, ждем пока обработчик нас разблокирует
                 # 1 минуты хватит?
                 self._lock.wait(60)
                 return none()
-        result = self._call_api(data)
-        return result if data['type'] == 'cmd' else None
+        result = self._call_api(msg)
+        return result if msg['type'] == BaseAPIHandler.METHOD else None
 
     def _parse(self, data: str):
         if not data:
@@ -207,9 +207,9 @@ class SocketAPIHandler(threading.Thread):
         if result is not None:
             self._send_reply(result)
 
-    def _handle_exception(self, e: InternalException, cmd='method', code=0, log_lvl=logger.WARN) -> dict or None:
-        e.method = cmd
-        e.cmd_code(code or self.api.API_CODE.get(cmd, 1000))
+    def _handle_exception(self, e: InternalException, method='method', code=0, log_lvl=logger.WARN) -> dict or None:
+        e.method = method
+        e.cmd_code(code or self.api.API_CODE.get(method, 1000))
         self.log('API.{}'.format(e), log_lvl)
         return e.data if e.id is not None else None
 
