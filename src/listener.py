@@ -101,9 +101,19 @@ class Listener:
             msg = recognition_msg(msg, energy, rms)
             self.log(msg, logger.DEBUG)
             return
+        self._recognition_sr_action(msg, energy, rms, model_name, model_msg, cb)
+
+    def _recognition_sr_action(self, msg, energy, rms, model_name, model_msg, cb):
         self.log(recognition_msg(msg, energy, rms), logger.INFO)
         self.log(F('Голосовая активация по {}{}', model_name, model_msg), logger.INFO)
         cb(False, msg, rms, model_name)
+
+    def detected_fake(self, text: str, rms=None, model=None, cb=None):
+        rms = tuple(rms) if isinstance(rms, (list, tuple)) and len(rms) == 3 else None
+        cb = cb or (lambda *_: False)
+        model_msg = self.cfg.gt('models', model, '').split('|')[0] if model else ''
+        model_msg = '' if not model_msg else ': "{}"'.format(model_msg)
+        self._recognition_sr_action(text, None, rms, model, model_msg, cb)
 
     def listen(self, r=None, mic=None, vad=None):
         r = r or sr.Recognizer(self.own.record_callback, self.cfg.gt('listener', 'silent_multiplier'))

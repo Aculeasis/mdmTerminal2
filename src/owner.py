@@ -357,6 +357,9 @@ class Owner:
     def get_vad_detector(self, source_or_mic, vad_mode=None, vad_lvl=None, energy_lvl=None, energy_dynamic=None):
         raise NotImplementedError
 
+    def detected_fake(self, text: str, rms=None, model=None, cb=None):
+        raise NotImplementedError
+
     def listener_listen(self, r=None, mic=None, vad=None):
         raise NotImplementedError
 

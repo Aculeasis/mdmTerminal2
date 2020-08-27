@@ -416,6 +416,9 @@ class Loader(Owner):
     def get_vad_detector(self, source_or_mic, vad_mode=None, vad_lvl=None, energy_lvl=None, energy_dynamic=None):
         return self._listen.get_vad_detector(source_or_mic, vad_mode, vad_lvl, energy_lvl, energy_dynamic)
 
+    def detected_fake(self, text: str, rms=None, model=None, cb=None):
+        self._listen.detected_fake(text, rms, model, cb)
+
     def listener_listen(self, r=None, mic=None, vad=None):
         return self._listen.listen(r, mic, vad)
 

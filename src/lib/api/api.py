@@ -208,7 +208,7 @@ class API:
             raise InternalException(7, 'Invalid file data: {}'.format(e))
         if len(data['data']) < 1024 * 3:
             raise InternalException(8, 'File too small: {}'.format(len(data['data'])))
-        data = (data.get(key, '') for key in ('filename', 'data', 'username', 'phrase'))
+        data = [data.get(key, '') for key in ('filename', 'data', 'username', 'phrase')]
         self.own.terminal_call('send_model', data, save_time=False)
 
     @api_commands('recv_model')
@@ -416,6 +416,19 @@ class API:
     def _api_backup_list(self, *_) -> list:
         return [{'filename': filename, 'timestamp': timestamp} for filename, timestamp in self.own.backup_list()]
 
+    @api_commands('sre', true_json=True)
+    def _api_sre(self, _, data):
+        """
+        Обработает текст так, как если бы он был успешно распознан.
+
+        JSON-RPC позволяет опционально задать RMS и имя модели:
+        {"method": "sre", "params": {"text": "выключи свет", "rms": [1, 2, 3], "model": "model1.pmdl"}}
+        """
+        data = data if isinstance(data, dict) else {'text': data[0] if isinstance(data, list) and data else data}
+        if 'text' not in data or not data['text'] or not isinstance(data['text'], str):
+            raise InternalException(msg='\'text\' must be contained non-empty string')
+        self.own.terminal_call('sre', [data.get(x) for x in ('text', 'rms', 'model')])
+
 
 class BaseAPIHandler(API):
     METHOD = 'method'
@@ -434,7 +447,7 @@ class BaseAPIHandler(API):
 
     def call_api(self, msg: dict) -> dict or None:
         if msg[self.METHOD] not in self.API:
-            cmd = repr(msg[msg[self.METHOD]])[1:-1]
+            cmd = repr(msg[self.METHOD])[1:-1]
             raise InternalException(code=-32601, msg='Unknown command: \'{}\''.format(cmd[:100]), id_=msg['id'])
 
         self.id = msg['id']

@@ -54,6 +54,7 @@ class MDTerminal(threading.Thread):
             'test.play': self._sw.test_play,
             'test.delete': self._sw.test_delete,
             'test.test': self._sw.test_test,
+            'sre': lambda text, rms=None, model=None: self.own.detected_fake(text, rms, model, self._detected_parse),
         }
 
     def join(self, timeout=30):

@@ -443,6 +443,10 @@ class TestShell(cmd__.Cmd):
         """Список бэкапов"""
         self._send_json('backup.list')
 
+    def do_sre(self, text):
+        """Обработает текст так, как если бы он был успешно распознан: текст"""
+        self._send_json('sre', text)
+
     def do_r2(self, line):
         """
         Улучшенный raw: method [params] [<]
