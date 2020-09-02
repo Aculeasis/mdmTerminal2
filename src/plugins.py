@@ -175,7 +175,7 @@ class Plugins(threading.Thread):
         if reload is not None and not is_iterable(reload):
             raise RuntimeError('\'{}\' must be iterable or None'.format(RELOAD))
 
-        api = getattr(module, API, None) or -1
+        api = getattr(module, API, -1)
         if not isinstance(api, int):
             raise RuntimeError('\'{}\' present and not int: {}, {}'.format(API, repr(api), type(api)))
 
