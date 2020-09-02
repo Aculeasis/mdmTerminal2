@@ -16,6 +16,7 @@ import time
 import traceback
 import urllib.parse
 import warnings
+from contextlib import contextmanager
 from copy import deepcopy
 from functools import lru_cache
 
@@ -491,3 +492,26 @@ def deprecated(func):
         warnings.simplefilter('default', DeprecationWarning)  # reset filter
         return func(*args, **kwargs)
     return new_func
+
+
+@contextmanager
+def file_lock(lockfile: str):
+    try:
+        if sys.platform == 'win32':
+            fd = os.open(lockfile, os.O_CREAT | os.O_EXCL | os.O_RDWR)
+        else:
+            # noinspection PyUnresolvedReferences
+            import fcntl
+            fd = open(lockfile, 'w')
+            fd.flush()
+            fcntl.lockf(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except Exception:
+        print('mdmTerminal2 already running. Stop another instance or remove file: ', lockfile)
+        raise
+    yield None
+    try:
+        os.close(fd) if sys.platform == 'win32' else fcntl.lockf(fd, fcntl.LOCK_UN)
+        os.path.isfile(lockfile) and os.unlink(lockfile)
+    except Exception:
+        print('Error unlocked: ', lockfile)
+        raise

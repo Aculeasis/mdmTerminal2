@@ -8,7 +8,7 @@ from copy import deepcopy
 
 import default_settings as _ds
 from loader import Loader
-from utils import SignalHandler
+from utils import SignalHandler, file_lock
 
 HOME = os.path.abspath(sys.path[0])
 
@@ -68,5 +68,6 @@ def main():
 
 
 if __name__ == '__main__':
-    while main():
-        pass
+    with file_lock(os.path.join(HOME, '.mdmterminal2.lock')):
+        while main():
+            pass

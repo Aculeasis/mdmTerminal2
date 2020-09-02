@@ -5,6 +5,7 @@ src/tts_cache
 src/data
 src/backups
 env
+src/.mdmterminal2.lock
 src/settings.ini
 src/.state.json
 src/test.py
