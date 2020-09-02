@@ -175,11 +175,11 @@ class Plugins(threading.Thread):
         if reload is not None and not is_iterable(reload):
             raise RuntimeError('\'{}\' must be iterable or None'.format(RELOAD))
 
-        api = getattr(module, API, None)
+        api = getattr(module, API, None) or -1
         if not isinstance(api, int):
-            raise RuntimeError('\'{}\' missing or not int: {}, {}'.format(API, repr(api), type(api)))
+            raise RuntimeError('\'{}\' present and not int: {}, {}'.format(API, repr(api), type(api)))
 
-        if api < self.cfg.API:
+        if -1 < api < self.cfg.API:
             if name not in self._status['deprecated']:
                 self._status['deprecated'][name] = plugin_dir
             msg = 'Plugin deprecated. Plugin api: {}, terminal api: {}. Ignore.'.format(api, self.cfg.API)
