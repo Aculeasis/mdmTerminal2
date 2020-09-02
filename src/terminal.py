@@ -7,18 +7,20 @@ import time
 import traceback
 from functools import lru_cache
 
-from lib.audio_utils import reset_vad_caches, reset_detector_caches
 import lib.snowboy_training as training_service
 import lib.sr_wrapper as sr
 import logger
 import utils
 from languages import LANG_CODE, F
+from lib.audio_utils import reset_vad_caches
+from lib.detectors import reset_detector_caches
 from listener import NonBlockListener
 from owner import Owner
 
 
 class MDTerminal(threading.Thread):
     MAX_LATE = 60
+    START_SLEEP, MAX_SLEEP = 10, 60 * 30
 
     def __init__(self, cfg, log, owner: Owner):
         super().__init__(name='MDTerminal')
@@ -30,6 +32,7 @@ class MDTerminal(threading.Thread):
         self._snowboy = None
         self._queue = queue.Queue()
         self._wait = threading.Event()
+        self._current_sleep = self.START_SLEEP
         # Что делает терминал, для диагностики зависаний треда
         # 0 - ничего, 1 - слушает микрофон, 2 - тестирут микрофон, 3 - обрабатывает результат, 4 - внешний вызов
         self.stage = 0
@@ -96,6 +99,15 @@ class MDTerminal(threading.Thread):
         }.get(self.stage, 'INTERNAL ERROR!')
         return '[{}]: {}'.format(self.stage, msg)
 
+    def _sleep_up(self):
+        self._wait.wait(self._current_sleep)
+        self._wait.clear()
+        self._current_sleep = int(self._current_sleep + self._current_sleep * 0.5)
+        self._current_sleep = self._current_sleep if self._current_sleep <= self.MAX_SLEEP else self.MAX_SLEEP
+
+    def _sleep_default(self):
+        self._current_sleep = self.START_SLEEP
+
     @utils.state_cache(interval=0.1)
     def _no_listen(self):
         return self.cfg['listener']['no_listen_music'] and self.own.music_plays
@@ -155,11 +167,17 @@ class MDTerminal(threading.Thread):
                 self.stage = 1
                 self._snowboy()
                 self.stage = 0
+            except utils.RecognitionCrashMessage as e:
+                msg = '{} error: {}; Sleeping {} seconds.'.format(self.cfg.detector.NAME, e, self._current_sleep)
+                self.log(msg, logger.ERROR)
+                self._sleep_up()
             except OSError as e:
                 self.work = False
                 self.log('Critical error, bye: {}'.format(e), logger.CRIT)
                 self.log(traceback.format_exc(), logger.CRIT)
                 self.own.die_in(1)
+            else:
+                self._sleep_default()
 
     def _external_check(self):
         while self._queue.qsize() and self.work:
@@ -298,6 +316,11 @@ class _SampleWorker:
         self.own.sub_call('default', event, state)
         return None
 
+    def _is_fake_models(self):
+        if self.cfg.detector.FAKE_MODELS:
+            self.log('Detector {} use fake models - nope action.'.format(self.cfg.detector.NAME), logger.WARN)
+        return self.cfg.detector.FAKE_MODELS
+
     def rec_rec(self, model, sample):
         # Записываем образец sample для модели model
         if not self.cfg.detector.ALLOW_RECORD:
@@ -369,6 +392,8 @@ class _SampleWorker:
         self._send_notify('model_compile', False)
 
     def rec_del(self, model, _):
+        if self._is_fake_models():
+            return
         is_del = False
         pmdl_name = self.cfg.detector.gen_name('model', model)
         pmdl_path = os.path.join(self.cfg.path['models'], pmdl_name)
@@ -400,7 +425,7 @@ class _SampleWorker:
 
         if to_save:
             self.cfg.config_save()
-        if is_del:
+        if to_save or is_del:
             self.cfg.models_load()
             self._reload_cb()
 
@@ -409,6 +434,8 @@ class _SampleWorker:
         pmdl_path = os.path.join(self.cfg.path['models'], filename)
         self.log('Model {} received from server: phrase={}, username={}, size={} bytes.'.format(
             repr(filename), repr(phrase), repr(username), len(body)), logger.INFO)
+        if self._is_fake_models():
+            return
         with open(pmdl_path, 'wb') as fp:
             fp.write(body)
         self._save_model_data(filename, username, phrase)

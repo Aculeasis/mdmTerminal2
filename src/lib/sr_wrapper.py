@@ -32,7 +32,7 @@ import time
 
 import speech_recognition
 
-from .audio_utils import APMSettings, MicrophoneStreamAPM, MicrophoneStream, StreamRecognition, RMS
+from .audio_utils import APMSettings, MicrophoneStreamAPM, MicrophoneStream, StreamRecognition, RMS, StreamDetector
 from .proxy import proxies
 
 AudioData = speech_recognition.AudioData
@@ -296,6 +296,39 @@ class Recognizer(speech_recognition.Recognizer):
             raise RuntimeError('None')
         return voice_recognition
 
+    def listen3(self, source, stream_hwd: StreamDetector, phrase_time_limit):
+        seconds_per_buffer = float(source.CHUNK) / source.SAMPLE_RATE
+        pause_buffer_count = int(math.ceil(self.pause_threshold / seconds_per_buffer))
+
+        pause_count, elapsed_time = 0, 0
+        self._record_callback and self._record_callback(True)
+        try:
+            while stream_hwd.processing:
+                if not source.stream.read_available:
+                    time.sleep(0.004)
+                    continue
+                buffer = source.stream.read(source.CHUNK)
+                if not buffer:
+                    break
+
+                elapsed_time += seconds_per_buffer
+                if phrase_time_limit and elapsed_time >= phrase_time_limit:
+                    break
+
+                if stream_hwd.is_speech(buffer):
+                    pause_count = 0
+                else:
+                    pause_count += 1
+                if pause_count > pause_buffer_count:
+                    break
+        finally:
+            self._record_callback and self._record_callback(False)
+        stream_hwd.end()
+
+        if not stream_hwd.is_ok:
+            raise RuntimeError('None')
+        return stream_hwd
+
 
 class EnergyDetectorVAD:
     WRONG_RMS = 32768
@@ -305,8 +338,10 @@ class EnergyDetectorVAD:
         self.dynamic_energy_ratio = 1.5
         self._width = width
         self._dynamic_energy_threshold = energy_dynamic
-        self._seconds_per_buffer = float(source.CHUNK) / rate
+        self._chunk_size = float(source.CHUNK)
+        self._seconds_per_buffer = None
         self._rms = RMS(width) if rms else None
+        self.set_rate(rate)
         if not energy_lvl:
             self._energy_threshold = 500
             self._energy = None
@@ -317,7 +352,19 @@ class EnergyDetectorVAD:
 
     @property
     def energy_threshold(self):
-        return int(self._energy_threshold) if self._energy_threshold else self._energy_threshold
+        return int(self._energy_threshold)
+
+    def set_rate(self, rate: int):
+        self._seconds_per_buffer = self._chunk_size / rate
+
+    def force_adjust_for_ambient_noise(self, source):
+        if self._energy is None:
+            stream = source.stream
+            try:
+                stream or source.__enter__()
+                self.adjust_for_ambient_noise(source.stream, source.CHUNK)
+            finally:
+                stream or source.__exit__(None, None, None)
 
     def adjust_for_ambient_noise(self, stream, chunk, duration=1):
         elapsed_time = 0
@@ -338,8 +385,7 @@ class EnergyDetectorVAD:
         energy = audioop.rms(buffer,  self._width)
         if energy == self.WRONG_RMS:
             return False
-        if self._rms:
-            self._rms.calc(energy)
+        self._rms and self._rms.calc(energy)
         result = energy > self._energy_threshold
         self._energy = None if result else energy
         return result

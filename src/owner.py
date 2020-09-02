@@ -105,6 +105,12 @@ class Owner:
         """
         raise NotImplementedError
 
+    def insert_detectors(self, detector):
+        raise NotImplementedError
+
+    def extract_detectors(self, detector):
+        raise NotImplementedError
+
     def add_stt_provider(self, name: str, entrypoint) -> bool:
         """
         Добавляет speech-to-text провайдера.

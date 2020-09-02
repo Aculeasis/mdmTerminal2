@@ -70,7 +70,10 @@ _LNG = {  # google translate - it's a good idea!
     # config.py
     'Это надо исправить!': 'This must be fixed!',
     'Терминал еще не настроен, мой IP адрес: {}': 'The terminal is not configured yet, my IP address is {}',
+    # listener.py stts.py
+    'Распознано за {}': 'Recognized for {}',
     # listener.py
+    'Записано за {}': 'Recorded in {}',
     '{} слушает': '{} listening',
     'Голосовая активация по {}{}': 'Voice Activated by {} {}',
     # loader.py
@@ -247,7 +250,6 @@ _LNG = {  # google translate - it's a good idea!
     'Для распознавания используем {}': 'For recognition we use {}',
     'Произошла ошибка распознавания': 'Recognition Error Occurred',
     "Ошибка распознавания речи от {}, ключ '{}'. ({})": "Speech recognition error from {}, key '{}'. ({})",
-    'Распознано за {}': 'Recognized for {}',
     'Распознано: {}. Консенсус: {}': 'Recognized: {}. Consensus: {}',
     'Привет': 'Hi',
     'Слушаю': "I'm listening",

@@ -1,12 +1,14 @@
 import pathlib
-import platform
 
 import utils
+from lib.audio_utils import SnowboyHWD, PorcupineHWD, ModuleLoader, porcupine_lib
 
 
 class Detector:
     # Имя детектора
     NAME = None
+    # Ссылка на класс lib.audio_utils.Detector или lib.audio_utils.StreamDetector
+    DETECTOR = None
     # Расширение генерируемых моделей
     MODELS_EXT = ''
     # Список расширений всех поддерживаемых моделей
@@ -19,6 +21,10 @@ class Detector:
     ALLOW_RECORD = False
     # Разрешить создание новых моделей
     ALLOW_TRAINING = False
+    # Детектор надо загрузить через ModuleLoader перед использованием
+    MUST_PRELOAD = True
+    # Поиск файлов-моделей не выполняется, вместо этого список читается из [models] в settings.ini
+    FAKE_MODELS = False
 
     def __init__(self, home: str):
         self.path = str(pathlib.Path(home, 'detectors', str(self.NAME)))
@@ -48,6 +54,7 @@ class Detector:
 
 class DetectorSnowboy(Detector):
     NAME = 'snowboy'
+    DETECTOR = SnowboyHWD
     MODELS_EXT = 'pmdl'
     MODELS_SUPPORT = ('pmdl', 'umdl')
     SAMPLES_COUNT = 3
@@ -57,23 +64,26 @@ class DetectorSnowboy(Detector):
 
 class DetectorPorcupine(Detector):
     NAME = 'porcupine'
+    DETECTOR = PorcupineHWD
     MODELS_EXT = 'ppn'
     MODELS_SUPPORT = ('ppn',)
-    SAMPLES_COUNT = 0
-    ALLOW_RECORD = False
-    ALLOW_TRAINING = False
 
 
 DETECTORS = {target.NAME: target for target in Detector.__subclasses__()}
 
 
-def detector(name, home: str) -> Detector:
-    return DETECTORS.get(name, Detector)(home)
+def detector(name, home: str or None) -> Detector:
+    cls = DETECTORS.get(name, Detector)
+    return cls(home) if home is not None else cls
 
 
-def porcupine_lib() -> str:
-    ext = {'windows': 'dll', 'linux': 'so', 'darwin': 'dylib'}
-    return 'libpv_porcupine.{}'.format(ext.get(platform.system().lower(), 'linux'))
+def reset_detector_caches():
+    ModuleLoader().clear()
+    for x in list(DETECTORS.values()):
+        try:
+            x.reset()
+        except (TypeError, AttributeError):
+            pass
 
 
 def porcupine_select_auto(home: str) -> bool:

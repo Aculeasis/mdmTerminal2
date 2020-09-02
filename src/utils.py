@@ -72,6 +72,10 @@ class PrettyException(RuntimeError):
         super().__init__('{}: "{}" -> {}'.format(error.__class__.__name__, error, target))
 
 
+class RecognitionCrashMessage(Exception):
+    pass
+
+
 class SignalHandlerDummy:
     def __init__(self, *_, **__):
         pass

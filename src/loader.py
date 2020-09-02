@@ -10,7 +10,7 @@ from config import ConfigHandler
 from discovery_server import DiscoveryServer
 from duplex_mode import DuplexPool
 from languages import F
-from lib import STT, TTS
+from lib import STT, TTS, detectors
 from lib import volume as volume_
 from lib.available_version import available_version_msg
 from lib.proxy import proxies
@@ -30,6 +30,22 @@ from utils import state_cache, Messenger, pretty_time, SignalHandlerDummy
 
 def is_sub_dict(key, data: dict):
     return isinstance(data.get(key), dict) and data[key]
+
+
+def prepare_detectors(detector, is_extract=False) -> set or dict:
+    def is_uni(cls_, info_) -> bool:
+        return isinstance(cls_, info_) or issubclass(cls_, info_)
+
+    types = (detectors.Detector, str) if is_extract else (detectors.Detector,)
+    if is_uni(detector, types):
+        detector = [detector]
+    if not isinstance(detector, (list, tuple, set)):
+        detector = []
+    if is_extract:
+        detector = set(x if isinstance(x, str) else x.NAME for x in detector if is_uni(x, types))
+    else:
+        detector = {x.NAME: x for x in detector if is_uni(x, types)}
+    return detector
 
 
 class Loader(Owner):
@@ -181,6 +197,30 @@ class Loader(Owner):
 
     def extract_module(self, callback) -> bool:
         return self._mm.extract_module(callback)
+
+    def insert_detectors(self, detector):
+        detector = prepare_detectors(detector)
+        if not detector:
+            return
+
+        def callback():
+            with self._lock:
+                detectors.DETECTORS.update(detector)
+                self.__reconfigure_terminal(detector)
+        # noinspection PyTypeChecker
+        self.terminal_call('callme', callback, save_time=False)
+
+    def extract_detectors(self, detector):
+        detector = prepare_detectors(detector, True)
+        if not detector:
+            return
+
+        def callback():
+            with self._lock:
+                [detectors.DETECTORS.pop(x, None) for x in detector]
+                self.__reconfigure_terminal(detector)
+        # noinspection PyTypeChecker
+        self.terminal_call('callme', callback, save_time=False)
 
     def add_stt_provider(self, name: str, entrypoint) -> bool:
         with self._stts_lock:
@@ -467,7 +507,7 @@ class Loader(Owner):
                     self._stt.reload()
                     # reload modules
                     self._mm.reload()
-            if is_sub_dict('models', diff) and 'allow' in diff['models']:
+            if is_sub_dict('models', diff):
                 # reload models. Reload terminal - later
                 self._cfg.models_load()
                 reload_terminal = True
@@ -529,3 +569,8 @@ class Loader(Owner):
 
     def server_reload(self):
         self._server = server_constructor(self._cfg, self._logger, self, self._server)
+
+    def __reconfigure_terminal(self, detector: set or dict):
+        if self._cfg['listener']['detector'] in detector or self._cfg.detector.NAME in detector:
+            # noinspection PyProtectedMember
+            self._terminal._reload((True, False))

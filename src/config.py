@@ -15,6 +15,7 @@ from lib.audio_utils import APMSettings
 from lib.ip_storage import make_interface_storage
 from lib.keys_utils import Keystore
 from lib.map_settings.wiki_parser import WikiParser
+from lib.models_storage import ModelsStorage
 from lib.proxy import proxies
 from lib.state_helper import state_helper
 from lib.tools.config_updater import ConfigUpdater
@@ -51,6 +52,7 @@ class ConfigHandler(utils.HashableDict):
         self.state, save_ini, save_state = state_helper(state, path, log.add('SH'))
         self.platform = platform.system().capitalize()
         self.detector = None
+        self.models = ModelsStorage()
         self._save_me_later = False
         self._allow_addresses = []
         self.update(cfg)
@@ -134,18 +136,6 @@ class ConfigHandler(utils.HashableDict):
     def yandex_api(self, prov):
         return self.gt(prov, 'api', 1) if prov == 'yandex' else 1
 
-    def model_info_by_id(self, model: int):
-        model -= 1
-        if model < len(self.path['models_list']):
-            model_name = os.path.split(self.path['models_list'][model])[1]
-            phrase = self.gt('models', model_name, '')
-            msg = '' if not phrase else ': "{}"'.format(phrase)
-        else:
-            model_name = str(model)
-            phrase = ''
-            msg = ': "model id out of range: {} > {}"'.format(model, len(self.path['models_list']) - 1)
-        return model_name, phrase, msg
-
     def gt(self, sec, key, default=None):
         # .get для саб-словаря
         return self.get(sec, {}).get(key, default)
@@ -175,12 +165,12 @@ class ConfigHandler(utils.HashableDict):
             name = 'snowboy' if self.platform == 'Linux' else None
             name = 'porcupine' if self._porcupine_allow() else name
         else:
-            name = self['listener']['detector'].lower()
+            name = self['listener']['detector']
         self.detector = detectors.detector(name, self.path['home'])
         is_broken = self.detector.NAME not in detectors.DETECTORS
         if is_broken:
             msg = 'Unrecognized hotword detector \'{}\', terminal won\'t work correctly!'.format(name)
-            self.log(msg, logger.ERROR)
+            self.log(msg, logger.WARN)
         else:
             self.log('Hotword detection: {}'.format(self.detector), logger.INFO)
         self.models_load()
@@ -299,7 +289,8 @@ class ConfigHandler(utils.HashableDict):
         return utils.str_to_list(self.gt('models', 'allow'))
 
     def get_all_models(self) -> list:
-        return [file for file in os.listdir(self.path['models']) if self.detector.is_model_name(file)]
+        files = self['models'].keys() if self.detector.FAKE_MODELS else os.listdir(self.path['models'])
+        return [file for file in files if self.detector.is_model_name(file)]
 
     def get_all_testfile(self) -> list:
         if not os.path.isdir(self.path['test']):
@@ -362,6 +353,8 @@ class ConfigHandler(utils.HashableDict):
 
     def models_load(self):
         def lower_warning():
+            if self.detector.FAKE_MODELS:
+                return
             l_name_ = file.lower()
             if l_name_ != file:
                 msg_ = 'Please, rename {} to {} in {} for stability!'.format(
@@ -369,24 +362,21 @@ class ConfigHandler(utils.HashableDict):
                 )
                 self.log(msg_, logger.WARN)
 
-        self.path['models_list'] = []
-        if not os.path.isdir(self.path['models']):
+        models, paths, msg = [], [], None
+        if not (os.path.isdir(self.path['models']) or self.detector.FAKE_MODELS):
             msg = F('Директория с моделями не найдена {}', self.path['models'])
-            self.log(msg, logger.INFO)
-            self.own.say_info(msg)
-            return
+        else:
+            allow = self.get_allow_models()
+            for file in self.get_all_models():
+                full_path = file if self.detector.FAKE_MODELS else os.path.join(self.path['models'], file)
+                if self.detector.FAKE_MODELS or os.path.isfile(full_path):
+                    lower_warning()
+                    if not allow or file in allow:
+                        paths.append(full_path)
+                        models.append(file)
 
-        count = 0
-        allow = self.get_allow_models()
-        for file in self.get_all_models():
-            full_path = os.path.join(self.path['models'], file)
-            if os.path.isfile(full_path):
-                lower_warning()
-                if not allow or file in allow:
-                    self.path['models_list'].append(full_path)
-                    count += 1
-
-        msg = F('Загружено {} моделей', count)
+        self.models = ModelsStorage(paths, self['models'], models)
+        msg = msg or F('Загружено {} моделей', len(self.models))
         self.log(msg, logger.INFO)
         self.own.say_info(msg)
 

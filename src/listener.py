@@ -6,10 +6,9 @@ import time
 import logger
 from languages import F
 from lib import sr_wrapper as sr
-from lib.audio_utils import ModuleLoader
-from lib.audio_utils import SnowboyHWD, WebRTCVAD, APMVAD, get_hot_word_detector
+from lib.audio_utils import ModuleLoader, SnowboyHWD, WebRTCVAD, APMVAD, StreamDetector
 from owner import Owner
-from utils import recognition_msg
+from utils import recognition_msg, pretty_time
 
 
 class Listener:
@@ -25,8 +24,8 @@ class Listener:
     def recognition_forever(self, interrupt_check: callable, callback: callable):
         if not self.cfg.detector.NAME:
             self.log('Wake word detection don\'t work on this system: {}'.format(self.cfg.platform), logger.WARN)
-        elif self.cfg.path['models_list'] and self.own.max_mic_index != -2:
-            if ModuleLoader().is_loaded(self.cfg.detector.NAME):
+        elif self.cfg.models and self.own.max_mic_index != -2:
+            if not self.cfg.detector.MUST_PRELOAD or ModuleLoader().is_loaded(self.cfg.detector.NAME):
                 return lambda: self._smart_listen(interrupt_check, callback)
             else:
                 self._print_loading_errors()
@@ -34,38 +33,48 @@ class Listener:
 
     def _smart_listen(self, interrupt_check, callback):
         r = sr.Recognizer(self.own.record_callback, self.cfg.gt('listener', 'silent_multiplier'))
-        adata = None
+        adata, vad_hwd = None, None
+        stream_hwd = issubclass(self.cfg.detector.DETECTOR, StreamDetector)
+        chrome_mode = self.cfg.gts('chrome_mode')
+        vad_name = self.cfg.gt('listener', 'vad_chrome') if chrome_mode else None
+        vad_name = vad_name or self.cfg.gt('listener', 'vad_mode', '')
         while not interrupt_check():
-            chrome_mode = self.cfg.gts('chrome_mode')
-            with sr.Microphone(device_index=self.own.mic_index) as source:
-                vad, noising = self._get_vad_detector(source, self.cfg.gt('listener', 'vad_chrome') or None)
-                if not isinstance(vad, SnowboyHWD):
-                    hw_detector = self._get_hw_detector(source.SAMPLE_WIDTH, source.SAMPLE_RATE, vad)
-                else:
-                    hw_detector = vad
-                try:
-                    model_id, frames, elapsed_time = sr.wait_detection(source, hw_detector, interrupt_check, noising)
-                except sr.Interrupted:
-                    continue
-                except RuntimeError:
-                    return
-                model_name, phrase, msg = self.cfg.model_info_by_id(model_id)
-                if chrome_mode:
-                    if not phrase:
-                        # модель без триггера?
-                        self._detected_sr(msg or 'unset trigger', model_name, None, None)
-                        continue
-                    if self.cfg.gts('chrome_choke'):
-                        self.own.full_quiet()
+            try:
+                with sr.Microphone(device_index=self.own.mic_index) as source:
+                    vad_hwd, noising = self._get_vad_detector(source, vad_name)
+                    if not isinstance(vad_hwd, SnowboyHWD):
+                        vad_hwd = self._get_hw_detector(source.SAMPLE_WIDTH, source.SAMPLE_RATE, vad_hwd)
                     try:
-                        adata = self._listen(r, source, vad, frames=frames, hw_time=elapsed_time)
-                    except (sr.WaitTimeoutError, RuntimeError):
+                        model_id, frames, elapsed_time = sr.wait_detection(source, vad_hwd, interrupt_check, noising)
+                    except sr.Interrupted:
                         continue
-            if chrome_mode:
-                self._adata_parse(adata, model_name, phrase, vad, callback)
-            else:
-                hw_detector.reset()
-                self._detected(model_name, phrase, msg, callback)
+                    except RuntimeError:
+                        return
+                    if stream_hwd:
+                        model_name, phrase, msg = vad_hwd.model_info
+                    else:
+                        model_name, phrase, msg = self.cfg.models.model_info_by_id(model_id)
+                    if chrome_mode:
+                        if not phrase:
+                            # модель без триггера?
+                            self._detected_sr(msg or 'unset trigger', model_name, None, None)
+                            continue
+                        if self.cfg.gts('chrome_choke'):
+                            self.own.full_quiet()
+                        if stream_hwd:
+                            msg_ = 'In stream voice activation {}: {}, HWD: {}'
+                            self.log(msg_.format(model_name, phrase, self.cfg.detector.NAME))
+                        try:
+                            adata = self._listen(r, source, vad_hwd, frames, elapsed_time)
+                        except (sr.WaitTimeoutError, RuntimeError):
+                            continue
+                if chrome_mode:
+                    self._adata_parse(adata, model_name, phrase, vad_hwd, callback)
+                else:
+                    vad_hwd.reset()
+                    self._detected(model_name, phrase, msg, callback)
+            finally:
+                vad_hwd and vad_hwd.die()
 
     def _adata_parse(self, adata, model_name: str, phrases: str, vad, callback):
         if self.cfg.gts('chrome_alarmstt'):
@@ -73,17 +82,20 @@ class Listener:
         msg = self.own.voice_recognition(adata)
         if not msg:
             return
+        if isinstance(vad, StreamDetector):
+            model_name, phrase, _ = vad.model_info
+            clear_msg = msg if model_name and phrase else None
+            t_ = vad.recognition_time
+            msg_ = F('Распознано за {}', pretty_time(t_)) if t_ else F('Записано за {}', pretty_time(vad.record_time))
+            self.log(msg_, logger.DEBUG)
+        else:
+            phrase, clear_msg = self.cfg.models.msg_parse(msg, phrases)
 
-        for phrase in phrases.split('|'):
-            clear_msg = msg_parse(msg, phrase)
-            if clear_msg is not None:
-                # Нашли триггер в сообщении
-                model_msg = ': "{}"'.format(phrase)
-                self._detected_sr(clear_msg, model_name, model_msg, vad, callback)
-                return
-        model_msg = ': "{}"'.format(phrases)
-        # Не наши триггер в сообщении - snowboy false positive
-        self._detected_sr(msg, model_name, model_msg, vad)
+        if clear_msg is not None:
+            # Нашли триггер в сообщении
+            return self._detected_sr(clear_msg, model_name, ': "{}"'.format(phrase), vad, callback)
+        # Не нашли триггер в сообщении - snowboy false positive
+        self._detected_sr(msg, model_name, ': "{}"'.format(phrases), vad)
 
     def _detected(self, model_name, phrase, msg, cb):
         self.own.voice_activated_callback()
@@ -133,8 +145,9 @@ class Listener:
             return None if val < 1 else val
         phrase_time_limit = positive_or_none(self.cfg.gts('phrase_time_limit'))
         timeout = positive_or_none(self.cfg.gt('listener', 'speech_timeout'))
-
-        if self.cfg.gt('listener', 'stream_recognition'):
+        if isinstance(vad, StreamDetector):
+            return r.listen3(source, vad, phrase_time_limit)
+        elif self.cfg.gt('listener', 'stream_recognition'):
             return r.listen2(source, vad, self.own.voice_recognition, timeout, phrase_time_limit, frames, hw_time)
         else:
             return r.listen1(source, vad, timeout, phrase_time_limit, frames, hw_time)
@@ -174,26 +187,20 @@ class Listener:
         )
         vad = vad(**cfg)
         if isinstance(vad, sr.EnergyDetectorVAD):
-            if not energy_lvl:
-                manual_exit = source_or_mic.stream is None
-                try:
-                    if manual_exit:
-                        source_or_mic.__enter__()
-                    vad.adjust_for_ambient_noise(source_or_mic.stream, source_or_mic.CHUNK)
-                finally:
-                    if manual_exit:
-                        source_or_mic.__exit__(None, None, None)
+            vad.force_adjust_for_ambient_noise(source_or_mic)
             if energy_dynamic:
                 return vad, self.own.noising
         return vad, None
 
     def _get_hw_detector(self, width, rate, another_detector=None):
-        cfg = self._detector_cfg(width=width, rate=rate, another=another_detector)
-        return get_hot_word_detector(self.cfg.detector.NAME, **cfg)
+        cfg = self._detector_cfg(width=width, rate=rate, another=another_detector, full_cfg=self.cfg)
+        if self.cfg.detector.DETECTOR:
+            return self.cfg.detector.DETECTOR(**cfg)
+        return SnowboyHWD(**cfg)
 
     def _detector_cfg(self, **kwargs) -> dict:
         kwargs.update({
-            'home': self.cfg.detector.path, 'hot_word_files': self.cfg.path['models_list'],
+            'home': self.cfg.detector.path, 'hot_word_files': self.cfg.models,
             'sensitivity': self.cfg.gts('sensitivity'), 'audio_gain': self.cfg.gts('audio_gain'),
             'apply_frontend': self.cfg.gt('noise_suppression', 'snowboy_apply_frontend'),
             'rms': self.cfg.gt('smarthome', 'send_rms'),
@@ -204,9 +211,8 @@ class Listener:
         def is_loaded():
             return ModuleLoader().is_loaded(vad_mode)
 
-        vad_mode = vad_mode if vad_mode is not None else self.cfg.gt('listener', 'vad_mode')
-        if vad_mode == 'snowboy' and self.cfg.path['models_list'] and self.cfg.detector.NAME == 'snowboy' and\
-                is_loaded():
+        vad_mode = vad_mode or self.cfg.gt('listener', 'vad_mode')
+        if vad_mode == self.cfg.detector.NAME == 'snowboy' and self.cfg.models and is_loaded():
             vad = SnowboyHWD
         elif vad_mode == 'webrtc' and is_loaded():
             vad = WebRTCVAD
@@ -250,15 +256,3 @@ class NonBlockListener(threading.Thread):
 
     def _interrupt_check(self):
         return self._has_stop
-
-
-def msg_parse(msg: str, phrase: str):
-    phrase2 = phrase.lower().replace('ё', 'е')
-    msg2 = msg.lower().replace('ё', 'е')
-    offset = msg2.find(phrase2)
-    if offset < 0:  # Ошибка активации
-        return
-    msg = msg[offset+len(phrase):]
-    for l_del in ('.', ',', ' '):
-        msg = msg.lstrip(l_del)
-    return msg

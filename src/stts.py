@@ -16,7 +16,7 @@ import lib.sr_wrapper as sr
 import logger
 import utils
 from languages import F
-from lib.audio_utils import StreamRecognition
+from lib.audio_utils import StreamRecognition, StreamDetector
 from owner import Owner
 
 
@@ -393,7 +393,7 @@ class SpeechToText:
             return None
 
     def voice_recognition(self, audio, quiet: bool = False, fusion=None) -> str:
-        if isinstance(audio, StreamRecognition) and fusion is None:
+        if (isinstance(audio, StreamRecognition) and fusion is None) or isinstance(audio, StreamDetector):
             return audio.text
         self.own.speech_recognized(True)
         try:
