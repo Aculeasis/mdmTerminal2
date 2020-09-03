@@ -7,7 +7,7 @@ import unittest
 
 sys.path.insert(0, os.path.join(os.path.abspath(sys.path[0]), 'src'))
 
-import main
+import run
 from loader import Loader
 from utils import SignalHandlerDummy
 # noinspection PyUnresolvedReferences
@@ -35,10 +35,10 @@ def check_log(log_file):
 
 
 def tests_mono():
-    home = main.HOME
-    path = main.get_path(home)
-    cfg = main.get_cfg()
-    state = main.get_state()
+    home = run.HOME
+    path = run.get_path(home)
+    cfg = run.get_cfg()
+    state = run.get_state()
     # Меняем настройки
     path['settings'] = '{}.test'.format(path['settings'])
     path['state'] = '{}.test.json'.format(path['state'])

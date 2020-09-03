@@ -44,7 +44,7 @@ pip install -r "${install_path}/Requirements/pip-requirements.txt"
 
 rm -R ~/tmp
 
-chmod +x "${install_path}/src/main.py"
+chmod +x "${install_path}/run.sh"
 chmod +x "${install_path}/scripts/snowboy_build.sh"
 chmod +x "${install_path}/scripts/systemd_install.sh"
 

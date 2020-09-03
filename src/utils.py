@@ -498,6 +498,7 @@ def deprecated(func):
 def file_lock(lockfile: str):
     try:
         if sys.platform == 'win32':
+            os.path.isfile(lockfile) and os.unlink(lockfile)
             fd = os.open(lockfile, os.O_CREAT | os.O_EXCL | os.O_RDWR)
         else:
             # noinspection PyUnresolvedReferences
@@ -506,7 +507,7 @@ def file_lock(lockfile: str):
             fd.flush()
             fcntl.lockf(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except Exception:
-        print('mdmTerminal2 already running. Stop another instance or remove file: ', lockfile)
+        print('mdmTerminal2 already running: ', lockfile)
         raise
     yield None
     try:
