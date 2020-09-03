@@ -42,7 +42,6 @@ def tests_mono():
     # Меняем настройки
     path['settings'] = '{}.test'.format(path['settings'])
     path['state'] = '{}.test.json'.format(path['state'])
-    test_log_file = os.path.join(home, 'mdmt2.log.test')
     cfg['log'].update({'file_lvl': 'warn', 'print_lvl': 'warn', 'file': os.path.join(home, 'mdmt2.log.test')})
     try:
         loader = Loader(init_cfg=cfg, init_state=state, path=path, sig=SignalHandlerDummy())
@@ -59,8 +58,7 @@ def tests_mono():
 
 if __name__ == '__main__':
     mono_err = tests_mono()
-    print()
-    unittest.main(verbosity=2)
+    unittest.main(verbosity=2, exit=False)
     if mono_err:
         print()
         raise RuntimeError('{}'.format(', '.join(mono_err)))

@@ -1,7 +1,7 @@
 import json
 import unittest
 
-import main
+import run
 from lib.tools import config_updater
 
 
@@ -14,7 +14,7 @@ def new_updater():
 
 
 def CFG():
-    return main.get_cfg()
+    return run.get_cfg()
 
 
 class ConfigUpdater(unittest.TestCase):
