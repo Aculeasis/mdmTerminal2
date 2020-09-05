@@ -8,7 +8,7 @@ from functools import lru_cache
 
 from speech_recognition import Microphone, AudioData
 
-from utils import singleton, is_int
+from utils import singleton, is_int, RecognitionCrashMessage
 
 
 # VAD
@@ -43,6 +43,7 @@ def _loader_porcupine():
         def __del__(self):
             if hasattr(self, '_delete_func'):
                 self.delete()
+
     return Porcupine
 
 
@@ -258,45 +259,59 @@ class MicrophoneStreamAPM(MicrophoneStream):
 
 
 class BaseDetector:
-    def __init__(self, width, rate, resample_rate, rms, another):
-        self._another = another
+    def __init__(self, duration, width, rate, resample_rate, rms, another=None):
+        self._vad = another
         self._resample_rate = resample_rate
+        self._sample_size = int(width * (self._resample_rate * duration / 1000)) if duration else None
         self._rate = None
         self._width = width
         self._rms = RMS(width) if rms and not another else None
         self._resample_state = None
         self._resampler = lambda x: x
+        self._current_state = -2
+        self._speech_state = False
+        self._buffer = b''
         self.set_rate(rate)
+
+        self._processing_chunk = self.new_chunk if self._sample_size is None else self._new_chunk
+        self.one_vad = True
 
     def set_rate(self, rate: int):
         self._rate = rate
-        if self._rate == self._resample_rate:
-            self._resampler = lambda x: x
-        else:
-            self._resampler = self._audio_resampler
-        if self._another:
-            self._another.set_rate(self._resample_rate)
+        self._resampler = lambda x: x if self._rate == self._resample_rate else self._audio_resampler
+        self._vad and self._vad.set_rate(self._resample_rate)
 
     @property
     def energy_threshold(self):
-        return self._another.energy_threshold if self._another else None
+        return self._vad.energy_threshold if self._vad else None
 
     def dynamic_energy(self):
-        if self._another:
-            self._another.dynamic_energy()
+        self._vad and self._vad.dynamic_energy()
 
     def rms(self) -> tuple or None:
-        if self._another:
-            return self._another.rms()
-        return self._rms.result() if self._rms else None
+        return self._vad and self._vad.rms() or self._rms and self._rms.result()
+
+    def detect(self, buffer: bytes) -> int:
+        buffer = self._resampler(buffer)
+        self._vad and self._vad.is_speech(buffer)
+        self._processing_chunk(buffer)
+        return self._current_state
+
+    def is_speech(self, buffer: bytes) -> bool:
+        buffer = self._resampler(buffer)
+        self._rms and self._rms.measure(buffer)
+        if self._vad:
+            self._speech_state = self._vad.is_speech(buffer)
+        not (self._vad and self.one_vad) and self._processing_chunk(buffer, is_speech=True)
+        return self._speech_state
+
+    def new_chunk(self, buffer: bytes, is_speech=False):
+        raise NotImplementedError
 
     def reset(self):
         raise NotImplementedError
 
     def die(self):
-        raise NotImplementedError
-
-    def is_speech(self, data: bytes) -> bool:
         raise NotImplementedError
 
     def _audio_resampler(self, buffer: bytes) -> bytes:
@@ -305,14 +320,17 @@ class BaseDetector:
         )
         return buffer
 
+    def _new_chunk(self, buffer: bytes, is_speech=False):
+        self._buffer += buffer
+        buff_len = len(self._buffer)
+        read_len = (buff_len // self._sample_size) * self._sample_size
+        if read_len:
+            for step in range(0, read_len, self._sample_size):
+                self.new_chunk(self._buffer[step: step + self._sample_size], is_speech)
+            self._buffer = self._buffer[read_len:]
+
 
 class Detector(BaseDetector):
-    def __init__(self, duration, width, rate, resample_rate, rms, another=None):
-        super().__init__(width, rate, resample_rate, rms, another)
-        self._sample_size = int(width * (self._resample_rate * duration / 1000))
-        self._buffer = b''
-        self._state = False
-
     def die(self):
         pass
 
@@ -320,59 +338,28 @@ class Detector(BaseDetector):
     def reset(cls):
         cls._constructor.cache_clear()
 
+    def new_chunk(self, buffer: bytes, is_speech=False):
+        raise NotImplementedError
+
     @classmethod
     @lru_cache(maxsize=None)
     def _constructor(cls, *args, **kwargs):
         raise NotImplementedError
 
-    def is_speech(self, data: bytes) -> bool:
-        if self._rms:
-            self._rms.measure(data)
-        self._call_detector(self._resampler(data))
-        return self._state
-
-    def _detector(self, chunk: bytes):
-        pass
-
-    def _call_detector(self, data: bytes):
-        self._buffer += data
-        buff_len = len(self._buffer)
-        read_len = (buff_len // self._sample_size) * self._sample_size
-        if read_len:
-            for step in range(0, read_len, self._sample_size):
-                self._detector(self._buffer[step: step + self._sample_size])
-            self._buffer = self._buffer[read_len:]
-
 
 class SnowboyHWD(Detector):
-    def __init__(self, home, hot_word_files, sensitivity,
-                 audio_gain, width, rate, another, apply_frontend, rms, **_):
-        self._snowboy = SnowboyHWD._constructor(
-            home, sensitivity, audio_gain, apply_frontend, *hot_word_files)
+    def __init__(self, home, hot_word_files, sensitivity, audio_gain, width, rate, another, apply_frontend, rms, **_):
+        self._snowboy = SnowboyHWD._constructor(home, sensitivity, audio_gain, apply_frontend, *hot_word_files)
         super().__init__(150, width, rate, self._snowboy.SampleRate(), rms, another)
-        self._current_state = -2
+        self._processing_chunk = self.new_chunk
 
-    def detect(self, buffer: bytes) -> int:
-        return self._detector(buffer)
-
-    def is_speech(self, buffer: bytes) -> bool:
-        if self._rms:
-            self._rms.measure(buffer)
-        return self._detector(buffer, True) >= 0
-
-    def _detector(self, buffer: bytes, only_detect=False) -> int:
-        self._buffer += self._resampler(buffer)
+    def new_chunk(self, buffer: bytes, is_speech=False):
+        self._buffer += buffer
         if len(self._buffer) >= self._sample_size:
-            if self._another:
-                is_speech = self._another.is_speech(self._buffer)
-                if only_detect:
-                    self._current_state = 0 if is_speech else -2
-                else:
-                    self._current_state = self._snowboy.RunDetection(self._buffer)
-            else:
-                self._current_state = self._snowboy.RunDetection(self._buffer)
+            self._current_state = self._snowboy.RunDetection(self._buffer)
+            if not self._vad:
+                self._speech_state = self._current_state >= 0
             self._buffer = b''
-        return self._current_state
 
     @classmethod
     @lru_cache(maxsize=1)
@@ -384,35 +371,15 @@ class SnowboyHWD(Detector):
 
 
 class PorcupineHWD(Detector):
-    def __init__(self, home, hot_word_files, sensitivity,
-                 width, rate, another, rms, **_):
+    def __init__(self, home, hot_word_files, sensitivity, width, rate, another, rms, **_):
         self._porcupine = PorcupineHWD._constructor(home, sensitivity, *hot_word_files)
         super().__init__(1, width, rate, self._porcupine.sample_rate, rms, another)
         self._sample_size = width * self._porcupine.frame_length
-        self._current_state = -2
+        if not self._vad:
+            raise RecognitionCrashMessage('PorcupineHWD without VAD. WTF?')
 
-    def detect(self, buffer: bytes) -> int:
-        self._call_detector(self._resampler(buffer))
-        return self._current_state
-
-    def is_speech(self, buffer: bytes) -> bool:
-        if self._rms:
-            self._rms.measure(buffer)
-        result = self._detector(self._resampler(buffer), True) >= 0
-        self._buffer = b''
-        return result
-
-    def _detector(self, buffer: bytes, only_detect=False) -> int:
-        if self._current_state == -2 or only_detect:
-            if self._another:
-                is_speech = self._another.is_speech(buffer)
-                if only_detect:
-                    self._current_state = 0 if is_speech else -2
-                else:
-                    self._current_state = self._porcupine.process(buffer)
-            else:
-                self._current_state = self._porcupine.process(buffer)
-        return self._current_state
+    def new_chunk(self, buffer: bytes, is_speech=False):
+        self._current_state = self._porcupine.process(buffer)
 
     @classmethod
     @lru_cache(maxsize=1)
@@ -431,8 +398,8 @@ class WebRTCVAD(Detector):
         super().__init__(30, width, rate, 16000, rms)
         self._vad = WebRTCVAD._constructor(lvl)
 
-    def _detector(self, chunk: bytes):
-        self._state = self._vad.is_speech(chunk, self._resample_rate)
+    def new_chunk(self, buffer: bytes, is_speech=False):
+        self._speech_state = self._vad.is_speech(buffer, self._resample_rate)
 
     @classmethod
     @lru_cache(maxsize=1)
@@ -445,15 +412,12 @@ class APMVAD(Detector):
         super().__init__(10, width, rate, 16000, rms)
         self._apm = APMVAD._constructor(lvl)
 
-    def is_speech(self, data: bytes) -> bool:
-        if self._rms:
-            self._rms.measure(data)
-        self._call_detector(self._resampler(data))
-        self._state = self._apm.has_voice()
-        return self._state
+    def is_speech(self, buffer: bytes) -> bool:
+        super().is_speech(buffer)
+        return self._apm.has_voice()
 
-    def _detector(self, chunk: bytes):
-        self._apm.process_stream(chunk)
+    def new_chunk(self, buffer: bytes, is_speech=False):
+        self._apm.process_stream(buffer)
 
     @classmethod
     @lru_cache(maxsize=1)
@@ -465,26 +429,11 @@ class APMVAD(Detector):
 
 class StreamDetector(BaseDetector):
     def __init__(self, width, rate, resample_rate, rms, another, **_):
-        super().__init__(width, rate, resample_rate, rms, another)
-        self._current_state = -2
-        self._speech_state = False
+        super().__init__(None, width, rate, resample_rate, rms, another)
+        self.one_vad = False
         self.processing = True
         self.is_ok = False
         self.text = ''
-
-    def detect(self, buffer: bytes) -> int:
-        buffer = self._resampler(buffer)
-        self._another and self._another.is_speech(buffer)
-        self.new_chunk(buffer)
-        return self._current_state
-
-    def is_speech(self, buffer: bytes) -> bool:
-        buffer = self._resampler(buffer)
-        self._rms and self._rms.measure(buffer)
-        if self._another:
-            self._speech_state = self._another.is_speech(buffer)
-        self.new_chunk(buffer, is_speech=True)
-        return self._speech_state
 
     def reset(self):
         pass
