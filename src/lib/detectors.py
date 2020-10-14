@@ -1,7 +1,7 @@
 import pathlib
 
 import utils
-from lib.audio_utils import SnowboyHWD, PorcupineHWD, ModuleLoader, porcupine_lib
+from lib.audio_utils import SnowboyHWD, PorcupineHWD, EmptyHWD, ModuleLoader, porcupine_lib
 
 
 class Detector:
@@ -25,6 +25,8 @@ class Detector:
     MUST_PRELOAD = True
     # Поиск файлов-моделей не выполняется, вместо этого список читается из [models] в settings.ini
     FAKE_MODELS = False
+    # Детектор без моделей, вообще
+    NO_MODELS = False
 
     def __init__(self, home: str):
         self.path = str(pathlib.Path(home, 'detectors', str(self.NAME)))
@@ -67,6 +69,13 @@ class DetectorPorcupine(Detector):
     DETECTOR = PorcupineHWD
     MODELS_EXT = 'ppn'
     MODELS_SUPPORT = ('ppn',)
+
+
+class DetectorEmpty(Detector):
+    NAME = 'empty'
+    DETECTOR = EmptyHWD
+    MUST_PRELOAD = False
+    NO_MODELS = True
 
 
 DETECTORS = {target.NAME: target for target in Detector.__subclasses__()}

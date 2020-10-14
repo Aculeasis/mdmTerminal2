@@ -363,7 +363,9 @@ class ConfigHandler(utils.HashableDict):
                 self.log(msg_, logger.WARN)
 
         models, paths, msg = [], [], None
-        if not (os.path.isdir(self.path['models']) or self.detector.FAKE_MODELS):
+        if self.detector.NO_MODELS:
+            pass
+        elif not (os.path.isdir(self.path['models']) or self.detector.FAKE_MODELS):
             msg = F('Директория с моделями не найдена {}', self.path['models'])
         else:
             allow = self.get_allow_models()
@@ -375,7 +377,7 @@ class ConfigHandler(utils.HashableDict):
                         paths.append(full_path)
                         models.append(file)
 
-        self.models = ModelsStorage(paths, self['models'], models)
+        self.models = ModelsStorage(paths, self['models'], models, no_models=self.detector.NO_MODELS)
         msg = msg or F('Загружено {} моделей', len(self.models))
         self.log(msg, logger.INFO)
         self.own.say_info(msg)

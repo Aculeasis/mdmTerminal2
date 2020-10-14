@@ -393,6 +393,30 @@ class PorcupineHWD(Detector):
         )
 
 
+class EmptyHWD(Detector):
+    def __init__(self, width, rate, another, rms, **_):
+        super().__init__(None, width, rate, rate, rms, another)
+        if not self._vad:
+            raise RecognitionCrashMessage('EmptyHWD without VAD. WTF?')
+
+    def detect(self, buffer: bytes) -> int:
+        if self._vad.is_speech(buffer):
+            self._current_state = 1
+        return self._current_state
+
+    def new_chunk(self, buffer: bytes, is_speech=False):
+        pass
+
+    @classmethod
+    def reset(cls):
+        pass
+
+    @classmethod
+    @lru_cache(maxsize=None)
+    def _constructor(cls, *args, **kwargs):
+        pass
+
+
 class WebRTCVAD(Detector):
     def __init__(self, width, rate, lvl, rms, **_):
         super().__init__(30, width, rate, 16000, rms)

@@ -3,11 +3,18 @@
 class ModelsStorage(list):
     STRIP = ',.!? '
     SEP = '|'
+    _EMPTY = '<NOPE>'
 
-    def __init__(self, seq=(), phrases=None, models=()):
+    def __init__(self, seq=(), phrases=None, models=(), no_models=False):
         super().__init__(seq)
         self._phrases, self._opt_phrases, self._models = {}, {}, models
-        self._init_phrases(phrases or {})
+        self.no_models = no_models
+        if self.no_models:
+            self.clear()
+            self._models = (self._EMPTY,)
+            self.append(self._EMPTY)
+        else:
+            self._init_phrases(phrases or {})
         assert len(self) == len(self._models)
 
     def _init_phrases(self, phrases: dict):
@@ -18,6 +25,8 @@ class ModelsStorage(list):
                 self._opt_phrases[model] = [self._prep_text(x) for x in data]
 
     def model_info_by_id(self, model: int):
+        if self.no_models:
+            return (self._EMPTY,) * 3
         model -= 1
         if len(self._models) > model > -1:
             model_name = self._models[model]
@@ -29,6 +38,8 @@ class ModelsStorage(list):
         return model_name, phrase, msg
 
     def msg_parse(self, text: str, phrases: str) -> tuple:
+        if self.no_models:
+            return self._EMPTY, text
         text2 = self._prep_text(text)
         for phrase in phrases.split(self.SEP):
             offset = text2.find(self._prep_text(phrase))
@@ -37,7 +48,7 @@ class ModelsStorage(list):
         return None, None
 
     def text_processing(self, text, candidate=None):
-        if not (text and isinstance(text, str)):
+        if not (text and isinstance(text, str)) or self.no_models:
             return None
         text2 = self._prep_text(text)
         if candidate:
