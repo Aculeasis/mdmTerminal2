@@ -16,6 +16,7 @@ import time
 import traceback
 import urllib.parse
 import warnings
+from collections import OrderedDict
 from contextlib import contextmanager
 from copy import deepcopy
 from functools import lru_cache
@@ -40,7 +41,8 @@ class TextBox(str):
         return obj
 
 
-class HashableDict(dict):
+class _HashableDict:
+    # noinspection PyTypeChecker
     def __hash__(self):
         return hash(self._cfg_as_tuple(self))
 
@@ -55,6 +57,14 @@ class HashableDict(dict):
                 result.append((key, val))
         result.sort()
         return tuple(result)
+
+
+class HashableDict(_HashableDict, dict):
+    pass
+
+
+class HashableOrderedDict(_HashableDict, OrderedDict):
+    pass
 
 
 class RuntimeErrorTrace(RuntimeError):
