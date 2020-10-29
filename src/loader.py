@@ -479,7 +479,8 @@ class Loader(Owner):
             return -2
         try:
             return volume_.set_volume(vol, control, card)
-        except RuntimeError:
+        except RuntimeError as e:
+            self.log('set_volume({}): {}'.format(vol, e), logger.WARN)
             return -1
 
     def settings_from_inside(self, cfg: dict) -> bool:

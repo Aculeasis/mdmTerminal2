@@ -50,8 +50,8 @@ def _card_count() -> int:
     return count or 1
 
 
-def set_volume(volume, control, card=0) -> int:
-    volume = _clean_volume(volume)
+def set_volume(volume: int, control, card=0) -> int:
+    volume = volume if isinstance(volume, int) else clean_volume(volume)
     p_volume = '{}%'.format(volume)
 
     control = '{0}{1}{0}'.format(QUOTE, control)
@@ -59,21 +59,21 @@ def set_volume(volume, control, card=0) -> int:
 
 
 def get_volume(control, card=0) -> int:
-    return _extract_system_volume([AMIXER, '-c', str(card), GET, control])
+    try:
+        return _extract_system_volume([AMIXER, '-c', str(card), GET, control])
+    except RuntimeError:
+        return -1
 
 
 def _extract_system_volume(cmd: list) -> int:
-    try:
-        data = _extract_values(cmd, '[', ']')
-    except RuntimeError:
-        return -1
+    data = _extract_values(cmd, '[', ']')
     for line in data:
         try:
-            volume = _clean_volume(line.replace('%', ''))
+            volume = clean_volume(line.replace('%', ''))
         except RuntimeError:
             continue
         return volume
-    return -1
+    raise RuntimeError('Volume value not found')
 
 
 def _extract_values(cmd: list, sep_start=QUOTE, sep_end=QUOTE) -> list:
@@ -89,7 +89,7 @@ def _extract_values(cmd: list, sep_start=QUOTE, sep_end=QUOTE) -> list:
     return data
 
 
-def _clean_volume(volume) -> int:
+def clean_volume(volume) -> int:
     try:
         volume = int(volume)
         if volume > 100 or volume < 0:

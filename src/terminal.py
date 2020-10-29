@@ -14,6 +14,7 @@ import utils
 from languages import LANG_CODE, F
 from lib.audio_utils import reset_vad_caches
 from lib.detectors import reset_detector_caches
+from lib.volume import clean_volume
 from listener import NonBlockListener
 from owner import Owner
 
@@ -216,12 +217,14 @@ class MDTerminal(threading.Thread):
 
     def _set_volume(self, value, quiet=False):
         if value is not None:
-            volume = self.own.set_volume(value)
-            if volume == -1:
+            try:
+                value_clean = clean_volume(value)
+            except RuntimeError:
                 self.log(F('Недопустимое значение: {}', value), logger.WARN)
                 if not quiet:
                     self.own.say(F('Недопустимое значение: {}', value))
                 return
+            volume = self.own.set_volume(value_clean)
         else:
             volume = self.own.get_volume()
         if value is not None and volume > -1:
@@ -238,16 +241,14 @@ class MDTerminal(threading.Thread):
     def _set_music_volume(self, value, quiet=False):
         if value is not None:
             try:
-                vol = int(value)
-                if vol < 0 or vol > 100:
-                    raise ValueError('volume must be 0..100')
-            except (TypeError, ValueError) as e:
+                value_clean = clean_volume(value)
+            except RuntimeError as e:
                 msg = F('Недопустимое значение: {}', value)
                 self.log('{}, {}'.format(msg, e), logger.WARN)
                 if not quiet:
                     self.own.say(msg)
                 return
-            self.own.music_real_volume = vol
+            self.own.music_real_volume = value_clean
         value = self.own.music_real_volume
         self.log(F('Громкость музыки {} процентов', value))
         if not quiet:
