@@ -1,6 +1,5 @@
 SpeechRecognition==3.8.1
-gtts_token==1.1.3
-gTTS==2.1.1
+gTTS==2.2.1
 pyaudio>=0.2.11
 python-mpd2>=1.0.0
 requests[socks]>=2.19.1

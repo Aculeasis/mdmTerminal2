@@ -19,7 +19,6 @@ PROXIES = {
     'stt_wit.ai': ('wit.ai',),
     'stt_microsoft': ('microsoft',),
     'stt_azure': ('azure_stt', 'azure'),
-    'token_google': ('google_token', 'google_tts', 'google'),
     'key_yandex': ('yandex_token', 'yandex'),
     'token_azure': ('azure_token', 'azure'),
     'snowboy_training': ('snowboy',),
