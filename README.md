@@ -84,7 +84,8 @@ rm -rf mdmTerminal2/
 
 # Настройка
 ### [Описание всех настроек](https://github.com/Aculeasis/mdmTerminal2/wiki/settings.ini)
-**Важно!** Значительная часть настроек не доступна через MDM VoiceAssistant, их можно изменить отредактировав `mdmTerminal2/src/settings.ini`.
+**Важно!** Значительная часть настроек не доступна через MDM VoiceAssistant, их можно изменить отредактировав `mdmTerminal2/src/settings.ini` или
+установить плагин [web-config](https://github.com/Aculeasis/mdmt2-web-config) и настроить все в браузере.
 
 [Настройка системных фраз](https://github.com/Aculeasis/mdmTerminal2/wiki/phrases.json)
 
@@ -111,7 +112,7 @@ rm -rf mdmTerminal2/
   Чем больше тем лучше слышит, но будет много ложных срабатываний.
 - Сервис распознавания речи
 
-  Можно выбрать wit.ai или Microsoft, но для них нужно получить API. Google работает без ключа.
+  Можно выбрать wit.ai или Microsoft, но для них нужно получить API ключ. Google работает без ключа.
 - Сохраняем.
 ## Запись ключевых слов
 - Переходим в Устройства >  MDM VoiceAssistant > Выбираем наш терминал > Запись ключевого слова.
