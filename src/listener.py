@@ -41,9 +41,13 @@ class Listener:
         while not interrupt_check():
             try:
                 with sr.Microphone(device_index=self.own.mic_index) as source:
-                    vad_hwd, noising = self._get_vad_detector(source, vad_name)
+                    __vad, noising = self._get_vad_detector(source, vad_name)
                     if not isinstance(vad_hwd, SnowboyHWD):
-                        vad_hwd = self._get_hw_detector(source.SAMPLE_WIDTH, source.SAMPLE_RATE, vad_hwd)
+                        vad_hwd = self._get_hw_detector(source.SAMPLE_WIDTH, source.SAMPLE_RATE, __vad)
+                    else:
+                        vad_hwd = __vad
+                    del __vad
+
                     try:
                         model_id, frames, elapsed_time = sr.wait_detection(source, vad_hwd, interrupt_check, noising)
                     except sr.Interrupted:
