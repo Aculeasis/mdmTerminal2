@@ -377,7 +377,9 @@ class ConfigHandler(utils.HashableDict):
                         paths.append(full_path)
                         models.append(file)
 
-        self.models = ModelsStorage(paths, self['models'], models, no_models=self.detector.NO_MODELS)
+        self.models = ModelsStorage(paths, models, self['models'], no_models=self.detector.NO_MODELS)
+
+        [self.log(x.info()) for x in self.models]
         msg = msg or F('Загружено {} моделей', len(self.models))
         self.log(msg, logger.INFO)
         self.own.say_info(msg)

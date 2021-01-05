@@ -205,7 +205,8 @@ class Listener:
     def _detector_cfg(self, **kwargs) -> dict:
         kwargs.update({
             'home': self.cfg.detector.path, 'hot_word_files': self.cfg.models,
-            'sensitivity': self.cfg.gts('sensitivity'), 'audio_gain': self.cfg.gts('audio_gain'),
+            'sensitivities': self.cfg.models.sensitivities(self.cfg.gts('sensitivity')),
+            'audio_gain': self.cfg.gts('audio_gain'),
             'apply_frontend': self.cfg.gt('noise_suppression', 'snowboy_apply_frontend'),
             'rms': self.cfg.gt('smarthome', 'send_rms'),
         })

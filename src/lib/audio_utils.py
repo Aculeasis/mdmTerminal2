@@ -348,8 +348,8 @@ class Detector(BaseDetector):
 
 
 class SnowboyHWD(Detector):
-    def __init__(self, home, hot_word_files, sensitivity, audio_gain, width, rate, another, apply_frontend, rms, **_):
-        self._snowboy = SnowboyHWD._constructor(home, sensitivity, audio_gain, apply_frontend, *hot_word_files)
+    def __init__(self, home, hot_word_files, sensitivities, audio_gain, width, rate, another, apply_frontend, rms, **_):
+        self._snowboy = SnowboyHWD._constructor(home, sensitivities, audio_gain, apply_frontend, *hot_word_files)
         super().__init__(150, width, rate, self._snowboy.SampleRate(), rms, another)
         self._processing_chunk = self.new_chunk
 
@@ -363,16 +363,16 @@ class SnowboyHWD(Detector):
 
     @classmethod
     @lru_cache(maxsize=1)
-    def _constructor(cls, home, sensitivity, audio_gain, apply_frontend, *hot_word_files):
+    def _constructor(cls, home, sensitivities, audio_gain, apply_frontend, *hot_word_files):
         return ModuleLoader().get('snowboy')(
-            home=home, sensitivity=sensitivity, audio_gain=audio_gain,
+            home=home, sensitivities=sensitivities, audio_gain=audio_gain,
             apply_frontend=apply_frontend, hot_word_files=hot_word_files,
         )
 
 
 class PorcupineHWD(Detector):
-    def __init__(self, home, hot_word_files, sensitivity, width, rate, another, rms, **_):
-        self._porcupine = PorcupineHWD._constructor(home, sensitivity, *hot_word_files)
+    def __init__(self, home, hot_word_files, sensitivities, width, rate, another, rms, **_):
+        self._porcupine = PorcupineHWD._constructor(home, sensitivities, *hot_word_files)
         super().__init__(1, width, rate, self._porcupine.sample_rate, rms, another)
         self._sample_size = width * self._porcupine.frame_length
         if not self._vad:
@@ -383,8 +383,7 @@ class PorcupineHWD(Detector):
 
     @classmethod
     @lru_cache(maxsize=1)
-    def _constructor(cls, home, sensitivity, *hot_word_files):
-        sensitivities = [sensitivity] * len(hot_word_files)
+    def _constructor(cls, home, sensitivities, *hot_word_files):
         library_path = os.path.join(home, porcupine_lib())
         model_file_path = os.path.join(home, 'porcupine_params.pv')
         return ModuleLoader().get('porcupine')(

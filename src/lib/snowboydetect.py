@@ -112,9 +112,7 @@ class SnowboyDetect(_object):
     __getattr__ = lambda self, name: _swig_getattr(self, SnowboyDetect, name)
     __repr__ = _swig_repr
 
-    def __init__(self,
-                 home: str, hot_word_files: list, sensitivity: float, audio_gain: float, apply_frontend: bool
-                 ):
+    def __init__(self, home: str, hot_word_files: list, sensitivities: list, audio_gain: float, apply_frontend: bool):
         _init(home)
         resource_filename = os.path.join(home, 'common.res').encode()
         this = _snowboydetect.new_SnowboyDetect(resource_filename, ','.join(hot_word_files).encode())
@@ -122,8 +120,11 @@ class SnowboyDetect(_object):
             self.this.append(this)
         except __builtin__.Exception:
             self.this = this
+        if self.NumHotwords() != len(sensitivities):
+            raise ValueError('Count of hot word files don`t equals sensitivities')
+
         self.SetAudioGain(audio_gain)
-        self.SetSensitivity(','.join([str(sensitivity)] * self.NumHotwords()).encode())
+        self.SetSensitivity(','.join([str(x) for x in sensitivities]).encode())
         self.ApplyFrontend(apply_frontend)
 
     def Reset(self):
