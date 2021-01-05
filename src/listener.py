@@ -38,6 +38,7 @@ class Listener:
         chrome_mode = self.cfg.gts('chrome_mode')
         vad_name = self.cfg.gt('listener', 'vad_chrome') if chrome_mode else None
         vad_name = vad_name or self.cfg.gt('listener', 'vad_mode', '')
+        timeout = 10
         while not interrupt_check():
             try:
                 with sr.Microphone(device_index=self.own.mic_index) as source:
@@ -49,8 +50,11 @@ class Listener:
                     del __vad
 
                     try:
-                        model_id, frames, elapsed_time = sr.wait_detection(source, vad_hwd, interrupt_check, noising)
+                        model_id, frames, elapsed_time = sr.wait_detection(
+                            source, vad_hwd, interrupt_check, noising, timeout
+                        )
                     except sr.Interrupted:
+                        timeout = 180
                         continue
                     except RuntimeError:
                         return

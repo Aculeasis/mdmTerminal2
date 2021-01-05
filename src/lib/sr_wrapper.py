@@ -404,7 +404,7 @@ class EnergyDetectorVAD:
 
 
 # part of https://github.com/Uberi/speech_recognition/blob/master/speech_recognition/__init__.py#L574
-def wait_detection(source, snowboy, interrupt_check, noising=None):
+def wait_detection(source, snowboy, interrupt_check, noising=None, timeout=180):
     elapsed_time = 0
     seconds_per_buffer = float(source.CHUNK) / source.SAMPLE_RATE
     # buffers capable of holding 3 seconds of original and resampled audio
@@ -430,7 +430,7 @@ def wait_detection(source, snowboy, interrupt_check, noising=None):
         if time.time() > start_time:
             if interrupt_check():
                 raise Interrupted('Interrupted')
-            if elapsed_time > 180:
+            if elapsed_time > timeout:
                 raise Interrupted("listening timed out while waiting for hotword to be said")
             start_time = time.time() + 0.2
 
