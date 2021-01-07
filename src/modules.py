@@ -219,28 +219,30 @@ def help_(self, _, phrase):
         if not triggers:
             return ''
         return ', '.join(triggers) or F('любую фразу')
+
     if phrase:
         phrase = phrase.lower()
         if phrase in self.by_name:
             f = self.by_name[phrase]
-            is_del = '' if self.all[f]['enable'] else F('. Модуль удален')
+            module = self.all[f]
+            is_del = '' if module['enable'] else F('. Модуль удален')
             msg = F('Модуль {} доступен в режиме {}. Для активации скажите {}. Модуль предоставляет {} {}')
-            say = msg.format(
-                phrase, get_mode_say(self.all[f]['mode']), words(), self.all[f]['desc'], is_del
-            )
+            say = msg.format(phrase, get_mode_say(module['mode']), words(), module['desc'], is_del)
             return Say(say)
         else:
             return Next
-    say = [F('Всего {} модулей удалены, это: {}')]
 
-    deleted = []
-    for f in self.all:
-        if self.all[f]['enable']:
-            msg = F('Скажите {}. Это активирует {}. Модуль предоставляет {}')
-            say.append(msg.format(words(), self.all[f]['name'], self.all[f]['desc']))
+    say, deleted = [], []
+    for f, module in self.all.items():
+        if module['enable']:
+            say.append(
+                F('Скажите {}. Это активирует {}. Модуль предоставляет {}', words(), module['name'], module['desc'])
+            )
         else:
-            deleted.append(self.all[f]['name'])
-    say[0] = say[0].format(len(self.all) - len(deleted))
+            deleted.append(module['name'])
+
+    if say:
+        say.insert(0, F('Всего доступно {} модулей. Вот они:', len(say)))
     if len(deleted):
         say.append(F('Всего {} модулей удалены, это: {}', len(deleted), ', '.join(deleted)))
     say.append(F('Работа модуля помощь завершена.'))
