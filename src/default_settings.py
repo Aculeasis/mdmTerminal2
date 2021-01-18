@@ -132,6 +132,7 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
         'proxy': 'socks5h://127.0.0.1:9050'
     },
     'snowboy': {
+        'url': 'https://snowboy.kitt.ai/api/v1/train/',
         'clear_models': False,
         'token': 'd4977cf8ff6ede6efb8d2277c1608c7dbebf18a7',
         'name': 'unknown',
@@ -173,9 +174,9 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
 
 STATE = {
     'system': {
-        'ini_version': 52,
+        'ini_version': 53,
         'merge': 1,
         'PLUGINS_API': 3,
-        'VERSION': (0, 18, 3),
+        'VERSION': (0, 18, 4),
     }
 }

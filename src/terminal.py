@@ -582,7 +582,7 @@ class _SampleWorker:
         self.log(F('Компилирую {}', pmdl_path), logger.INFO)
         work_time = time.time()
         try:
-            snowboy = training_service.Training(*samples, params=params)
+            snowboy = training_service.Training(self.cfg.gt('snowboy', 'url'), *samples, params=params)
         except RuntimeError as e:
             self.log(F('Ошибка компиляции модели {}: {}', pmdl_path, e), logger.ERROR)
             self.own.say(F('Ошибка компиляции модели номер {}', model))

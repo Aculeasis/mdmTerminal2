@@ -9,7 +9,6 @@ from .proxy import proxies
 
 class Training:
     # API http://docs.kitt.ai/snowboy/#api-v1-train
-    URL = 'https://snowboy.kitt.ai/api/v1/train/'
 
     PARAMS1 = {
         'name': 'unknown',
@@ -23,7 +22,8 @@ class Training:
         'gender': ({'F', 'M'}, 'M'),
     }
 
-    def __init__(self, file1: str, file2: str, file3: str, params: dict or None = None):
+    def __init__(self, url, file1: str, file2: str, file3: str, params: dict or None = None):
+        self.url = url
         self.__params = params if isinstance(params, dict) else {}
         self._check_params()
         self.__params['voice_samples'] = [
@@ -45,7 +45,7 @@ class Training:
 
     def _request(self):
         try:
-            response = requests.post(self.URL, json=self.__params, proxies=proxies('snowboy_training'))
+            response = requests.post(self.url, json=self.__params, proxies=proxies('snowboy_training'))
         except REQUEST_ERRORS as e:
             raise RuntimeErrorTrace(e)
         if not response.ok:
