@@ -1,8 +1,6 @@
 # mdmTerminal 2
 [![Build status](https://ci.appveyor.com/api/projects/status/v98bcj9mr2s1g13a/branch/master?svg=true)](https://ci.appveyor.com/project/Aculeasis/mdmterminal2)
 
-##### **Важно!** [Локальная компиляция персональных моделей snowboy](https://github.com/Aculeasis/mdmTerminal2/wiki/snowboy-die)
-
 Голосовой терминал для домашней автоматизации, форк [mdmPiTerminal](https://github.com/devoff/mdmPiTerminal).
 
 **Возможности**
@@ -115,6 +113,8 @@ rm -rf mdmTerminal2/
   Можно выбрать wit.ai или Microsoft, но для них нужно получить API ключ. Google работает без ключа.
 - Сохраняем.
 ## Запись ключевых слов
+**Важно!** Для компиляции нужно [запустить локальный сервис или использовать универсальные модели](https://github.com/Aculeasis/mdmTerminal2/wiki/snowboy)
+
 - Переходим в Устройства >  MDM VoiceAssistant > Выбираем наш терминал > Запись ключевого слова.
 - В самом верху выбираем какую модель-активатор мы хотим создать. Если модель уже существует, она будет перезаписана. Можно создать до 6 фраз-активаторов.
 - Нажимаем **Запись**, последовательно записываем 3 образца голоса.
