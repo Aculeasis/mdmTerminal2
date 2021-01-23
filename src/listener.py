@@ -48,6 +48,8 @@ class Listener:
                         vad_hwd = __vad
                     del __vad
 
+                    self._revert_message(vad_hwd)
+
                     try:
                         model_id, frames, elapsed_time = sr.wait_detection(source, vad_hwd, interrupt_check, noising)
                     except sr.Interrupted:
@@ -79,6 +81,11 @@ class Listener:
                     self._detected(model_name, phrase, msg, callback)
             finally:
                 vad_hwd and vad_hwd.die()
+
+    def _revert_message(self, vad):
+        if isinstance(vad, SnowboyHWD) and vad.revert:
+            self.log('Using dirty hack for universal models, may incorrect work: {}'.format(vad.revert), logger.WARN)
+            vad.revert = None
 
     def _adata_parse(self, adata, model_name: str, phrases: str, vad, callback):
         if self.cfg.gts('chrome_alarmstt'):
@@ -194,9 +201,6 @@ class Listener:
             vad.force_adjust_for_ambient_noise(source_or_mic)
             if energy_dynamic:
                 return vad, self.own.noising
-        if isinstance(vad, SnowboyHWD) and vad.revert:
-            self.log('Using dirty hack for universal models, may incorrect work: {}'.format(vad.revert), logger.WARN)
-            vad.revert = None
         return vad, None
 
     def _get_hw_detector(self, width, rate, another_detector=None):
