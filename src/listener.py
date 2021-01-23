@@ -198,6 +198,9 @@ class Listener:
             vad.force_adjust_for_ambient_noise(source_or_mic)
             if energy_dynamic:
                 return vad, self.own.noising
+        if isinstance(vad, SnowboyHWD) and vad.revert:
+            self.log('Using dirty hack for universal models, may incorrect work: {}'.format(vad.revert), logger.WARN)
+            vad.revert = None
         return vad, None
 
     def _get_hw_detector(self, width, rate, another_detector=None):
@@ -207,9 +210,10 @@ class Listener:
         return SnowboyHWD(**cfg)
 
     def _detector_cfg(self, **kwargs) -> dict:
+        sensitivity = self.cfg.gts('sensitivity')
         kwargs.update({
             'home': self.cfg.detector.path, 'hot_word_files': self.cfg.models,
-            'sensitivities': self.cfg.models.sensitivities(self.cfg.gts('sensitivity')),
+            'sensitivities': self.cfg.models.sensitivities(sensitivity), 'sensitivity': sensitivity,
             'audio_gain': self.cfg.gts('audio_gain'),
             'apply_frontend': self.cfg.gt('noise_suppression', 'snowboy_apply_frontend'),
             'rms': self.cfg.gt('smarthome', 'send_rms'),

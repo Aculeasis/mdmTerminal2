@@ -348,10 +348,21 @@ class Detector(BaseDetector):
 
 
 class SnowboyHWD(Detector):
-    def __init__(self, home, hot_word_files, sensitivities, audio_gain, width, rate, another, apply_frontend, rms, **_):
-        self._snowboy = SnowboyHWD._constructor(home, sensitivities, audio_gain, apply_frontend, *hot_word_files)
+    def __init__(self, home, hot_word_files, sensitivities, sensitivity,
+                 audio_gain, width, rate, another, apply_frontend, rms, **_):
+        self._snowboy = SnowboyHWD._constructor(
+            home, sensitivities, sensitivity, audio_gain, apply_frontend, *hot_word_files
+        )
         super().__init__(150, width, rate, self._snowboy.SampleRate(), rms, another)
         self._processing_chunk = self.new_chunk
+
+    @property
+    def revert(self):
+        return self._snowboy.revert
+
+    @revert.setter
+    def revert(self, val):
+        self._snowboy.revert = val
 
     def new_chunk(self, buffer: bytes, is_speech=False):
         self._buffer += buffer
@@ -363,9 +374,9 @@ class SnowboyHWD(Detector):
 
     @classmethod
     @lru_cache(maxsize=1)
-    def _constructor(cls, home, sensitivities, audio_gain, apply_frontend, *hot_word_files):
+    def _constructor(cls, home, sensitivities, sensitivity, audio_gain, apply_frontend, *hot_word_files):
         return ModuleLoader().get('snowboy')(
-            home=home, sensitivities=sensitivities, audio_gain=audio_gain,
+            home=home, sensitivities=sensitivities, sensitivity=sensitivity, audio_gain=audio_gain,
             apply_frontend=apply_frontend, hot_word_files=hot_word_files,
         )
 

@@ -105,6 +105,25 @@ except __builtin__.Exception:
     _newclass = 0
 
 
+def _umdl_hack(sensitivities: list, sensitivity: float, hot_word_files: list, count: int):
+    # FIXME: Извлекать количество моделей из файла модели, вместо этого ужаса!
+    double_models = {'jarvis.umdl', 'neoya.umdl'}
+    new_sensitivities = []
+    revert = []
+    # Универсальные модели могут содержать несколько моделей -> нужно размножить для них sensitivities
+    for num, (file, file_sense) in enumerate(zip(hot_word_files, sensitivities)):
+        new_sensitivities.append(file_sense)
+        revert.append(num)
+        if os.path.basename(file).lower() in double_models:
+            new_sensitivities.append(file_sense)
+            revert.append(num)
+
+    # Если все еще не равно - уравнять.
+    new_sensitivities = new_sensitivities[:count] + [sensitivity] * (count - len(new_sensitivities))
+    revert = {num+1: x+1 for num, x in enumerate(revert[0:len(new_sensitivities)]) if num != x}
+    return new_sensitivities, revert
+
+
 class SnowboyDetect(_object):
     __swig_setmethods__ = {}
     __setattr__ = lambda self, name, value: _swig_setattr(self, SnowboyDetect, name, value)
@@ -112,8 +131,11 @@ class SnowboyDetect(_object):
     __getattr__ = lambda self, name: _swig_getattr(self, SnowboyDetect, name)
     __repr__ = _swig_repr
 
-    def __init__(self, home: str, hot_word_files: list, sensitivities: list, audio_gain: float, apply_frontend: bool):
+    def __init__(self, home: str, hot_word_files: list, sensitivities: list, sensitivity: float,
+                 audio_gain: float, apply_frontend: bool
+                 ):
         _init(home)
+        self._revert, self.revert = None, None
         resource_filename = os.path.join(home, 'common.res').encode()
         this = _snowboydetect.new_SnowboyDetect(resource_filename, ','.join(hot_word_files).encode())
         try:
@@ -121,17 +143,24 @@ class SnowboyDetect(_object):
         except __builtin__.Exception:
             self.this = this
         if self.NumHotwords() != len(sensitivities):
+            sensitivities, self._revert = _umdl_hack(sensitivities, sensitivity, hot_word_files, self.NumHotwords())
+        if self.NumHotwords() != len(sensitivities):
             raise ValueError('Count of hot word files don`t equals sensitivities')
 
         self.SetAudioGain(audio_gain)
         self.SetSensitivity(','.join([str(x) for x in sensitivities]).encode())
         self.ApplyFrontend(apply_frontend)
+        if self._revert:
+            self.revert = ';'.join(['{}->{}'.format(k, v) for k, v in self._revert.items()])
 
     def Reset(self):
         return _snowboydetect.SnowboyDetect_Reset(self)
 
     def RunDetection(self, *args):
-        return _snowboydetect.SnowboyDetect_RunDetection(self, *args)
+        state = _snowboydetect.SnowboyDetect_RunDetection(self, *args)
+        if state > 0 and self._revert:
+            state = self._revert.get(state, state)
+        return state
 
     def SetSensitivity(self, sensitivity_str):
         return _snowboydetect.SnowboyDetect_SetSensitivity(self, sensitivity_str)
