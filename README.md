@@ -125,30 +125,6 @@ rm -rf mdmTerminal2/
 
 Модели хранятся в `mdmTerminal2/src/resources/models/` и имеют расширение `.pmdl`. Они идентичны моделям в **mdmPiTerminal**. Если вы хотите убрать фразу из активации вам нужно удалить соответствующую модель.
 
-# Сборка snowboy (_snowboydetect.so)
-`src/lib/_snowboydetect.so` собирается при установке, но если что-то пошло не так проще всего пересобрать его скриптом:
-```bash
-    ./scripts/snowboy_build.sh
-```
-**Важно!** Скрипт можно запускать после `./scripts/install.sh`, т.к. он устанавливает все необходимые зависимости.
-
-### Сборка на старых системах
-Для сборки нужен swig 3.0.10 и выше, если у вас старый swig и вы получаете ошибку `ImportError: No module named '_snowboydetect'` т.к. модуль не собирается нужно обновить swig:
-```bash
-sudo apt update
-sudo apt-get install -y build-essential libpcre3-dev autoconf automake libtool bison git libboost-dev python-dev ruby ruby-dev tcl-dev mono-devel lua5.1 liblua5.1-0-dev octave liboctave-dev
-
-git clone https://github.com/swig/swig.git
-cd swig
-./autogen.sh
-./configure
-make
-sudo make install
-cd ..
-rm -rf swig/
-```
-И снова запустить скрипт сборки модуля.
-
 # Системные требования
 - Python 3.5 +
 - Snowboy:
@@ -157,6 +133,7 @@ rm -rf swig/
 - [Porcupine](https://github.com/Aculeasis/mdmTerminal2/wiki/porcupine): Linux, [Windows](https://github.com/Aculeasis/mdmTerminal2/wiki/windows), Raspberry Pi, Armlinux (a9-neon).
 
 # Решение проблем
+- Если после установки возникают ошибки со snowboy - [соберите его вручную](https://github.com/Aculeasis/mdmTerminal2/wiki/snowboy#%D0%A1%D0%B1%D0%BE%D1%80%D0%BA%D0%B0-snowboy-_snowboydetectso).
 - Если не работает USB микрофон, попробуйте выдернуть и вставить обратно, иногда это помогает.
 - Заикание rhvoice* в конце фраз лечится использованием одного из конфигов для `asound.conf`. Или отключением кэша (wav не заикается)
 - Если голос терминала искажается при активации, нужно настраивать `asound.conf` или попробовать другие конфиги.
