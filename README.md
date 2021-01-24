@@ -127,7 +127,7 @@ rm -rf mdmTerminal2/
 
 # Системные требования
 - Python 3.5 +
-- Snowboy:
+- [Snowboy](https://github.com/Aculeasis/mdmTerminal2/wiki/snowboy):
   - OS: Linux (рекомендую debian-based)
   - Architectures: armv7l, aarch64, x86_64
 - [Porcupine](https://github.com/Aculeasis/mdmTerminal2/wiki/porcupine): Linux, [Windows](https://github.com/Aculeasis/mdmTerminal2/wiki/windows), Raspberry Pi, Armlinux (a9-neon).
