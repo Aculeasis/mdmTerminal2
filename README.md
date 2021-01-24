@@ -3,7 +3,8 @@
 
 Голосовой терминал для домашней автоматизации, форк [mdmPiTerminal](https://github.com/devoff/mdmPiTerminal).
 
-**Возможности**
+<details><summary><b>Возможности</b></summary>
+
 - Запуск распознавания по любым ключевым словам.
 - Передача команд на сервер.
 - Поддержка [MajorDroid API](https://mjdm.ru/forum/viewtopic.php?f=5&t=518) (sayReply, ask etc.).
@@ -11,14 +12,17 @@
 - [Работа через прокси](https://github.com/Aculeasis/mdmTerminal2/wiki/proxy).
 - [Модули](https://github.com/Aculeasis/mdmTerminal2/wiki/modules).
 - [Плагины](https://github.com/Aculeasis/mdmTerminal2/wiki/plugins).
+</details>
 
-**Интеграция**
+<details><summary><b>Интеграция</b></summary>
+
 - [MajorDoMo](https://github.com/sergejey/majordomo): [MDM VoiceAssistant](https://github.com/lanket/mdmPiTerminalModule).
 - [intraHouse](https://github.com/intrahouseio): [plugin-voiceterminal](https://github.com/intrahouseio/intraHouse.plugin-voiceterminal) (WIP).
 - [Home Assistant](https://home-assistant.io/): Через [плагин](https://github.com/netman1ac/mdmt2-mqtt) для поддержки MQTT.
 - [Приложение под Android](https://github.com/Aculeasis/mdmt2-config-android).
 - Google Home: Через [плагин](https://github.com/Aculeasis/mdmt2-google-assistant) (частично).
 - [API документация](https://github.com/Aculeasis/mdmTerminal2/wiki/API-(draft)) (WIP).
+</details>
 
 # Установка
 **Используя докер**: [Dockerfile и готовые образы под x86_64, aarch64, armv7l](https://github.com/Aculeasis/mdmt2-docker)
@@ -126,7 +130,7 @@ rm -rf mdmTerminal2/
 Модели хранятся в `mdmTerminal2/src/resources/models/` и имеют расширение `.pmdl`. Они идентичны моделям в **mdmPiTerminal**. Если вы хотите убрать фразу из активации вам нужно удалить соответствующую модель.
 
 # Системные требования
-- Python 3.5 +
+- Python 3.5+
 - [Snowboy](https://github.com/Aculeasis/mdmTerminal2/wiki/snowboy):
   - OS: Linux (рекомендую debian-based)
   - Architectures: armv7l, aarch64, x86_64
