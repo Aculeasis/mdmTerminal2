@@ -110,21 +110,47 @@ class Recognizer(speech_recognition.Recognizer):
         finally:
             proxies.monkey_patching_disable()
 
+    def _get_record_callback(self):
+        class RecordCallback:
+            def __init__(self, record_callback):
+                self._record_callback = record_callback
+                self._is_begun = False
+
+            def begin(self):
+                if self._record_callback and not self._is_begun:
+                    self._is_begun = True
+                    self._record_callback(True)
+
+            def end(self, *_):
+                if self._record_callback and self._is_begun:
+                    self._record_callback(False)
+                    self._record_callback = None
+
+            __enter__ = begin
+            __exit__ = end
+        return RecordCallback(self._record_callback)
+
+    def _get_listen_const(self, source_):
+        class Const:
+            def __init__(self, source, pause_threshold, phrase_threshold, non_speaking_duration):
+                self.seconds_per_buffer = float(source.CHUNK) / source.SAMPLE_RATE
+                # number of buffers of non-speaking audio during a phrase,
+                # before the phrase should be considered complete
+                self.pause_buffer_count = int(math.ceil(pause_threshold / self.seconds_per_buffer))
+                # minimum number of buffers of speaking audio before we consider the speaking audio a phrase
+                self.phrase_buffer_count = int(math.ceil(phrase_threshold / self.seconds_per_buffer))
+                # maximum number of buffers of non-speaking audio to retain before and after a phrase
+                self.non_speaking_buffer_count = int(math.ceil(non_speaking_duration / self.seconds_per_buffer))
+        return Const(source_, self.pause_threshold, self.phrase_threshold, self.non_speaking_duration)
+
     # part of https://github.com/Uberi/speech_recognition/blob/master/speech_recognition/__init__.py#L616
     def listen1(self, source, vad, timeout=None, phrase_time_limit=None, hw_buffer=None, hw_time=None):
-        seconds_per_buffer = float(source.CHUNK) / source.SAMPLE_RATE
-        # number of buffers of non-speaking audio during a phrase, before the phrase should be considered complete
-        pause_buffer_count = int(math.ceil(self.pause_threshold / seconds_per_buffer))
-        # minimum number of buffers of speaking audio before we consider the speaking audio a phrase
-        phrase_buffer_count = int(math.ceil(self.phrase_threshold / seconds_per_buffer))
-        # maximum number of buffers of non-speaking audio to retain before and after a phrase
-        non_speaking_buffer_count = int(math.ceil(self.non_speaking_duration / seconds_per_buffer))
-
+        const = self._get_listen_const(source)
         # read audio input for phrases until there is a phrase that is long enough
         elapsed_time = 0  # number of seconds of audio read
         pause_count = 0
         buffer = b''  # an empty buffer means that the stream has ended and there is no data left to read
-        send_record_starting = False
+        record_callback = self._get_record_callback()
         # Use snowboy to words detecting instead of energy_threshold
         while True:
             frames = collections.deque()
@@ -132,17 +158,16 @@ class Recognizer(speech_recognition.Recognizer):
                 # store audio input until the phrase starts
                 while True:
                     # handle waiting too long for phrase by raising an exception
-                    elapsed_time += seconds_per_buffer
+                    elapsed_time += const.seconds_per_buffer
                     if timeout and elapsed_time > timeout:
-                        if self._record_callback and send_record_starting:
-                            self._record_callback(False)
+                        record_callback.end()
                         raise WaitTimeoutError("listening timed out while waiting for phrase to start")
 
                     buffer = source.stream.read(source.CHUNK)
                     if not buffer:
                         break  # reached end of the stream
                     frames.append(buffer)
-                    if len(frames) > non_speaking_buffer_count:
+                    if len(frames) > const.non_speaking_buffer_count:
                         # ensure we only keep the needed amount of non-speaking buffers
                         frames.popleft()
 
@@ -161,12 +186,10 @@ class Recognizer(speech_recognition.Recognizer):
             # read audio input until the phrase ends
             pause_count, phrase_count = 0, 0
             phrase_start_time = elapsed_time
-            if self._record_callback and not send_record_starting:
-                send_record_starting = True
-                self._record_callback(True)
+            record_callback.begin()
             while True:
                 # handle phrase being too long by cutting off the audio
-                elapsed_time += seconds_per_buffer
+                elapsed_time += const.seconds_per_buffer
                 if phrase_time_limit and elapsed_time - phrase_start_time > phrase_time_limit:
                     break
 
@@ -181,48 +204,39 @@ class Recognizer(speech_recognition.Recognizer):
                     pause_count = 0
                 else:
                     pause_count += 1
-                if pause_count > pause_buffer_count:  # end of the phrase
+                if pause_count > const.pause_buffer_count:  # end of the phrase
                     break
 
             # check how long the detected phrase is, and retry listening if the phrase is too short
             phrase_count -= pause_count  # exclude the buffers for the pause before the phrase
-            if phrase_count >= phrase_buffer_count or len(buffer) == 0:
+            if phrase_count >= const.phrase_buffer_count or len(buffer) == 0:
                 break  # phrase is long enough or we've reached the end of the stream, so stop listening
 
         # obtain frame data
-        for i in range(pause_count - non_speaking_buffer_count):
+        for i in range(pause_count - const.non_speaking_buffer_count):
             frames.pop()  # remove extra non-speaking frames at the end
         frame_data = b"".join(frames)
-        if self._record_callback and send_record_starting:
-            self._record_callback(False)
+        record_callback.end()
         return AudioData(frame_data, source.SAMPLE_RATE, source.SAMPLE_WIDTH)
 
     def listen2(self, source, vad, recognition, timeout, phrase_time_limit=None, hw_buffer=None, hw_time=None):
         timeout = timeout or 5
-        seconds_per_buffer = float(source.CHUNK) / source.SAMPLE_RATE
-        # number of buffers of non-speaking audio during a phrase, before the phrase should be considered complete
-        pause_buffer_count = int(math.ceil(self.pause_threshold / seconds_per_buffer))
-        # minimum number of buffers of speaking audio before we consider the speaking audio a phrase
-        phrase_buffer_count = int(math.ceil(self.phrase_threshold / seconds_per_buffer))
-        # maximum number of buffers of non-speaking audio to retain before and after a phrase
-        non_speaking_buffer_count = int(math.ceil(self.non_speaking_duration / seconds_per_buffer))
-
+        const = self._get_listen_const(source)
         # read audio input for phrases until there is a phrase that is long enough
         elapsed_time = 0  # number of seconds of audio read
         buffer = b''  # an empty buffer means that the stream has ended and there is no data left to read
         # Use snowboy to words detecting instead of energy_threshold
-        send_record_starting = False
+        record_callback = self._get_record_callback()
         voice_recognition = StreamRecognition(recognition)
         while voice_recognition.processing:
             if hw_time is None:
                 # store audio input until the phrase starts
-                silent_frames = collections.deque(maxlen=non_speaking_buffer_count)
+                silent_frames = collections.deque(maxlen=const.non_speaking_buffer_count)
                 while voice_recognition.processing:
                     # handle waiting too long for phrase by raising an exception
-                    elapsed_time += seconds_per_buffer
+                    elapsed_time += const.seconds_per_buffer
                     if timeout and elapsed_time > timeout:
-                        if self._record_callback and send_record_starting:
-                            self._record_callback(False)
+                        record_callback.end()
                         voice_recognition.terminate()
                         raise WaitTimeoutError("listening timed out while waiting for phrase to start")
 
@@ -250,9 +264,7 @@ class Recognizer(speech_recognition.Recognizer):
             # read audio input until the phrase ends
             pause_count, phrase_count = 0, 0
             phrase_start_time = elapsed_time
-            if self._record_callback and not send_record_starting:
-                send_record_starting = True
-                self._record_callback(True)
+            record_callback.begin()
             while voice_recognition.processing:
                 # 100% frames must be available for call read()
                 if not source.stream.read_available:
@@ -264,7 +276,7 @@ class Recognizer(speech_recognition.Recognizer):
                     break
 
                 # handle phrase being too long by cutting off the audio
-                elapsed_time += seconds_per_buffer
+                elapsed_time += const.seconds_per_buffer
                 if phrase_time_limit and elapsed_time - phrase_start_time >= phrase_time_limit:
                     break
 
@@ -275,17 +287,15 @@ class Recognizer(speech_recognition.Recognizer):
                     pause_count = 0
                 else:
                     pause_count += 1
-                if pause_count > pause_buffer_count:  # end of the phrase
+                if pause_count > const.pause_buffer_count:  # end of the phrase
                     break
 
             # check how long the detected phrase is, and retry listening if the phrase is too short
             phrase_count -= pause_count  # exclude the buffers for the pause before the phrase
-            if phrase_count >= phrase_buffer_count or len(buffer) == 0:
+            if phrase_count >= const.phrase_buffer_count or len(buffer) == 0:
                 break  # phrase is long enough or we've reached the end of the stream, so stop listening
 
-        if self._record_callback and send_record_starting:
-            self._record_callback(False)
-
+        record_callback.end()
         voice_recognition.end()
         if voice_recognition.ready:
             if not voice_recognition.is_ok:
@@ -297,12 +307,9 @@ class Recognizer(speech_recognition.Recognizer):
         return voice_recognition
 
     def listen3(self, source, stream_hwd: StreamDetector, phrase_time_limit):
-        seconds_per_buffer = float(source.CHUNK) / source.SAMPLE_RATE
-        pause_buffer_count = int(math.ceil(self.pause_threshold / seconds_per_buffer))
-
+        const = self._get_listen_const(source)
         pause_count, elapsed_time = 0, 0
-        self._record_callback and self._record_callback(True)
-        try:
+        with self._get_record_callback():
             while stream_hwd.processing:
                 if not source.stream.read_available:
                     time.sleep(0.004)
@@ -311,7 +318,7 @@ class Recognizer(speech_recognition.Recognizer):
                 if not buffer:
                     break
 
-                elapsed_time += seconds_per_buffer
+                elapsed_time += const.seconds_per_buffer
                 if phrase_time_limit and elapsed_time >= phrase_time_limit:
                     break
 
@@ -319,10 +326,8 @@ class Recognizer(speech_recognition.Recognizer):
                     pause_count = 0
                 else:
                     pause_count += 1
-                if pause_count > pause_buffer_count:
+                if pause_count > const.pause_buffer_count:
                     break
-        finally:
-            self._record_callback and self._record_callback(False)
         stream_hwd.end()
 
         if not stream_hwd.is_ok:
@@ -453,7 +458,6 @@ def google_reply_parser(text: str) -> str:
             actual_result = result[0].get('alternative')
             break
 
-    # print(actual_result)
     if not actual_result:
         raise UnknownValueError()
 
