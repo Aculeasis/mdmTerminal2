@@ -105,7 +105,7 @@ class ModelsStorage(list):
             for id_, phrase in enumerate(item.opt_phrase):
                 offset = text2.find(phrase)
                 if offset > -1:
-                    phrase = item.phrases[id_]
+                    phrase = item.phrase[id_]
                     return item.model, phrase, text[offset + len(phrase):].lstrip(self.STRIP)
         return None
 
