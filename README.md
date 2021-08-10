@@ -1,5 +1,5 @@
 # mdmTerminal 2
-[![Build status](https://ci.appveyor.com/api/projects/status/v98bcj9mr2s1g13a/branch/master?svg=true)](https://ci.appveyor.com/project/Aculeasis/mdmterminal2)
+[![Tests](https://github.com/Aculeasis/mdmTerminal2/actions/workflows/tests.yml/badge.svg?branch=master)](https://github.com/Aculeasis/mdmTerminal2/actions/workflows/tests.yml)
 
 Голосовой терминал для домашней автоматизации, форк [mdmPiTerminal](https://github.com/devoff/mdmPiTerminal).
 
