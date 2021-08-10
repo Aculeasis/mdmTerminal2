@@ -23,7 +23,7 @@ jobs:
         python-version: 3.8
     - name: Install system dependencies
       run: |
-        DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends mpd alsa-utils flac mpg123 \
+        sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends mpd alsa-utils flac mpg123 \
         libatlas3-base libexpat1 portaudio19-dev
 #        locales
 #        locale-gen ru_RU.UTF-8
