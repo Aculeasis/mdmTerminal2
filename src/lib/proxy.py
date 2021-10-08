@@ -188,7 +188,7 @@ class _Proxies:
                 'proxy_type': pr.scheme,
                 'addr': pr.hostname,
                 'port': pr.port,
-                'username': pr.password,
+                'username': pr.username,
                 'password': pr.password,
             }
         except ValueError as e:
