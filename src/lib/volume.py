@@ -6,7 +6,7 @@ GET = 'sget'
 QUOTE = '\''
 UNDEFINED = 'undefined'
 
-BEST = ('Line Out', 'Lineout volume control')
+BEST = ('Line Out', 'Lineout volume control', 'PCM')
 WORST = ('PCM', 'line', 'out')
 
 
