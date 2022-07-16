@@ -20,7 +20,7 @@ def extract_volume_control():
 
 def _extract_volume_control(card):
     try:
-        data = _extract_values([AMIXER, 'scontrols', '-c', str(card)])
+        data = _extract_values([AMIXER, 'scontents', '-c', str(card)])
     except RuntimeError:
         return UNDEFINED
     # find best
