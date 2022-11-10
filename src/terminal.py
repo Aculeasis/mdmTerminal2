@@ -216,6 +216,7 @@ class MDTerminal(threading.Thread):
         self._set_music_volume(value, True)
 
     def _set_volume(self, value, quiet=False):
+        quiet |= self.cfg['volume']['changes_quiet']
         if value is not None:
             try:
                 value_clean = clean_volume(value)
@@ -239,6 +240,7 @@ class MDTerminal(threading.Thread):
                 self.own.say(F('Громкость {} процентов', volume))
 
     def _set_music_volume(self, value, quiet=False):
+        quiet |= self.cfg['volume']['changes_quiet']
         if value is not None:
             try:
                 value_clean = clean_volume(value)

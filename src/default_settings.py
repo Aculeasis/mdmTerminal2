@@ -154,6 +154,7 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
     'volume': {
         'card': 0,
         'line_out': '',
+        'changes_quiet': False,
     },
     'noise_suppression': {
         'snowboy_apply_frontend': False,
@@ -174,9 +175,9 @@ CFG = {  # Дефолтные настройки https://github.com/Aculeasis/md
 
 STATE = {
     'system': {
-        'ini_version': 53,
+        'ini_version': 54,
         'merge': 1,
         'PLUGINS_API': 3,
-        'VERSION': (0, 18, 9),
+        'VERSION': (0, 18, 10),
     }
 }
